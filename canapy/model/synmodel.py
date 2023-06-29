@@ -56,7 +56,7 @@ class SynModel(Model):
             )
 
         # load data
-        df = corpus.dataset
+        df = corpus.dataset.query("train == True")
         df["seqid"] = df["sequence"].astype(str) + df["annotation"].astype(str)
 
         sampling_rate = self.config.transforms.audio.sampling_rate
@@ -77,30 +77,35 @@ class SynModel(Model):
             seq_end = df.loc["offset_spec", -1]
             mfcc = np.load(notated_audio)
 
-            if seq_end > mfcc.shape(1):
+            if seq_end > mfcc.shape[1]:
+                logger.warning(f"Found inconsistent sequence length: "
+                               f"audio {notated_audio} was converted to "
+                               f"{mfcc.shape[1]} timesteps but last annotation is at "
+                               f"timestep {seq_end}. Annotation will be trimmed.")
 
+            seq_end = min(seq_end, mfcc.shape[1])
 
+            mfcc = mfcc[:, :seq_end]
+
+            # repeat labels along time axis
             repeated_labels = np.zeros((seq_end, n_classes))
             for row in seq_annots.itertuples():
-                y[s:e] = syll
+                onset = row.onset_spec
+                offset = min(row.offset_spec, seq_end)
+                label = row.encoded_label
 
-            if (y == "").sum() != 0:
-                y[y == ""] = "SIL"
+                repeated_labels[onset: offset] = label
 
-            return y
-
-
-        # repeat labels along time axis
+            train_mfcc.append(mfcc)
+            train_labels.append(repeated_labels)
 
         # train
+        self.rpy_model.fit(train_mfcc, train_labels)
 
-        self.initialize()
-
+        return self
 
     def predict(self, corpus):
         ...
-
-
 
 
 
