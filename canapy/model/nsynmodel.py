@@ -7,7 +7,8 @@ import numpy as np
 from reservoirpy.nodes import Reservoir, Ridge, ESN
 
 from .base import Model
-from ..transforms.synesn import SynESNTransform
+from ..transforms.nsynesn import NSynESNTransform
+
 
 logger = logging.getLogger("canapy")
 
@@ -16,7 +17,7 @@ class NSynModel(Model):
 
     def __init__(self, config, transform_output_directory):
         self.config = config
-        self.transform = SynESNTransform()
+        self.transform = NSynESNTransform()
         self.transform_output_directory = transform_output_directory
         self.rpy_model = self.initialize()
 
@@ -56,48 +57,17 @@ class NSynModel(Model):
             )
 
         # load data
-        df = corpus.dataset.query("train == True")
-        df["seqid"] = df["sequence"].astype(str) + df["annotation"].astype(str)
-
-        sampling_rate = self.config.transforms.audio.sampling_rate
-        hop_length = self.config.transforms.audio.mfcc.hop_length
-
-        df["onset_spec"] = np.round(df["onset_s"] * sampling_rate / hop_length)
-        df["offset_spec"] = np.round(df["offset_s"] * sampling_rate / hop_length)
+        df = corpus.data_ressource["mfcc_dataset"]
 
         n_classes = len(df["label"].unique())
 
         train_mfcc = []
         train_labels = []
-        for seqid in df["seqid"].unique():
 
-            seq_annots = df.query("seqid == @seqid")
-            notated_audio = seq_annots.loc[0, "notated_path"]
+        for row in df.itertuples():
 
-            seq_end = df.loc["offset_spec", -1]
-            mfcc = np.load(notated_audio)
-
-            if seq_end > mfcc.shape[1]:
-                logger.warning(f"Found inconsistent sequence length: "
-                               f"audio {notated_audio} was converted to "
-                               f"{mfcc.shape[1]} timesteps but last annotation is at "
-                               f"timestep {seq_end}. Annotation will be trimmed.")
-
-            seq_end = min(seq_end, mfcc.shape[1])
-
-            mfcc = mfcc[:, :seq_end]
-
-            # repeat labels along time axis
-            repeated_labels = np.zeros((seq_end, n_classes))
-            for row in seq_annots.itertuples():
-                onset = row.onset_spec
-                offset = min(row.offset_spec, seq_end)
-                label = row.encoded_label
-
-                repeated_labels[onset: offset] = label
-
-            train_mfcc.append(mfcc)
-            train_labels.append(repeated_labels)
+            train_mfcc.append(row.mfcc.T)
+            train_labels.append(np.repeat(row.encoded_label.reshape(1,-1), row.mfcc.shape[1], axis=0))
 
         # train
         self.rpy_model.fit(train_mfcc, train_labels)
