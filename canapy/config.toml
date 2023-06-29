@@ -1,0 +1,42 @@
+[misc]
+seed=42
+
+[transforms.annots]
+time_precision=0.001
+min_label_duration=0.01
+lonely_labels=["cri", "TRASH"]
+min_silence_gap=0.001
+silence_tag="SIL"
+
+[transforms.audio]
+audio_features=["mfcc", "delta", "delta2"]
+sampling_rate=44100
+audio_timings=["hop_length", "win_length"]
+audio_frames=["n_fft"]
+spec_frames=[]
+
+[transforms.audio.mfcc]
+n_mfcc=13
+hop_length=0.01
+win_length=0.02
+n_fft=2048
+fmin=500
+fmax=8000
+lifter=40
+
+[transforms.audio.delta]
+padding="wrap"
+
+[transforms.audio.delta2]
+padding="wrap"
+
+[transforms.training]
+max_sequences=-1
+test_ratio=0.2
+
+[transforms.training.balance]
+min_class_total_duration=30 # seconds
+min_silence_duration=0.2 # seconds
+
+[transforms.training.balance.data_augmentation]
+noise_std=0.01
