@@ -4,7 +4,7 @@
 import logging
 import numpy as np
 
-from reservoirpy.nodes import Rerservoir, Ridge, ESN
+from reservoirpy.nodes import Reservoir, Ridge, ESN
 
 from .base import Model
 from ..transforms.synesn import SynESNTransform
@@ -16,7 +16,7 @@ class SynModel(Model):
 
     def __init__(self, config, transform_output_directory):
         self.config = config
-        self.transform = SynESNTransform()
+        self.transforms = SynESNTransform()
         self.transform_output_directory = transform_output_directory
         self.rpy_model = self.initialize()
 
@@ -51,7 +51,7 @@ class SynModel(Model):
 
     def fit(self, corpus):
 
-        corpus = self.transform(
+        corpus = self.transforms(
             corpus, purpose="training", output_directory=self.transform_output_directory
             )
 
@@ -96,7 +96,7 @@ class SynModel(Model):
 
                 repeated_labels[onset: offset] = label
 
-            train_mfcc.append(mfcc)
+            train_mfcc.append(mfcc.T)
             train_labels.append(repeated_labels)
 
         # train

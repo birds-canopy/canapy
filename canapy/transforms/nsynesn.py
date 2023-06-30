@@ -9,7 +9,7 @@ import librosa as lbr
 
 from .base import Transform
 from .commons.audio import compute_mfcc
-from .commons.training import split_train_test
+from .commons.training import split_train_test, encode_labels
 from ..log import log
 
 
@@ -159,6 +159,7 @@ class NSynESNTransform(Transform):
         split_train_test,
         balance_labels_duration,
         compute_mfcc_for_balanced_dataset,
+        encode_labels,
     ]
     training_data_resource_name = ["dataset", "balanced_dataset", "mfcc_dataset"]
 

@@ -154,23 +154,3 @@ def encode_labels(corpus, *, resource_name, **kwargs):
         one_df["encoded_label"] = [e for e in encoded_labels]
 
     return corpus
-
-
-@log(fn_type="training data tranform")
-def repeat_labels_along_time_axis(corpus, *, resource_name):
-
-    if "syn_mfcc" not in corpus.data_resources:
-        raise ValueError()
-
-    if "balanced_dataset-train" in corpus.data_resources \
-            and "mfcc_dataset" not in corpus.data_resources:
-        raise ValueError()
-
-    for row in corpus.data_resources["syn_mfcc"].itertuples():
-        spec_path = row.feature_path
-
-        n_timesteps = np.load(spec_path).shape[1]
-
-
-
-

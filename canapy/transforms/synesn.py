@@ -3,11 +3,11 @@
 # Copyright: Nathan Trouvain
 from .base import Transform
 from .commons.audio import compute_mfcc
-from .commons.training import split_train_test
+from .commons.training import split_train_test, encode_labels
 
 
 class SynESNTransform(Transform):
-    training_data_transforms = [split_train_test]
+    training_data_transforms = [split_train_test, encode_labels]
     training_data_resource_name = ["dataset"]
 
     audio_transforms = [compute_mfcc]

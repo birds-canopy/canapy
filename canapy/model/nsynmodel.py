@@ -52,7 +52,7 @@ class NSynModel(Model):
 
     def fit(self, corpus):
 
-        corpus = self.transform(
+        corpus = self.transforms(
             corpus, purpose="training", output_directory=self.transform_output_directory
             )
 
