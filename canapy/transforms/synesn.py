@@ -3,12 +3,13 @@
 # Copyright: Nathan Trouvain
 from .base import Transform
 from .commons.audio import compute_mfcc
-from .commons.training import split_train_test, encode_labels
+from .commons.training import encode_labels, prepare_dataset_for_training
 
 
 class SynESNTransform(Transform):
-    training_data_transforms = [split_train_test, encode_labels]
-    training_data_resource_name = ["dataset"]
-
-    audio_transforms = [compute_mfcc]
-    audio_resource_names = ["syn_mfcc"]
+    def __init__(self):
+        super().__init__(
+            training_data_transforms=[prepare_dataset_for_training, encode_labels],
+            audio_transforms=[compute_mfcc],
+            audio_resource_names=["syn_mfcc"],
+        )

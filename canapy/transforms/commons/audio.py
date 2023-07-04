@@ -30,7 +30,17 @@ def compute_mfcc(corpus, *, output_directory, resource_name, redo=False, **kwarg
         else:
             audio, rate = lbr.load(audio_path, sr=config.sampling_rate)
 
-        cepstrum = lbr.feature.mfcc(y=audio, sr=rate, **config.mfcc)
+        cepstrum = lbr.feature.mfcc(
+            y=audio,
+            sr=rate,
+            n_mfcc=config.n_mfcc,
+            hop_length=config.as_fftwindow("hop_length"),
+            win_length=config.as_fftwindow("win_length"),
+            n_fft=config.n_fft,
+            fmin=config.fmin,
+            fmax=config.fmax,
+            lifter=config.lifter,
+        )
 
         cepstral_features = []
         if "mfcc" in config.audio_features:

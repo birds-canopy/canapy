@@ -89,7 +89,7 @@ class Corpus:
             for annot_file in annots_dir.rglob(f"**/*{annot_ext}"):
                 annots = scribe.from_file(
                     annot_path=annot_file, notated_path=audio_dir
-                ).to_annot(decimals=round(np.log10(time_precision)))
+                ).to_annot(decimals=round(-np.log10(time_precision)))
 
                 if isinstance(annots, Iterable):
                     annotations.extend(annots)
@@ -124,7 +124,6 @@ class Corpus:
 
 
 if __name__ == "__main__":
-
     crowsetta.register_format(Marron1CSV)
     c = Corpus.from_directory(
         audio_directory="/home/nathan/Documents/Code/canapy-test/data/",

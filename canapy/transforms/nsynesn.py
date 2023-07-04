@@ -9,7 +9,7 @@ import librosa as lbr
 
 from .base import Transform
 from .commons.audio import compute_mfcc
-from .commons.training import split_train_test, encode_labels
+from .commons.training import prepare_dataset_for_training, encode_labels
 from ..log import log
 
 
@@ -128,7 +128,7 @@ def compute_mfcc_for_balanced_dataset(corpus, *, resource_name, redo=False, **kw
         for entry in annots.itertuples():
             start = config.audio_steps(entry.onset_s)
             end = config.audio_steps(entry.offset_s)
-            one_label = audio[start: end]
+            one_label = audio[start:end]
 
             if hasattr(entry, "augmented"):
                 one_label = _noisify(one_label, config, rs)
@@ -155,13 +155,20 @@ def compute_mfcc_for_balanced_dataset(corpus, *, resource_name, redo=False, **kw
 
 
 class NSynESNTransform(Transform):
-    training_data_transforms = [
-        split_train_test,
-        balance_labels_duration,
-        compute_mfcc_for_balanced_dataset,
-        encode_labels,
-    ]
-    training_data_resource_name = ["dataset", "balanced_dataset", "mfcc_dataset"]
-
-    audio_transforms = [compute_mfcc]
-    audio_resource_names = ["syn_mfcc"]
+    def __init__(self):
+        super().__init__(
+            training_data_transforms=[
+                prepare_dataset_for_training,
+                balance_labels_duration,
+                compute_mfcc_for_balanced_dataset,
+                encode_labels,
+            ],
+            training_data_resource_name=[
+                None,
+                "dataset",
+                "balanced_dataset",
+                "mfcc_dataset",
+            ],
+            audio_transforms=[compute_mfcc],
+            audio_resource_names=["syn_mfcc"],
+        )

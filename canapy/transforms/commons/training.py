@@ -11,7 +11,16 @@ import pandas as pd
 
 from sklearn.preprocessing import OneHotEncoder
 
+
+from .annots import (
+    sort_annotations,
+    tag_silences,
+    remove_short_labels,
+    merge_labels,
+)
+from ..base import Transform
 from ...log import log
+
 
 logger = logging.getLogger("canapy")
 
@@ -22,7 +31,7 @@ def split_train_test(corpus, *, resource_name, **kwargs):
     Ensure that at least one example of each syllable is present in train set.
     """
     df = corpus.dataset
-    config = corpus.config.tranforms.training
+    config = corpus.config.transforms.training
 
     rs = np.random.default_rng(corpus.config.misc.seed)
 
@@ -91,14 +100,13 @@ def split_train_test(corpus, *, resource_name, **kwargs):
         train_df = train_df.query("seqid in @selection")
 
     df["train"] = False
-    train_seqs = train_df["seqid"].unique()
-    df.query("seqid in @train_seqs")["train"] = True
+    df.loc[train_df.index, "train"] = True
 
     # Time stats
     train_time = (train_df["offset_s"] - train_df["onset_s"]).sum()
     test_time = (test_df["offset_s"] - test_df["onset_s"]).sum()
 
-    silence_tag = corpus.config.tranforms.annots.silence_tag
+    silence_tag = corpus.config.transforms.annots.silence_tag
     train_no_silence = train_df.query("label != @silence_tag")
     test_no_silence = test_df.query("label != @silence_tag")
 
@@ -129,7 +137,6 @@ def split_train_test(corpus, *, resource_name, **kwargs):
 
 @log(fn_type="training data tranform")
 def encode_labels(corpus, *, resource_name, **kwargs):
-
     df = corpus.dataset
 
     df["encoded_label"] = np.nan
@@ -154,3 +161,28 @@ def encode_labels(corpus, *, resource_name, **kwargs):
         one_df["encoded_label"] = [e for e in encoded_labels]
 
     return corpus
+
+
+def prepare_dataset_for_training(corpus, **kwargs):
+    if "dataset" in corpus.data_resources:
+        return corpus
+    else:
+        transform = DatasetTransform()
+        return transform(corpus, purpose="training")
+
+
+class DatasetTransform(Transform):
+    def __init__(self):
+        super().__init__(
+            annots_transforms=[
+                sort_annotations,
+                tag_silences,
+                sort_annotations,
+                merge_labels,
+                sort_annotations,
+                remove_short_labels,
+                sort_annotations,
+            ],
+            training_data_transforms=[split_train_test],
+            training_data_resource_name=["dataset"],
+        )

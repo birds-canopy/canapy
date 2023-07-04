@@ -2,27 +2,23 @@
 seed=42
 
 [transforms.annots]
-time_precision=0.001
-min_label_duration=0.01
+time_precision=0.001 # seconds
+min_label_duration=0.01 # seconds
 lonely_labels=["cri", "TRASH"]
-min_silence_gap=0.001
+min_silence_gap=0.001 # seconds
 silence_tag="SIL"
 
 [transforms.audio]
 audio_features=["mfcc", "delta", "delta2"]
-sampling_rate=44100
-audio_timings=["hop_length", "win_length"]
-audio_frames=["n_fft"]
-spec_frames=[]
-
-[transforms.audio.mfcc]
+sampling_rate=44100 # Hz
 n_mfcc=13
-hop_length=0.01
-win_length=0.02
-n_fft=2048
-fmin=500
-fmax=8000
+hop_length=0.01 # seconds
+win_length=0.02 # seconds
+n_fft=2048 # audio frames
+fmin=500 # Hz
+fmax=8000 # Hz
 lifter=40
+sampling_rate=44100 # Hz
 
 [transforms.audio.delta]
 padding="wrap"
@@ -40,3 +36,25 @@ min_silence_duration=0.2 # seconds
 
 [transforms.training.balance.data_augmentation]
 noise_std=0.01
+
+[model.syn]
+units=1000
+sr=0.4
+leak=0.1
+iss=0.0005
+isd=0.02
+isd2=0.002
+ridge=1e-8
+backend="loky"
+workers=-1
+
+[model.nsyn]
+units=1000
+sr=0.4
+leak=0.1
+iss=0.0005
+isd=0.02
+isd2=0.002
+ridge=1e-8
+backend="loky"
+workers=-1

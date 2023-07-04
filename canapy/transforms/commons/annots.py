@@ -49,11 +49,12 @@ def remove_short_labels(corpus, **kwargs):
     config = corpus.config.transforms.annots
 
     durations = df["offset_s"] - df["onset_s"]
-    durations.round(decimals=round(np.log10(config.time_precision)))
+    durations.round(decimals=round(-np.log10(config.time_precision)))
 
     too_short = df[durations < config.min_label_duration].index
 
-    df.drop(too_short, axis=0, inplace=True).reset_index(inplace=True)
+    df.drop(too_short, axis=0, inplace=True)
+    df.reset_index(inplace=True)
 
     corpus.dataset = df
 
