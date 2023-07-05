@@ -24,13 +24,6 @@ def test_synannotator():
     # samples = df.sample(50).index
     # df.loc[samples, "train"] = True
 
-    annotator = SynAnnotator(
-        config=corpus.config,
-        transforms_output_directory="/home/vincent/Documents/Travail/Stage_L3/canapy-reborn/tests/tests/output/transforms",
-    )
-    annotator.fit(corpus)
-
-
 def test_nsynannotator():
     # corpus = Corpus.from_directory(
     #     audio_directory="/home/nathan/Documents/Code/canapy-test/data/",
@@ -45,6 +38,14 @@ def test_nsynannotator():
         transforms_output_directory="/home/vincent/Documents/Travail/Stage_L3/canapy-reborn/tests/tests/output/transforms",
     )
     annotator.fit(corpus)
+
+    n, _, cls_pred, _ = annotator.predict(corpus)
+
+    n = n[0]
+
+    print(n)
+    print(cls_pred[0])
+    print(corpus.dataset.query("notated_path == @n").label)
 
 
 if __name__ == "__main__":
