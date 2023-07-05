@@ -69,6 +69,7 @@ class NSynAnnotator(Annotator):
             return_group=return_group,
             return_raw=return_raw,
             redo_transforms=redo_transforms,
+        )
 
     def eval(self, corpus):
             pass
