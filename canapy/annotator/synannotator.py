@@ -5,10 +5,8 @@ import logging
 import numpy as np
 
 from .base import Annotator
-from .commons.esn import init_esn_model
-from .commons.mfccs import load_mfccs_and_repeat_labels, load_mfccs_for_annotation
-from .commons.postprocess import group_frames, maximum_a_posteriori
-from .commons.exceptions import NotTrainedError
+from .commons.esn import init_esn_model, predict_with_esn
+from .commons.mfccs import load_mfccs_and_repeat_labels
 from ..transforms.synesn import SynESNTransform
 
 logger = logging.getLogger("canapy")
@@ -56,43 +54,14 @@ class SynAnnotator(Annotator):
         return_raw=False,
         redo_transforms=False,
     ):
-        if not self.trained:
-            raise NotTrainedError(
-                "Call .fit on annotated data (Corpus) before calling " ".predict."
-            )
-
-        corpus = self.transforms(
+        return predict_with_esn(
+            self,
             corpus,
-            purpose="annotation",
-            output_directory=self.spec_directory,
+            return_classes=return_classes,
+            return_group=return_group,
+            return_raw=return_raw,
+            redo_transforms=redo_transforms,
         )
-
-        notated_paths, mfccs = load_mfccs_for_annotation(corpus)
-
-        raw_preds = self.rpy_model.run(mfccs)
-
-        cls_preds = None
-        group_preds = None
-        if return_classes or return_group:
-            cls_preds = []
-            for y in raw_preds:
-                y_map = maximum_a_posteriori(y, classes=self.vocab)
-                cls_preds.append(y_map)
-
-            if return_group:
-                group_preds = []
-                for y_cls in cls_preds:
-                    seq = group_frames(y_cls)
-                    group_preds.append(seq)
-
-        if not return_raw:
-            raw_preds = None
-        if not return_classes:
-            cls_preds = None
-        if not return_group:
-            group_preds = None
-
-        return notated_paths, group_preds, cls_preds, raw_preds
 
     def eval(self, corpus):
         ...
