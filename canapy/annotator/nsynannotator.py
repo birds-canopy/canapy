@@ -13,10 +13,10 @@ logger = logging.getLogger("canapy")
 
 
 class NSynAnnotator(Annotator):
-    def __init__(self, config, transforms_output_directory):
+    def __init__(self, config, spec_directory):
         self.config = config
         self.transforms = NSynESNTransform()
-        self.transforms_output_directory = transforms_output_directory
+        self.spec_directory = spec_directory
         self.rpy_model = self.initialize()
 
     def initialize(self):
@@ -31,7 +31,7 @@ class NSynAnnotator(Annotator):
         corpus = self.transforms(
             corpus,
             purpose="training",
-            output_directory=self.transforms_output_directory,
+            output_directory=self.spec_directory,
         )
 
         # load data
