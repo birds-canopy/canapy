@@ -6,10 +6,15 @@ import abc
 
 class Annotator(abc.ABC):
     _trained: bool = False
+    _vocab: list = list()
 
     @property
     def trained(self):
         return self._trained
+
+    @property
+    def vocab(self):
+        return self._vocab
 
     def fit(self, corpus):
         raise NotImplementedError

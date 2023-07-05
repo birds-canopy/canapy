@@ -25,7 +25,7 @@ class Marron1SeqSchema(pandera.SchemaModel):
     syll: Series[pd.StringDtype] = pandera.Field(coerce=True, nullable=True)
 
     class Config:
-        ordered = True
+        ordered = False
         strict = True
 
 

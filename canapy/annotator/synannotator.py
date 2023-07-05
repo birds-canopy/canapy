@@ -1,22 +1,24 @@
 # Author: Nathan Trouvain at 28/06/2023 <nathan.trouvain<at>inria.fr>
 # Licence: MIT License
 # Copyright: Nathan Trouvain
-import pathlib
 import logging
 import numpy as np
 
 from .base import Annotator
-from .commons import init_esn_model
+from .commons.esn import init_esn_model
+from .commons.mfccs import load_mfccs_and_repeat_labels, load_mfccs_for_annotation
+from .commons.postprocess import group_frames, maximum_a_posteriori
+from .commons.exceptions import NotTrainedError
 from ..transforms.synesn import SynESNTransform
 
 logger = logging.getLogger("canapy")
 
 
 class SynAnnotator(Annotator):
-    def __init__(self, config, transforms_output_directory):
+    def __init__(self, config, spec_directory):
         self.config = config
         self.transforms = SynESNTransform()
-        self.transforms_output_directory = transforms_output_directory
+        self.spec_directory = spec_directory
         self.rpy_model = self.initialize()
 
     def initialize(self):
@@ -31,77 +33,67 @@ class SynAnnotator(Annotator):
         corpus = self.transforms(
             corpus,
             purpose="training",
-            output_directory=self.transforms_output_directory,
+            output_directory=self.spec_directory,
         )
 
-        # load data
-        df = corpus.dataset
-        spec_paths = corpus.data_resources["syn_mfcc"]
+        _, _, train_mfcc, train_labels = load_mfccs_and_repeat_labels(
+            corpus, purpose="training"
+        )
 
-        df["seqid"] = df["sequence"].astype(str) + df["annotation"].astype(str)
-
-        sampling_rate = self.config.transforms.audio.sampling_rate
-        hop_length = self.config.transforms.audio.as_fftwindow("hop_length")
-
-        df["onset_spec"] = np.round(df["onset_s"] * sampling_rate / hop_length).astype(int)
-        df["offset_spec"] = np.round(df["offset_s"] * sampling_rate / hop_length).astype(int)
-
-        df = df.query("train")
-
-        n_classes = len(df["label"].unique())
-
-        train_mfcc = []
-        train_labels = []
-        for seqid in df["seqid"].unique():
-            seq_annots = df.query("seqid == @seqid")
-
-            notated_audio = pathlib.Path(seq_annots["notated_path"].unique()[0]).name
-            notated_spec = spec_paths.query("notated_path == @notated_audio")["feature_path"].unique()[0]
-
-            seq_end = seq_annots["offset_spec"].iloc[-1]
-            mfcc = np.load(notated_spec)
-
-            if seq_end > mfcc.shape[1]:
-                logger.warning(
-                    f"Found inconsistent sequence length: "
-                    f"audio {notated_audio} was converted to "
-                    f"{mfcc.shape[1]} timesteps but last annotation is at "
-                    f"timestep {seq_end}. Annotation will be trimmed."
-                )
-
-            seq_end = min(seq_end, mfcc.shape[1])
-
-            mfcc = mfcc[:, :seq_end]
-
-            # repeat labels along time axis
-            repeated_labels = np.zeros((seq_end, n_classes))
-            for row in seq_annots.itertuples():
-                onset = row.onset_spec
-                offset = min(row.offset_spec, seq_end)
-                label = row.encoded_label
-
-                repeated_labels[onset:offset] = label
-
-            train_mfcc.append(mfcc.T)
-            train_labels.append(repeated_labels)
-
-        # train
+        # train reservoirpy model
         self.rpy_model.fit(train_mfcc, train_labels)
-
-        corpus.dataset.drop(
-            ["seqid", "onset_spec", "offset_spec"], axis=1, inplace=True
-        )
 
         self._trained = True
 
+        self._vocab = np.sort(corpus.dataset["label"].unique()).tolist()
+
         return self
 
-    def predict(self, corpus):
+    def predict(
+        self,
+        corpus,
+        return_classes=True,
+        return_group=False,
+        return_raw=False,
+        redo_transforms=False,
+    ):
+        if not self.trained:
+            raise NotTrainedError(
+                "Call .fit on annotated data (Corpus) before calling " ".predict."
+            )
+
         corpus = self.transforms(
             corpus,
             purpose="annotation",
-            output_directory=self.transforms_output_directory,
+            output_directory=self.spec_directory,
         )
+
+        notated_paths, mfccs = load_mfccs_for_annotation(corpus)
+
+        raw_preds = self.rpy_model.run(mfccs)
+
+        cls_preds = None
+        group_preds = None
+        if return_classes or return_group:
+            cls_preds = []
+            for y in raw_preds:
+                y_map = maximum_a_posteriori(y, classes=self.vocab)
+                cls_preds.append(y_map)
+
+            if return_group:
+                group_preds = []
+                for y_cls in cls_preds:
+                    seq = group_frames(y_cls)
+                    group_preds.append(seq)
+
+        if not return_raw:
+            raw_preds = None
+        if not return_classes:
+            cls_preds = None
+        if not return_group:
+            group_preds = None
+
+        return notated_paths, group_preds, cls_preds, raw_preds
 
     def eval(self, corpus):
         ...

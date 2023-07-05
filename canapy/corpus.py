@@ -30,7 +30,7 @@ def as_path(path_or_none):
 
 @attr.define
 class Corpus:
-    audio_directory: Union[Path, str] = attr.field(converter=as_path)
+    audio_directory: Optional[Union[Path, str]] = attr.field(converter=as_path)
     spec_directory: Optional[Union[Path, str]] = attr.field(converter=as_path)
     annots_directory: Optional[Union[Path, str]] = attr.field(converter=as_path)
     annot_format: str = attr.field(default="marron1csv")
@@ -38,6 +38,8 @@ class Corpus:
     config: Config = attr.field(default=default_config)
     dataset: Optional[pd.DataFrame] = attr.field(default=None)
     data_resources: Optional[Dict[str, Any]] = attr.field(default=dict())
+    audio_ext: Optional[str] = attr.field(default=".wav")
+    spec_ext: Optional[str] = attr.field(default=".npy")
 
     def __attrs_post_init__(self):
         if isinstance(self.annotations.annots, Sequence):
@@ -68,15 +70,24 @@ class Corpus:
     @classmethod
     def from_directory(
         cls,
-        audio_directory,
+        audio_directory=None,
         spec_directory=None,
         annots_directory=None,
         config_path=None,
         annot_format="marron1csv",
         time_precision=0.001,
+        audio_ext=".wav",
+        spec_ext=".mfcc.npy",
     ):
-        audio_dir = Path(audio_directory)
+        if audio_directory is None and spec_directory is None:
+            raise ValueError(
+                "At least one of audio_directory or spec_directory must " "be provided."
+            )
+
+        audio_dir = as_path(audio_directory)
+        spec_dir = as_path(spec_directory)
         annots_dir = None
+
         annotations = GenericSeq(annots=list())
 
         if annots_directory is not None:
@@ -103,10 +114,6 @@ class Corpus:
         else:
             config = default_config
 
-        spec_dir = None
-        if spec_directory is not None:
-            spec_dir = Path(spec_directory)
-
         return cls(
             audio_directory=audio_dir,
             spec_directory=spec_dir,
@@ -114,6 +121,8 @@ class Corpus:
             annot_format=annot_format,
             annotations=annotations,
             config=config,
+            audio_ext=audio_ext,
+            spec_ext=spec_ext,
         )
 
     def register_data_resource(self, name, data):

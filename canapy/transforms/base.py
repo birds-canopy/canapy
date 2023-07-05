@@ -86,9 +86,7 @@ class Transform(abc.ABC):
         else:
             resource_names = self.audio_resource_names
 
-        for transform, resource_name in zip(
-            self.audio_transforms, self.audio_resource_names
-        ):
+        for transform, resource_name in zip(self.audio_transforms, resource_names):
             corpus = transform(
                 corpus,
                 output_directory=output_directory,

@@ -164,10 +164,10 @@ class NSynESNTransform(Transform):
                 encode_labels,
             ],
             training_data_resource_name=[
-                None,
                 "dataset",
                 "balanced_dataset",
                 "mfcc_dataset",
+                None,
             ],
             audio_transforms=[compute_mfcc],
             audio_resource_names=["syn_mfcc"],
