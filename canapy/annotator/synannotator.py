@@ -41,7 +41,7 @@ class SynAnnotator(Annotator):
         df["seqid"] = df["sequence"].astype(str) + df["annotation"].astype(str)
 
         sampling_rate = self.config.transforms.audio.sampling_rate
-        hop_length = self.config.transforms.audio.hop_length
+        hop_length = self.config.transforms.audio.as_fftwindow("hop_length")
 
         df["onset_spec"] = np.round(df["onset_s"] * sampling_rate / hop_length).astype(int)
         df["offset_spec"] = np.round(df["offset_s"] * sampling_rate / hop_length).astype(int)

@@ -24,6 +24,7 @@ tqdm = "^4.65.0"
 reservoirpy = "^0.3.8"
 toml = "^0.10.2"
 setuptools = "^68.0.0"
+jupyter = "^1.0.0"
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.3.0"

@@ -19,7 +19,7 @@ def test_synannotator():
     # samples = df.sample(50).index
     # df.loc[samples, "train"] = True
 
-    annotator = SynAnnotator(config=corpus.config, transforms_output_directory="./output/tranforms")
+    annotator = SynAnnotator(config=corpus.config, transforms_output_directory="./output/transforms")
     annotator.fit(corpus)
 
 

@@ -36,15 +36,15 @@ def balance_labels_duration(corpus, *, resource_name, **kwargs):
     """Resample data to build a balanced in duration non-syntactic set."""
 
     # If the dataset is already split, then only balance the training set
-    df = corpus.dataset.query("train == True")
+    df = corpus.dataset.query("train")
 
-    config = corpus.config.tranforms.training.balance
+    config = corpus.config.transforms.training.balance
 
     rs = np.random.RandomState(corpus.config.misc.seed)
 
     min_duration = config.min_class_total_duration
     min_silence = config.min_silence_duration
-    silence_tag = corpus.config.tranforms.annots.silence_tag
+    silence_tag = corpus.config.transforms.annots.silence_tag
 
     balanced_df = df.copy(deep=True)
 
@@ -56,7 +56,7 @@ def balance_labels_duration(corpus, *, resource_name, **kwargs):
     # Weight each sample in function of its class weight in the
     # dataset, in terms of total duration, and regarding the
     # min_duration objective
-    durations = pd.DataFrame(balanced_df.groupby("syll")["duration"].sum())
+    durations = pd.DataFrame(balanced_df.groupby("label")["duration"].sum())
     durations["weights"] = min_duration / durations["duration"]
     durations["weights"] = durations["weights"] / durations["weights"].sum()
 
@@ -103,7 +103,7 @@ def balance_labels_duration(corpus, *, resource_name, **kwargs):
 
 @log(fn_type="training data transform")
 def compute_mfcc_for_balanced_dataset(corpus, *, resource_name, redo=False, **kwargs):
-    df = corpus.data_resources.get("balanced_dataset-train", corpus.dataset)
+    df = corpus.data_resources.get("balanced_dataset", corpus.dataset)
     config = corpus.config.transforms.audio
 
     rs = np.random.default_rng(corpus.config.misc.seed)
