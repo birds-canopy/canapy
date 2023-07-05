@@ -40,7 +40,6 @@ class SynAnnotator(Annotator):
             corpus, purpose="training"
         )
 
-        # train reservoirpy model
         self.rpy_model.fit(train_mfcc, train_labels)
 
         self._trained = True

@@ -138,7 +138,6 @@ def split_train_test(corpus, *, resource_name, **kwargs):
 @log(fn_type="training data tranform")
 def encode_labels(corpus, *, resource_name, **kwargs):
     df = corpus.dataset
-
     df["encoded_label"] = np.nan
 
     all_dfs = []

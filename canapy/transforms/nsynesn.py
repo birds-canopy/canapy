@@ -23,7 +23,11 @@ def _noisify(audio, config, rs):
     audio = (audio - mu) / sigma
 
     # additive noise
-    add_noise = rs.normal(0.0, config.transform.training.noise_std, size=audio.shape)
+    add_noise = rs.normal(
+        0.0,
+        config.transforms.training.balance.data_augmentation.noise_std,
+        size=audio.shape,
+    )
     audio = audio + add_noise
 
     audio = audio * sigma + mu
@@ -113,9 +117,9 @@ def compute_mfcc_for_balanced_dataset(corpus, *, resource_name, redo=False, **kw
 
     audio_paths = df["notated_path"].unique()
 
-    df["mfcc"] = np.nan
-    for audio_path in audio_paths:
-        audio_path = pathlib.Path(audio_path)
+    mfcc = [np.nan] * df.shape[0]
+    for audio_path_ in audio_paths:
+        audio_path = pathlib.Path(audio_path_)
 
         if audio_path.suffix == ".npy":
             audio = np.load(str(audio_path))
@@ -123,17 +127,25 @@ def compute_mfcc_for_balanced_dataset(corpus, *, resource_name, redo=False, **kw
         else:
             audio, rate = lbr.load(audio_path, sr=config.sampling_rate)
 
-        annots = df.query("notated_path == @audio_path")
-
+        annots = df.query("notated_path == @audio_path_")
         for entry in annots.itertuples():
             start = config.audio_steps(entry.onset_s)
             end = config.audio_steps(entry.offset_s)
             one_label = audio[start:end]
-
             if hasattr(entry, "augmented"):
-                one_label = _noisify(one_label, config, rs)
+                one_label = _noisify(one_label, corpus.config, rs)
 
-            cepstrum = lbr.feature.mfcc(y=one_label, sr=rate, **config.mfcc)
+            cepstrum = lbr.feature.mfcc(
+                y=one_label,
+                sr=rate,
+                n_mfcc=config.n_mfcc,
+                hop_length=config.as_fftwindow("hop_length"),
+                win_length=config.as_fftwindow("win_length"),
+                n_fft=config.n_fft,
+                fmin=config.fmin,
+                fmax=config.fmax,
+                lifter=config.lifter,
+            )
 
             cepstral_features = []
             if "mfcc" in config.audio_features:
@@ -147,8 +159,8 @@ def compute_mfcc_for_balanced_dataset(corpus, *, resource_name, redo=False, **kw
 
             cepstrum = np.vstack(cepstral_features)
 
-            df.at[entry.Index, "mfcc"] = cepstrum
-
+            mfcc[entry.Index] = cepstrum
+    df["mfcc"] = mfcc
     corpus.register_data_resource(resource_name, df)
 
     return corpus
@@ -159,12 +171,13 @@ class NSynESNTransform(Transform):
         super().__init__(
             training_data_transforms=[
                 prepare_dataset_for_training,
+                encode_labels,
                 balance_labels_duration,
                 compute_mfcc_for_balanced_dataset,
-                encode_labels,
             ],
             training_data_resource_name=[
                 "dataset",
+                None,
                 "balanced_dataset",
                 "mfcc_dataset",
                 None,

@@ -2,15 +2,20 @@
 # Licence: MIT License
 # Copyright: Nathan Trouvain
 from canapy.annotator.synannotator import SynAnnotator
+from canapy.annotator.nsynannotator import NSynAnnotator
 from canapy.corpus import Corpus
 
 
 def test_synannotator():
     # crowsetta.register_format(Marron1CSV)
+    # corpus = Corpus.from_directory(
+    #     audio_directory="/home/nathan/Documents/Code/canapy-test/data/",
+    #     annots_directory="/home/nathan/Documents/Code/canapy-test/data/",
+    # )
     corpus = Corpus.from_directory(
-        audio_directory="/home/nathan/Documents/Code/canapy-test/data/",
-        annots_directory="/home/nathan/Documents/Code/canapy-test/data/",
-        )
+        audio_directory="/home/vincent/Documents/Travail/Stage_L3/canapy-master_github/data_alizee/fast_train",
+        annots_directory="/home/vincent/Documents/Travail/Stage_L3/canapy-master_github/data_alizee/fast_train",
+    )
 
     # df = c.dataset
     #
@@ -19,10 +24,28 @@ def test_synannotator():
     # samples = df.sample(50).index
     # df.loc[samples, "train"] = True
 
-    annotator = SynAnnotator(config=corpus.config, transforms_output_directory="./output/transforms")
+    annotator = SynAnnotator(
+        config=corpus.config,
+        transforms_output_directory="/home/vincent/Documents/Travail/Stage_L3/canapy-reborn/tests/tests/output/transforms",
+    )
+    annotator.fit(corpus)
+
+
+def test_nsynannotator():
+    # corpus = Corpus.from_directory(
+    #     audio_directory="/home/nathan/Documents/Code/canapy-test/data/",
+    #     annots_directory="/home/nathan/Documents/Code/canapy-test/data/",
+    # )
+    corpus = Corpus.from_directory(
+        audio_directory="/home/vincent/Documents/Travail/Stage_L3/canapy-master_github/data_alizee/fast_train",
+        annots_directory="/home/vincent/Documents/Travail/Stage_L3/canapy-master_github/data_alizee/fast_train",
+    )
+    annotator = NSynAnnotator(
+        config=corpus.config,
+        transforms_output_directory="/home/vincent/Documents/Travail/Stage_L3/canapy-reborn/tests/tests/output/transforms",
+    )
     annotator.fit(corpus)
 
 
 if __name__ == "__main__":
-
-    test_synannotator()
+    test_nsynannotator()
