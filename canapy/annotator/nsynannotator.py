@@ -52,6 +52,8 @@ class NSynAnnotator(Annotator):
 
         self._trained = True
 
+        self._vocab = np.sort(corpus.dataset["label"].unique()).tolist()
+
         return self
 
     def predict(

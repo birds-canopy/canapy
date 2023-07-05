@@ -99,6 +99,7 @@ def balance_labels_duration(corpus, *, resource_name, **kwargs):
 
     balanced_df = pd.concat([subsampled, resampled])
     balanced_df.drop(["duration"], axis=1, inplace=True)
+    balanced_df.reset_index(drop=True, inplace=True)
 
     corpus.register_data_resource(resource_name, balanced_df)
 
@@ -128,6 +129,7 @@ def compute_mfcc_for_balanced_dataset(corpus, *, resource_name, redo=False, **kw
             audio, rate = lbr.load(audio_path, sr=config.sampling_rate)
 
         annots = df.query("notated_path == @audio_path_")
+        print(len(annots), audio_path, annots.notated_path)
         for entry in annots.itertuples():
             start = config.audio_steps(entry.onset_s)
             end = config.audio_steps(entry.offset_s)
@@ -161,6 +163,11 @@ def compute_mfcc_for_balanced_dataset(corpus, *, resource_name, redo=False, **kw
 
             mfcc[entry.Index] = cepstrum
     df["mfcc"] = mfcc
+
+    if any(df["mfcc"].isna()):
+        print("nan")
+        print(df[df["mfcc"].isna()].notated_path.unique())
+
     corpus.register_data_resource(resource_name, df)
 
     return corpus

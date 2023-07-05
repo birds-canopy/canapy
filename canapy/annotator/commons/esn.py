@@ -67,6 +67,8 @@ def predict_with_esn(
 
     notated_paths, mfccs = load_mfccs_for_annotation(corpus)
 
+    print(annotator.rpy_model.input_dim, annotator.rpy_model.output_dim)
+
     raw_preds = annotator.rpy_model.run(mfccs)
 
     cls_preds = None
