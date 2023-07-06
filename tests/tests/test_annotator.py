@@ -1,6 +1,8 @@
 # Author: Nathan Trouvain at 04/07/2023 <nathan.trouvain<at>inria.fr>
 # Licence: MIT License
 # Copyright: Nathan Trouvain
+
+
 from canapy.annotator.synannotator import SynAnnotator
 from canapy.annotator.nsynannotator import NSynAnnotator
 from canapy.corpus import Corpus

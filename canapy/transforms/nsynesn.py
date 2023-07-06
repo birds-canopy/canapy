@@ -162,11 +162,7 @@ def compute_mfcc_for_balanced_dataset(corpus, *, resource_name, redo=False, **kw
             cepstrum = np.vstack(cepstral_features)
 
             mfcc[entry.Index] = cepstrum
-    df["mfcc"] = mfcc
 
-    if any(df["mfcc"].isna()):
-        print("nan")
-        print(df[df["mfcc"].isna()].notated_path.unique())
 
     corpus.register_data_resource(resource_name, df)
 

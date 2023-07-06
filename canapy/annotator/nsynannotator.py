@@ -3,6 +3,7 @@
 # Copyright: Nathan Trouvain
 import logging
 import numpy as np
+import math
 
 from .base import Annotator
 from .commons.esn import predict_with_esn, init_esn_model
@@ -40,13 +41,31 @@ class NSynAnnotator(Annotator):
         train_mfcc = []
         train_labels = []
 
+        error_audio_path = set()
+        error_step = 0
+        
         for row in df.itertuples():
             if isinstance(row.mfcc, np.ndarray):
                 train_mfcc.append(row.mfcc.T)
-                train_labels.append(
-                    np.repeat(row.encoded_label.reshape(1, -1), row.mfcc.shape[1], axis=0)
+                len_mfcc = row.mfcc.shape[1]
+            else:
+                len_mfcc = math.ceil(
+                    (row.offset_s - row.onset_s)
+                    * corpus.config.transforms.audio.sampling_rate
+                    / corpus.config.transforms.audio.as_fftwindow("hop_length")
                 )
-
+                error_step += 1
+                error_audio_path.add(row.notated_path)
+                train_mfcc.append(np.zeros((len_mfcc, 39)))
+            train_labels.append(
+                np.repeat(row.encoded_label.reshape(1, -1), len_mfcc, axis=0)
+            )
+        if len(error_audio_path) != 0:
+            str_base = "\n\t"
+            logger.error(
+                f"{error_step} failure(s) during mfcc transformation (replaced by 0). "
+                f"\nConcerned audio(s) are : \n\t{str_base.join(error_audio_path)}"
+            )
         # train
         self.rpy_model.fit(train_mfcc, train_labels)
 
@@ -74,4 +93,4 @@ class NSynAnnotator(Annotator):
         )
 
     def eval(self, corpus):
-            pass
+        pass
