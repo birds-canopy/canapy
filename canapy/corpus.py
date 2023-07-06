@@ -1,6 +1,7 @@
 # Author: Nathan Trouvain at 27/06/2023 <nathan.trouvain<at>inria.fr>
 # Licence: MIT License
 # Copyright: Nathan Trouvain
+import pathlib
 from pathlib import Path
 from typing import Iterable, Optional, Union, Sequence, Dict, Any
 
@@ -12,13 +13,6 @@ import crowsetta
 from crowsetta.formats.seq import GenericSeq
 
 from .config import Config, default_config
-from .formats.marron1csv import Marron1CSV
-
-from .transforms.commons.training import encode_labels
-
-
-def genericseq_from_df(df):
-    ...
 
 
 def as_path(path_or_none):
@@ -96,10 +90,19 @@ class Corpus:
             scribe = crowsetta.Transcriber(format=annot_format)
             annot_ext = crowsetta.formats.by_name(annot_format).ext
 
+            # annot_ext might be a tuple of admissible file extensions
+            if isinstance(annot_ext, str):
+                annot_files = list(annots_dir.rglob(f"**/*{annot_ext}"))
+            else:
+                annot_files = list()
+                for ext in annot_ext:
+                    annot_files += list(annots_dir.rglob(f"**/*{ext}"))
+
             annotations = list()
-            for annot_file in annots_dir.rglob(f"**/*{annot_ext}"):
+            for annot_file in annot_files:
                 annots = scribe.from_file(
-                    annot_path=annot_file, notated_path=audio_dir
+                    annot_path=annot_file,
+                    notated_path=audio_dir,
                 ).to_annot(decimals=round(-np.log10(time_precision)))
 
                 if isinstance(annots, Iterable):
@@ -125,22 +128,90 @@ class Corpus:
             spec_ext=spec_ext,
         )
 
+    @classmethod
+    def from_df(cls, df, annots_directory=None, config=None, seq_ids=None):
+        seq_ids = df["notated_path"] if seq_ids is None else seq_ids
+
+        if len(seq_ids) != len(df):
+            raise ValueError("'seq_ids' should have same length than 'df'.")
+
+        annots_dir = as_path(annots_directory)
+
+        print(seq_ids)
+
+        annotation_list = list()
+        for seq_id in np.unique(seq_ids):
+            seq_idx = np.where(seq_ids == seq_id, True, False)
+            annots = df[seq_idx].sort_values(by="onset_s")
+
+            seq = crowsetta.Sequence.from_keyword(
+                labels=annots.label, onsets_s=annots.onset_s, offsets_s=annots.offset_s
+            )
+
+            notated_path = annots.notated_path.unique()
+            if len(notated_path) > 1:
+                raise ValueError(
+                    f"Some annotations are affected to more "
+                    f"than one notated file: {annots}"
+                )
+
+            notated_path = pathlib.Path(notated_path[0])
+
+            if annots_directory is not None:
+                annot_path = annots_dir / notated_path.stem + ".csv"
+            else:
+                annot_path = notated_path.with_suffix(".csv")
+
+            annot = crowsetta.Annotation(
+                annot_path=annot_path, notated_path=notated_path.name, seq=seq
+            )
+
+            annotation_list.append(annot)
+
+        annotations = GenericSeq(annots=annotation_list)
+
+        return cls(
+            audio_directory=None,
+            spec_directory=None,
+            annots_directory=annots_dir,
+            annot_format="generic-seq",
+            annotations=annotations,
+            config=config,
+            audio_ext=None,
+            spec_ext=None,
+        )
+
+    def to_directory(self, annots_directory):
+        Path(annots_directory).mkdir(parents=True, exist_ok=True)
+
+        if not isinstance(self.annotations.annots, Sequence):
+            annotations = [self.annotations.annots]
+        else:
+            annotations = self.annotations.annots
+
+        for annots in annotations:
+            seq = GenericSeq(annots=annots)
+            annot_path = annots.annot_path
+            annot_path = Path(annots_directory) / pathlib.Path(annot_path).name
+
+            annots_df = seq.to_df(basename=True)
+
+            # crowsetta makes it difficult to save to various formats.
+            # We will keep using marron1csv format by default for now.
+
+            annots_df = pd.DataFrame(
+                {
+                    "wave": annots_df.notated_path,
+                    "start": annots_df.onset_s,
+                    "end": annots_df.offset_s,
+                    "syll": annots_df.label,
+                }
+            )
+
+            annots_df.to_csv(annot_path, index=False)
+
+        return self
+
     def register_data_resource(self, name, data):
         self.data_resources[name] = data
-
-    def save(self, directory, annot_format="marron1csv"):
-        genericseq_from_df(self.dataset)
-
-
-if __name__ == "__main__":
-    crowsetta.register_format(Marron1CSV)
-    c = Corpus.from_directory(
-        audio_directory="/home/nathan/Documents/Code/canapy-test/data/",
-        annots_directory="/home/nathan/Documents/Code/canapy-test/data/",
-    )
-
-    df = c.dataset
-
-    c = encode_labels(c)
-
-    print(c)
+        return self

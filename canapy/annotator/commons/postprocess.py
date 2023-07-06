@@ -1,114 +1,231 @@
 # Author: Nathan Trouvain at 05/07/2023 <nathan.trouvain<at>inria.fr>
 # Licence: MIT License
 # Copyright: Nathan Trouvain
-import itertools
-
-from collections import defaultdict
-
 import numpy as np
+import pandas as pd
+import scipy
+
+from ...corpus import Corpus
 
 
-def maximum_a_posteriori(logits, classes=None):
-    logits = np.atleast_2d(logits)
+def frames_to_seconds(
+    frame_indices, frame_size, sampling_rate, center=True, time_precision=0.001
+):
+    frame_positions = frame_indices * frame_size
 
-    predictions = np.argmax(logits, axis=1)
+    if center:
+        # Frames are usually centered around (frame_size * frame_index) in original
+        # audio
+        onsets_f = frame_positions - frame_size / 2
+        offsets_f = frame_positions + frame_size / 2
 
-    if classes is not None:
-        predictions = np.take(classes, predictions)
+        # Correct at edges to remove padding
+        onsets_f[0] = 0.0
+        offsets_f[-1] = offsets_f[-1] - frame_size / 2
 
-    return predictions
-
-
-def group_frames(seq, min_frame_nb=5, exclude=["SIL", "TRASH"]):
-    """
-    Group all consecutive equivalent labels in a discrete
-    time sequence into a single label,
-    with number of frames grouped attached. All groups of
-    consecutive predictions
-    composed of N < min_frame_nb items will be removed.
-    """
-    # first grouping
-    # newseq = [s for s in seq if s not in exclude]
-    # newseq = [list(g) for k, g in itertools.groupby(seq)]
-    # newseq = [rseq for rseq in newseq
-    #           if len(rseq) >= min_frame_nb]
-    #
-    # newseq = flatten(newseq)
-    #
-    # grouped_sequence = [(k, len(list(g))) for k, g in itertools.groupby(newseq)]
-    #
-    # return grouped_sequence
-
-    win_length = min_frame_nb * 2 + 1
-
-    new_seq = [None] * (len(seq) - win_length + 1)
-    # size of the sequence minus size of the window plus the center part/frame of it
-    if len(new_seq) <= 0:
-        # print(seq)
-        return []
+        # Round to the closest sample position
+        onsets_f = np.ceil(onsets_f)
+        offsets_f = np.floor(offsets_f)
 
     else:
-        for i in range(len(new_seq)):
-            win = np.roll(seq, shift=-i)[:win_length]
-            groups = [(k, len(list(g))) for k, g in itertools.groupby(win)]
-            # for each window, name of the syllables and number of apparition
-            lengths = defaultdict(int)
-            for g in groups:  # for each syllable and its number of apparition
-                lengths[g[0]] += g[1]  # number of vote for each syllable in a window
+        # Frames start at (frame_size * frame_index)
+        onsets_f = frame_positions
+        offsets_f = frame_positions + frame_size
 
-            max_keys = [
-                key for key, value in lengths.items() if value == max(lengths.values())
-            ]
-            new_seq[i] = max_keys
+    # Convert to seconds
+    decimals = round(-np.log10(time_precision))
 
-        new_seq = (
-            [new_seq[0]] * (win_length // 2)
-            + new_seq
-            + [new_seq[-1]] * (win_length // 2)
-        )  # to have the same length
-        # of the initial sequence we copy the first and the last items at the start and at the end of the new sequence
+    onsets_f = np.around(onsets_f / sampling_rate, decimals=decimals)
+    offsets_f = np.around(offsets_f / sampling_rate, decimals=decimals)
 
-        gp_new_seq = [[k, len(list(g))] for k, g in itertools.groupby(new_seq)]
-        # first groupby to group juxtaposed frame for the same syllable
-        length_new_seq = len(new_seq)
+    return onsets_f, offsets_f
 
-        # then, for each window where  syllables are too short or different syllables are equally present we look to
-        # the environment group and choose the syllable which is the longest
-        syll_prec = gp_new_seq[0]
-        final_seq = gp_new_seq
-        for i, frame in enumerate(gp_new_seq):
-            if frame[1] < min_frame_nb and i + 1 <= len(new_seq):
-                syll_suiv = gp_new_seq[i + 1]
 
-                if syll_prec[1] > syll_suiv[1]:
-                    if isinstance(syll_prec[0], str) == True:
-                        final_seq[i][0] = syll_prec[0]
-                    else:
-                        final_seq[i][0] = syll_prec[0][0]
+def remove_silence(annots_df: pd.DataFrame, silence_tag):
+    label_idxs = annots_df["label"] != silence_tag
+    return annots_df[label_idxs]
 
-                else:
-                    if isinstance(syll_suiv[0], str) == True:
-                        final_seq[i][0] = syll_suiv[0]
-                    else:
-                        final_seq[i][0] = syll_suiv[0][0]
 
-            else:
-                final_seq[i][0] = final_seq[i][0][0]
-                final_seq[i][1] = gp_new_seq[i][1]
-                syll_prec = gp_new_seq[i]
+def frames_to_timed_df(
+    frame_predictions,
+    notated_path,
+    frame_size,
+    sampling_rate,
+    center=True,
+    time_precision=0.001,
+):
+    n_frames = len(frame_predictions)
 
-        # print(final_seq)
+    if n_frames == 0:
+        return pd.DataFrame(columns=["label", "onset_s", "offset_s", "notated_path"])
 
-        # here is a handmade groupby to group the old 'hesitant' window to the initial ones
-        agg_final = []
-        prec = None
-        compteur = -1
-        for syll, length in final_seq:
-            if syll == prec:
-                agg_final[compteur][1] += length
-            else:
-                agg_final.append([syll, length])
-                prec = syll
-                compteur += 1
+    frame_indices = np.arange(n_frames)
 
-        return agg_final
+    onset_s, offset_s = frames_to_seconds(
+        frame_indices,
+        frame_size=frame_size,
+        sampling_rate=sampling_rate,
+        center=center,
+        time_precision=time_precision,
+    )
+
+    df = pd.DataFrame(
+        {
+            "label": frame_predictions,
+            "onset_s": onset_s,
+            "offset_s": offset_s,
+            "notated_path": [notated_path] * n_frames,
+        }
+    )
+
+    return df
+
+
+def frame_df_to_annots_df(
+    frame_df, min_label_duration, min_silence_gap, silence_tag="SIL", lonely_labels=None
+):
+    # Identify all phrases of identical labels
+    gemini_groups = (
+        frame_df["label"].shift(fill_value=str(np.nan)) != frame_df["label"]
+    ).cumsum()
+
+    # Aggregate: define phrase label and onset/offset
+    # "A (0) A (1) A (2) A (3)" -> "A (0, 3)"
+    df = (
+        frame_df.groupby(gemini_groups, as_index=False)
+        .agg(
+            {
+                "label": "first",
+                "onset_s": min,
+                "offset_s": max,
+                "notated_path": "first",
+            }
+        )
+        .sort_values(by=["onset_s"])
+    )
+
+    # Identify all sequences of very short label occurences
+    short_samples = (df["offset_s"] - df["onset_s"] >= min_label_duration).cumsum()
+
+    # Aggregate: take label mode (majority vote) for all consecutive
+    # very short occurences
+    # "A (0, 4), [B (4, 5), C (5, 6), B (6, 7)], C (7, 10)"
+    # -> very short: [B C B] -> majority: B
+    # -> "A (0, 4), B (4, 7), C (7, 10)"
+    df = (
+        df.groupby(short_samples, as_index=False)
+        .agg(
+            {
+                "label": lambda x: scipy.stats.mode(x)[0][0],
+                "onset_s": min,
+                "offset_s": max,
+                "notated_path": "first",
+            }
+        )
+        .sort_values(by=["onset_s"])
+    )
+
+    # Finally, remove all singletons based on surrounding labels
+    short_samples = (
+        (df["offset_s"] - df["onset_s"] >= min_label_duration)
+        & (
+            df["offset_s"].shift(fill_value=np.inf)
+            - df["onset_s"].shift(fill_value=0.0)
+            >= min_label_duration
+        )
+        & (
+            df["offset_s"].shift(-1, fill_value=np.inf)
+            - df["onset_s"].shift(-1, fill_value=0.0)
+            >= min_label_duration
+        )
+    ).cumsum()
+
+    df = (
+        df.groupby(short_samples, as_index=False)
+        .agg(
+            {
+                "label": lambda x: scipy.stats.mode(x)[0][0],
+                "onset_s": min,
+                "offset_s": max,
+                "notated_path": "first",
+            }
+        )
+        .sort_values(by=["onset_s"])
+    )
+
+    df = remove_silence(df, silence_tag=silence_tag)
+
+    if lonely_labels is None:
+        lonely_labels = list()
+
+    # Merge repeated labels
+    gemini_groups = (
+        (df["label"].shift(fill_value=str(np.nan)) != df["label"])
+        & ~(df["label"].isin(lonely_labels))
+        & (df["onset_s"].shift(fill_value=0.0) - df["offset_s"] <= min_silence_gap)
+    ).cumsum()
+
+    df = (
+        df.groupby(gemini_groups, as_index=False)
+        .agg(
+            {
+                "label": "first",
+                "onset_s": min,
+                "offset_s": max,
+                "notated_path": "first",
+            }
+        )
+        .sort_values(by="onset_s")
+    )
+
+    return df
+
+
+def predictions_to_corpus(
+    notated_paths,
+    cls_preds,
+    frame_size,
+    sampling_rate,
+    center,
+    time_precision,
+    min_label_duration,
+    min_silence_gap,
+    silence_tag,
+    lonely_labels,
+    config=None,
+    raw_preds=None,
+):
+    frame_dfs = []
+    annot_dfs = []
+    for y_pred, notated_path in zip(cls_preds, notated_paths):
+        frames = frames_to_timed_df(
+            y_pred,
+            notated_path=notated_path,
+            frame_size=frame_size,
+            sampling_rate=sampling_rate,
+            center=center,
+            time_precision=time_precision,
+        )
+
+        annots = frame_df_to_annots_df(
+            frames,
+            min_label_duration,
+            min_silence_gap,
+            silence_tag=silence_tag,
+            lonely_labels=lonely_labels,
+        )
+
+        frame_dfs.append(frames)
+        annot_dfs.append(annots)
+
+    frame_df = pd.concat(frame_dfs)
+    annots_df = pd.concat(annot_dfs)
+
+    corpus = Corpus.from_df(annots_df, config=config)
+
+    corpus.register_data_resource("frames", frame_df)
+
+    if raw_preds is not None:
+        corpus.register_data_resource("nn_output", raw_preds)
+
+    return corpus

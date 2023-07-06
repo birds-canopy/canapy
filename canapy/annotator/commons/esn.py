@@ -7,8 +7,18 @@ from reservoirpy.nodes import Reservoir, Ridge, ESN
 from reservoirpy.mat_gen import fast_spectral_initialization
 
 from .exceptions import NotTrainedError
-from .postprocess import group_frames, maximum_a_posteriori
 from .mfccs import load_mfccs_for_annotation
+
+
+def maximum_a_posteriori(logits, classes=None):
+    logits = np.atleast_2d(logits)
+
+    predictions = np.argmax(logits, axis=1)
+
+    if classes is not None:
+        predictions = np.take(classes, predictions)
+
+    return predictions
 
 
 def init_esn_model(model_config, input_dim, audio_features, seed=None):
@@ -49,8 +59,6 @@ def init_esn_model(model_config, input_dim, audio_features, seed=None):
 def predict_with_esn(
     annotator,
     corpus,
-    return_classes=True,
-    return_group=False,
     return_raw=False,
     redo_transforms=False,
 ):
@@ -67,29 +75,14 @@ def predict_with_esn(
 
     notated_paths, mfccs = load_mfccs_for_annotation(corpus)
 
-    print(annotator.rpy_model.input_dim, annotator.rpy_model.output_dim)
-
     raw_preds = annotator.rpy_model.run(mfccs)
 
-    cls_preds = None
-    group_preds = None
-    if return_classes or return_group:
-        cls_preds = []
-        for y in raw_preds:
-            y_map = maximum_a_posteriori(y, classes=annotator.vocab)
-            cls_preds.append(y_map)
-
-        if return_group:
-            group_preds = []
-            for y_cls in cls_preds:
-                seq = group_frames(y_cls)
-                group_preds.append(seq)
+    cls_preds = []
+    for y in raw_preds:
+        y_map = maximum_a_posteriori(y, classes=annotator.vocab)
+        cls_preds.append(y_map)
 
     if not return_raw:
         raw_preds = None
-    if not return_classes:
-        cls_preds = None
-    if not return_group:
-        group_preds = None
 
-    return notated_paths, group_preds, cls_preds, raw_preds
+    return notated_paths, cls_preds, raw_preds

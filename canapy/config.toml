@@ -3,7 +3,7 @@ seed=42
 
 [transforms.annots]
 time_precision=0.001 # seconds
-min_label_duration=0.01 # seconds
+min_label_duration=0.02 # seconds
 lonely_labels=["cri", "TRASH"]
 min_silence_gap=0.001 # seconds
 silence_tag="SIL"
@@ -19,6 +19,7 @@ fmin=500 # Hz
 fmax=8000 # Hz
 lifter=40
 sampling_rate=44100 # Hz
+center=true
 
 [transforms.audio.delta]
 padding="wrap"

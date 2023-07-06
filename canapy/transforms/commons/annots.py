@@ -73,7 +73,7 @@ def merge_labels(corpus, **kwargs):
         & ~(df["label"].isin(config.lonely_labels))
         & (
             df["onset_s"].shift(fill_value=0.0) - df["offset_s"]
-            < config.min_silence_gap
+            <= config.min_silence_gap
         )
     ).cumsum()
 

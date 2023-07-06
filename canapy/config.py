@@ -28,6 +28,7 @@ n_fft=2048 # audio frames
 fmin=500 # Hz
 fmax=8000 # Hz
 lifter=40
+center=true
 
 [transforms.audio.delta]
 padding="wrap"

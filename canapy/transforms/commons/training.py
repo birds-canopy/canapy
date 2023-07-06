@@ -175,9 +175,9 @@ class DatasetTransform(Transform):
         super().__init__(
             annots_transforms=[
                 sort_annotations,
-                tag_silences,
-                sort_annotations,
                 merge_labels,
+                sort_annotations,
+                tag_silences,
                 sort_annotations,
                 remove_short_labels,
                 sort_annotations,

@@ -193,20 +193,20 @@ class Marron1CSV:
         df.to_csv(annot_path, index=False)
 
 
-if __name__ == "__main__":
-    data = "/home/nathan/Documents/Code/canapy-test/data/Songfile_2022-05-04_16-10-53_CSC1_CSC20_raw_chunk_119_annot.csv"
-
-    scribe = crowsetta.Transcriber(format="marron1csv")
-
-    ext = crowsetta.formats.by_name("marron1csv").ext
-
-    fp = scribe.from_file(data)
-    seq = fp.to_seq()
-    annots = fp.to_annot()
-    print(seq)
-    print(annots)
-
-    print(pd.DataFrame(seq.as_dict()))
-
-    for seg in annots.seq.segments:
-        print(seg)
+# if __name__ == "__main__":
+#     data = "/home/nathan/Documents/Code/canapy-test/data/Songfile_2022-05-04_16-10-53_CSC1_CSC20_raw_chunk_119_annot.csv"
+#
+#     scribe = crowsetta.Transcriber(format="marron1csv")
+#
+#     ext = crowsetta.formats.by_name("marron1csv").ext
+#
+#     fp = scribe.from_file(data)
+#     seq = fp.to_seq()
+#     annots = fp.to_annot()
+#     print(seq)
+#     print(annots)
+#
+#     print(pd.DataFrame(seq.as_dict()))
+#
+#     for seg in annots.seq.segments:
+#         print(seg)
