@@ -6,7 +6,6 @@ from canapy.corpus import Corpus
 
 
 def test_synannotator():
-
     corpus = Corpus.from_directory(
         audio_directory="/home/nathan/Documents/Code/canapy-test/data/",
         annots_directory="/home/nathan/Documents/Code/canapy-test/data/",

@@ -37,7 +37,6 @@ def test_config_setattr():
 
 
 if __name__ == "__main__":
-
     test_load_config()
     test_save_config()
     test_config_setattr()

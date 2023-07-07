@@ -163,7 +163,6 @@ def compute_mfcc_for_balanced_dataset(corpus, *, resource_name, redo=False, **kw
 
             mfcc[entry.Index] = cepstrum
 
-
     corpus.register_data_resource(resource_name, df)
 
     return corpus

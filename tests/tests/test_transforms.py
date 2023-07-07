@@ -11,7 +11,6 @@ from canapy.transforms.synesn import *
 
 
 def test_balance_labels(corpus):
-
     corpus.config.transforms.training.balance.min_class_total_duration = 30.0
 
     df = corpus.dataset
@@ -29,7 +28,6 @@ def test_balance_labels(corpus):
 
 
 def test_compute_mfcc_for_balanced_dataset(corpus):
-
     df = corpus.dataset
     df["train"] = False
     samples = df.sample(50).index
@@ -57,7 +55,7 @@ def test_encode_labels():
     c = Corpus.from_directory(
         audio_directory="/home/nathan/Documents/Code/canapy-test/data/",
         annots_directory="/home/nathan/Documents/Code/canapy-test/data/",
-        )
+    )
 
     df = c.dataset
 
@@ -74,5 +72,4 @@ def test_encode_labels():
 
 
 if __name__ == "__main__":
-
     test_encode_labels()

@@ -5,8 +5,8 @@ import logging
 
 import numpy as np
 
-from .exceptions import NotTrainableError, MissingData
-
+from ...timings import seconds_to_frames
+from ...utils.exceptions import NotTrainableError, MissingData
 
 logger = logging.getLogger("canapy")
 
@@ -48,10 +48,8 @@ def load_mfccs_and_repeat_labels(corpus, purpose="training"):
     sampling_rate = corpus.config.transforms.audio.sampling_rate
     hop_length = corpus.config.transforms.audio.as_fftwindow("hop_length")
 
-    df["onset_spec"] = np.round(df["onset_s"] * sampling_rate / hop_length).astype(int)
-    df["offset_spec"] = np.round(df["offset_s"] * sampling_rate / hop_length).astype(
-        int
-    )
+    df["onset_spec"] = seconds_to_frames(df["onset_s"], hop_length, sampling_rate)
+    df["offset_spec"] = seconds_to_frames(df["offset_s"], hop_length, sampling_rate)
 
     n_classes = len(df["label"].unique())
 

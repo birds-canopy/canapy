@@ -1,0 +1,79 @@
+# Author: Nathan Trouvain at 07/07/2023 <nathan.trouvain<at>inria.fr>
+# Licence: MIT License
+# Copyright: Nathan Trouvain
+import pytest
+import toml
+
+from canapy.config import Config
+
+
+@pytest.fixture(scope="session")
+def toml_config():
+    return """
+    [misc]
+    seed=42
+
+    [transforms.annots]
+    time_precision=0.001 # seconds
+    min_label_duration=0.01 # seconds
+    lonely_labels=["cri", "TRASH"]
+    min_silence_gap=0.001 # seconds
+    silence_tag="SIL"
+
+    [transforms.audio]
+    audio_features=["mfcc", "delta", "delta2"]
+    sampling_rate=44100 # Hz
+    n_mfcc=13
+    hop_length=0.01 # seconds
+    win_length=0.02 # seconds
+    n_fft=2048 # audio frames
+    fmin=500 # Hz
+    fmax=8000 # Hz
+    lifter=40
+    center=true
+
+    [transforms.audio.delta]
+    padding="wrap"
+
+    [transforms.audio.delta2]
+    padding="wrap"
+
+    [transforms.training]
+    max_sequences=-1
+    test_ratio=0.2
+
+    [transforms.training.balance]
+    min_class_total_duration=30 # seconds
+    min_silence_duration=0.2 # seconds
+
+    [transforms.training.balance.data_augmentation]
+    noise_std=0.01
+
+    [model.syn]
+    units=1000
+    sr=0.4
+    leak=0.1
+    iss=0.0005
+    isd=0.02
+    isd2=0.002
+    ridge=1e-8
+    backend="loky"
+    workers=-1
+
+    [model.nsyn]
+    units=1000
+    sr=0.4
+    leak=0.1
+    iss=0.0005
+    isd=0.02
+    isd2=0.002
+    ridge=1e-8
+    backend="loky"
+    workers=-1
+    """
+
+
+@pytest.fixture(scope="session")
+def config(toml_config):
+    conf = toml.loads(toml_config)
+    return Config(**conf)

@@ -10,14 +10,13 @@ from ...log import log
 
 @log(fn_type="corpus transform")
 def sort_annotations(corpus, **kwargs):
-    corpus.dataset.sort_values(
+    df = corpus.dataset.sort_values(
         by=["annotation", "sequence", "onset_s"],
         ascending=True,
-        inplace=True,
         ignore_index=True,
     )
 
-    return corpus
+    return corpus.clone_with_df(df)
 
 
 @log(fn_type="corpus transform")
@@ -38,9 +37,7 @@ def tag_silences(corpus, **kwargs):
 
     df = pd.concat([df, silence_df], ignore_index=True)
 
-    corpus.dataset = df
-
-    return corpus
+    return corpus.clone_with_df(df)
 
 
 @log(fn_type="corpus transform")
@@ -53,12 +50,9 @@ def remove_short_labels(corpus, **kwargs):
 
     too_short = df[durations < config.min_label_duration].index
 
-    df.drop(too_short, axis=0, inplace=True)
-    df.reset_index(inplace=True)
+    df = df.drop(too_short, axis=0).reset_index()
 
-    corpus.dataset = df
-
-    return corpus
+    return corpus.clone_with_df(df)
 
 
 @log(fn_type="corpus transform")
@@ -91,6 +85,4 @@ def merge_labels(corpus, **kwargs):
         .sort_values(by=["annotation", "sequence", "onset_s"])
     )
 
-    corpus.dataset = df
-
-    return corpus
+    return corpus.clone_with_df(df)

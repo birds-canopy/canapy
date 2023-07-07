@@ -8,15 +8,16 @@ import pandas as pd
 
 @pytest.fixture()
 def cls_frame_predictions():
-    return np.array(list("bbaaaaaabbaaaabbbbbbbbbbbccccccdddddffffffffefefeeeeeeeeffffffkk"))
+    return np.array(
+        list("bbaaaaaabbaaaabbbbbbbbbbbccccccdddddffffffffefefeeeeeeeeffffffkk")
+    )
 
 
 @pytest.fixture()
 def df_frame_predictions():
-
     frames = np.array(
         list("aaaaaaaaaaabbbbbbbbbbbccccccdddddffffffffefefeeeeeeeeffffff")
-        )
+    )
 
     n_frames = len(frames)
 
@@ -29,5 +30,5 @@ def df_frame_predictions():
             "offset_frame": offsets,
             "label": frames,
             "notated_path": ["foo/bar"] * n_frames,
-            }
-        )
+        }
+    )

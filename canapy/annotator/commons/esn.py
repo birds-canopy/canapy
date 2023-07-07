@@ -6,7 +6,7 @@ import numpy as np
 from reservoirpy.nodes import Reservoir, Ridge, ESN
 from reservoirpy.mat_gen import fast_spectral_initialization
 
-from .exceptions import NotTrainedError
+from canapy.utils.exceptions import NotTrainedError
 from .mfccs import load_mfccs_for_annotation
 
 
@@ -76,6 +76,9 @@ def predict_with_esn(
     notated_paths, mfccs = load_mfccs_for_annotation(corpus)
 
     raw_preds = annotator.rpy_model.run(mfccs)
+
+    if isinstance(raw_preds, np.ndarray) and raw_preds.ndim < 3:
+        raw_preds = [raw_preds]
 
     cls_preds = []
     for y in raw_preds:

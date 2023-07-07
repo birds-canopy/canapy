@@ -110,7 +110,6 @@ def test_config_utils(config):
 
 
 def test_split(dataset, audio_files):
-
     train_syn, test_syn = dataset.split_syn()
     assert 0.10 < len(test_syn.groupby("wave")) / len(train_syn.groupby("wave")) < 0.30
     assert len(train_syn.groupby("wave")) + len(test_syn.groupby("wave")) == len(
@@ -125,7 +124,6 @@ def test_split(dataset, audio_files):
 
 
 def test_balance(dataset):
-
     df = dataset.balance_nonsyn()
     df["duration"] = df["end"] - df["start"]
     assert 40 > df.groupby("syll")["duration"].sum().min() > 29
@@ -164,7 +162,6 @@ def test_trainset(dataset, audio_files):
 
 
 def test_refine(dataset, dummy_df, dummy_correction):
-
     df = dataset._apply_corrections(df=dummy_df, corrections=dummy_correction)
     assert df.syll.tolist() == ["cri", "cri", "cri", "B", "B", "C12", "U", "Y"]
 
@@ -250,7 +247,6 @@ def test_to_features(dataset, split, max_songs, mode):
     ],
 )
 def test_update_corrections(dataset, old, new, expected):
-
     dataset.corrections = old
     updated = dataset.update_corrections(new)
 
@@ -258,7 +254,6 @@ def test_update_corrections(dataset, old, new, expected):
 
 
 def test_switch(dataset):
-
     old_vocab = dataset.vocab.copy()
     dataset.switch("./data/test-rouge6-noannots")
 

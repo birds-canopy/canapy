@@ -19,7 +19,6 @@ fmin=500 # Hz
 fmax=8000 # Hz
 lifter=40
 sampling_rate=44100 # Hz
-center=true
 
 [transforms.audio.delta]
 padding="wrap"

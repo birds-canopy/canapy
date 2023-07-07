@@ -27,5 +27,3 @@ def test_nsynannotator():
     print(n)
     print(cls_pred[0])
     print(corpus.dataset.query("notated_path == @n").label)
-
-

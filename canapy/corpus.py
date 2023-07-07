@@ -13,13 +13,7 @@ import crowsetta
 from crowsetta.formats.seq import GenericSeq
 
 from .config import Config, default_config
-
-
-def as_path(path_or_none):
-    if path_or_none is not None:
-        return Path(path_or_none)
-    else:
-        return path_or_none
+from .utils import as_path
 
 
 @attr.define
@@ -54,7 +48,9 @@ class Corpus:
                 ]
             )
         else:
-            self.dataset = self.annotations.to_df()
+            self.dataset = self.annotations.to_df().sort_values(
+                by=["annotation", "sequence", "onset_s"]
+            )
 
         self.data_resources = dict()
 
@@ -92,11 +88,12 @@ class Corpus:
 
             # annot_ext might be a tuple of admissible file extensions
             if isinstance(annot_ext, str):
-                annot_files = list(annots_dir.rglob(f"**/*{annot_ext}"))
+                annot_files = sorted(annots_dir.rglob(f"**/*{annot_ext}"))
             else:
                 annot_files = list()
                 for ext in annot_ext:
                     annot_files += list(annots_dir.rglob(f"**/*{ext}"))
+                annot_files = sorted(annot_files)
 
             annotations = list()
             for annot_file in annot_files:
@@ -130,14 +127,12 @@ class Corpus:
 
     @classmethod
     def from_df(cls, df, annots_directory=None, config=None, seq_ids=None):
-        seq_ids = df["notated_path"] if seq_ids is None else seq_ids
+        seq_ids = np.sort(df["notated_path"]) if seq_ids is None else seq_ids
 
         if len(seq_ids) != len(df):
             raise ValueError("'seq_ids' should have same length than 'df'.")
 
         annots_dir = as_path(annots_directory)
-
-        print(seq_ids)
 
         annotation_list = list()
         for seq_id in np.unique(seq_ids):
@@ -157,13 +152,15 @@ class Corpus:
 
             notated_path = pathlib.Path(notated_path[0])
 
-            if annots_directory is not None:
-                annot_path = annots_dir / notated_path.stem + ".csv"
+            if "annot_path" in annots:
+                annot_path = annots["annot_path"].unique()[0]
+            elif annots_directory is not None:
+                annot_path = annots_dir / (notated_path.stem + ".csv")
             else:
                 annot_path = notated_path.with_suffix(".csv")
 
             annot = crowsetta.Annotation(
-                annot_path=annot_path, notated_path=notated_path.name, seq=seq
+                annot_path=annot_path, notated_path=notated_path, seq=seq
             )
 
             annotation_list.append(annot)
@@ -215,3 +212,20 @@ class Corpus:
     def register_data_resource(self, name, data):
         self.data_resources[name] = data
         return self
+
+    def clone_with_df(self, df):
+        new_corpus = Corpus.from_df(
+            df, annots_directory=self.annots_directory, config=self.config
+        )
+
+        new_corpus.audio_directory = self.audio_directory
+        new_corpus.spec_directory = self.spec_directory
+        new_corpus.annot_format = self.annot_format
+        new_corpus.audio_ext = self.audio_ext
+        new_corpus.spec_ext = self.spec_ext
+
+        # Do not copy data_resources! All clones should be able to access
+        # heavy transformed data without redoing the transform.
+        new_corpus.data_resources = self.data_resources
+
+        return new_corpus

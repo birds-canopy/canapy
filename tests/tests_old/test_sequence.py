@@ -19,7 +19,6 @@ from canapy.sequence import group, lev_dist, lev_sim, lcs
     ],
 )
 def test_group(sequence, expected, min_frame):
-
     assert group(sequence, min_frame_nb=min_frame) == expected
 
 
@@ -28,7 +27,6 @@ def test_group(sequence, expected, min_frame):
     [(list("ABCDAB"), list("ACBDB"), 3), (list("ABCDABA"), list("BCDAB"), 2)],
 )
 def test_levenshtein(s, t, expected):
-
     assert lev_dist(s, t) == expected
 
 
@@ -40,7 +38,6 @@ def test_levenshtein(s, t, expected):
     ],
 )
 def test_levenshtein_sim(s, t, expected):
-
     assert -1e-3 < lev_sim(s, t) - expected < 1e-3
 
 
@@ -49,5 +46,4 @@ def test_levenshtein_sim(s, t, expected):
     [(list("ABCDAB"), list("ACBDB"), 4), (list("ABCDABA"), list("BCDAB"), 5)],
 )
 def test_lcs(s, t, expected):
-
     assert lcs(s, t) == expected
