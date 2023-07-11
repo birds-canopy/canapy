@@ -139,7 +139,6 @@ class Ensemble(Annotator):
 
         frame_size = config.transforms.audio.as_fftwindow("hop_length")
         sampling_rate = config.transforms.audio.sampling_rate
-        center = config.transforms.audio.center
         time_precision = config.transforms.annots.time_precision
         min_label_duration = config.transforms.annots.min_label_duration
         min_silence_gap = config.transforms.annots.min_silence_gap
@@ -151,7 +150,6 @@ class Ensemble(Annotator):
             cls_preds=cls_preds,
             frame_size=frame_size,
             sampling_rate=sampling_rate,
-            center=center,
             time_precision=time_precision,
             min_label_duration=min_label_duration,
             min_silence_gap=min_silence_gap,
@@ -160,6 +158,3 @@ class Ensemble(Annotator):
             config=config,
             raw_preds=None,
         )
-
-    def eval(self, corpus):
-        pass

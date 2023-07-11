@@ -57,6 +57,9 @@ class Corpus:
     def __len__(self):
         return len(self.dataset["annotation"].unique())
 
+    def __getitem__(self, item):
+        return self.dataset.query(item)
+
     @classmethod
     def from_directory(
         cls,

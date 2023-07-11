@@ -60,8 +60,5 @@ class Annotator(abc.ABC):
     def fit(self, corpus):
         raise NotImplementedError
 
-    def predict(self, corpus):
+    def predict(self, corpus, return_raw=False, redo_transforms=False):
         raise NotImplementedError
-
-    def eval(self, corpus):
-        pass

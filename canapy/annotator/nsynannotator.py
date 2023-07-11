@@ -79,8 +79,6 @@ class NSynAnnotator(Annotator):
     def predict(
         self,
         corpus,
-        return_classes=True,
-        return_group=False,
         return_raw=False,
         redo_transforms=False,
     ):

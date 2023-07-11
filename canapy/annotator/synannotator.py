@@ -83,6 +83,3 @@ class SynAnnotator(Annotator):
             config=config,
             raw_preds=raw_preds,
         )
-
-    def eval(self, corpus):
-        ...
