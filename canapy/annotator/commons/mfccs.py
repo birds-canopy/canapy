@@ -15,25 +15,25 @@ def load_mfccs_and_repeat_labels(corpus, purpose="training"):
     if purpose == "training":
         split = "train"
 
-        if len(corpus.dataset.query(split)) == 0:
+        if len(corpus.corpus.query(split)) == 0:
             raise NotTrainableError(
-                "Training data was not provided, or dataset was "
+                "Training data was not provided, or corpus was "
                 "not properly divided between train and test data."
             )
 
     elif purpose == "eval":
         split = "not train"
 
-        if len(corpus.dataset.query(split)) == 0:
+        if len(corpus.corpus.query(split)) == 0:
             raise NotTrainableError(
-                "Test data was not provided, or dataset was "
+                "Test data was not provided, or corpus was "
                 "not properly divided between train and test data."
             )
     else:
         raise ValueError("'purpose' should be either 'training' or 'eval'.")
 
     # load data
-    df = corpus.dataset.query(split).copy()
+    df = corpus.corpus.query(split).copy()
 
     if "syn_mfcc" not in corpus.data_resources:
         raise MissingData(

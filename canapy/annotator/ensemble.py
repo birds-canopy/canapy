@@ -19,7 +19,7 @@ def _check_prediction_lengths(predictions):
     if not all([set(predictions[0].keys()) == set(p.keys()) for p in predictions]):
         raise ValueError(
             "Corpora have different number of annotations, or do not represent "
-            "annotations for the same dataset."
+            "annotations for the same corpus."
         )
 
     keys = predictions[0].keys()
@@ -110,7 +110,7 @@ class Ensemble(Annotator):
         return self._mode
 
     def fit(self, corpus):
-        self._vocab = np.sort(corpus.dataset["label"].unique()).tolist()
+        self._vocab = np.sort(corpus.corpus["label"].unique()).tolist()
         self._trained = True
         return self
 

@@ -29,7 +29,7 @@ class Canapy(object):
         self.controler = Controler(
             data, output, self, audioformat=audioformat, rate=rate
         )
-        self.labels = self.controler.dataset.vocab
+        self.labels = self.controler.corpus.vocab
 
         self.layouts = {
             "train": TrainDashboard,
