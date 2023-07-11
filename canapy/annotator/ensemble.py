@@ -110,7 +110,7 @@ class Ensemble(Annotator):
         return self._mode
 
     def fit(self, corpus):
-        self._vocab = np.sort(corpus.corpus["label"].unique()).tolist()
+        self._vocab = np.sort(corpus.dataset["label"].unique()).tolist()
         self._trained = True
         return self
 
