@@ -15,7 +15,7 @@ def as_frame_comparison(gold_corpus, corpus):
             "Corpus created from an Annotator ?"
         )
 
-    gold_df = gold_corpus.dataset.copy()
+    gold_df = gold_corpus.corpus.copy()
     frame_df = corpus.data_resources["frames_predictions"]
 
     sampling_rate = corpus.config.transforms.audio.sampling_rate

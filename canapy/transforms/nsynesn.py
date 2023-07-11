@@ -173,16 +173,13 @@ class NSynESNTransform(Transform):
         super().__init__(
             training_data_transforms=[
                 prepare_dataset_for_training,
-                encode_labels,
                 balance_labels_duration,
                 compute_mfcc_for_balanced_dataset,
             ],
             training_data_resource_name=[
                 "dataset",
-                None,
                 "balanced_dataset",
                 "mfcc_dataset",
-                None,
             ],
             audio_transforms=[compute_mfcc],
             audio_resource_names=["syn_mfcc"],

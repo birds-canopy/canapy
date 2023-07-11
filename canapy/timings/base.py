@@ -31,10 +31,18 @@ def frames_to_seconds(frame_indices, frame_size, sampling_rate, time_precision=0
 
 
 def seconds_to_frames(timings, frame_size, sampling_rate):
-    sample_timings = np.round(timings * sampling_rate).astype(int)
-    frame_indices = np.ceil((sample_timings + frame_size // 2) / frame_size)
+    sample_timings = seconds_to_audio(timings, sampling_rate)
+    frame_indices = audio_to_frames(sample_timings, frame_size)
+    return frame_indices
 
+
+def audio_to_frames(samples, frame_size):
+    frame_indices = np.ceil((samples + frame_size // 2) / frame_size)
     return frame_indices.astype(int)
+
+
+def seconds_to_audio(timings, sampling_rate):
+    return np.round(timings * sampling_rate).astype(int)
 
 
 def frames_to_timed_df(

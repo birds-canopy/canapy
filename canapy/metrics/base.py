@@ -1,7 +1,9 @@
 # Author: Nathan Trouvain at 07/07/2023 <nathan.trouvain<at>inria.fr>
 # Licence: MIT License
 # Copyright: Nathan Trouvain
+import pandas as pd
 import sklearn
+import Levenshtein
 
 from .utils import as_frame_comparison
 
@@ -46,5 +48,30 @@ def confusion_matrix(gold_corpus, corpus, classes=None):
     )
 
 
-def word_error_rate(gold_corpus, corpus):
-    ...
+def segment_error_rate(gold_corpus, corpus):
+    _check_corpus_comparison(gold_corpus, corpus)
+
+    gold_df = gold_corpus.dataset
+    pred_df = corpus.dataset
+
+    gold_df["seqid"] = str(gold_df["sequence"]) + str(gold_df["annotation"])
+    pred_df["seqid"] = str(pred_df["sequence"]) + str(pred_df["annotation"])
+
+    gold_sequences = gold_df.groupby("seqid")
+    pred_sequences = pred_df.groupby("seqid")
+
+    ser = []
+    for seqid, gold_seq in gold_sequences:
+        pred_seq = pred_sequences.get_group(seqid)
+
+        notated_path = gold_seq["notated_path"].unique()[0]
+
+        ser.append({
+            "notated_path": notated_path,
+            "seqid": seqid,
+            "ser": 1.0 - Levenshtein.ratio(gold_seq.label.values, pred_seq.label.values)
+            })
+
+    ser = pd.DataFrame(ser)
+
+    return ser

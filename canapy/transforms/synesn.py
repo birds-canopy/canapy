@@ -9,7 +9,7 @@ from .commons.training import encode_labels, prepare_dataset_for_training
 class SynESNTransform(Transform):
     def __init__(self):
         super().__init__(
-            training_data_transforms=[prepare_dataset_for_training, encode_labels],
+            training_data_transforms=[prepare_dataset_for_training],
             audio_transforms=[compute_mfcc],
             audio_resource_names=["syn_mfcc"],
         )

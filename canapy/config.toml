@@ -58,3 +58,6 @@ isd2=0.002
 ridge=1e-8
 backend="loky"
 workers=-1
+
+[correction]
+min_segment_proportion_agreement=0.66

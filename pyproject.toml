@@ -25,6 +25,10 @@ reservoirpy = "^0.3.8"
 toml = "^0.10.2"
 setuptools = "^68.0.0"
 jupyter = "^1.0.0"
+levenshtein = "^0.21.1"
+panel = "^1.2.0"
+param = "^1.13.0"
+bokeh = "^3.2.0"
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.3.0"

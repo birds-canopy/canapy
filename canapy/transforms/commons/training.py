@@ -182,6 +182,6 @@ class DatasetTransform(Transform):
                 remove_short_labels,
                 sort_annotations,
             ],
-            training_data_transforms=[split_train_test],
-            training_data_resource_name=["dataset"],
+            training_data_transforms=[split_train_test, encode_labels],
+            training_data_resource_name=[None, None],
         )
