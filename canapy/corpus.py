@@ -1,6 +1,39 @@
 # Author: Nathan Trouvain at 27/06/2023 <nathan.trouvain<at>inria.fr>
 # Licence: MIT License
 # Copyright: Nathan Trouvain
+"""Example NumPy style docstrings.
+
+This module provides the Corpus class which store canary songs data
+
+Example
+-------
+
+    >>> my_corpus = Corpus.from_directory(
+    >>>     audio_directory="home/vincent/Documents/data_canary/audio",
+    >>>     spec_directory="home/vincent/Documents/data_canary/spec",
+    >>>     annots_directory="home/vincent/Documents/data_canary/annotations",
+    >>>     config_path="home/vincent/Documents/data_canary/config",
+    >>> )
+    >>> print(my_corpus.dataset["label"])
+
+
+Section breaks are created with two blank lines. Section breaks are also
+implicitly created anytime a new section starts. Section bodies *may* be
+indented:
+
+Notes
+-----
+    This is an example of an indented section. It's like any other section,
+    but the body is indented to help it stand out from surrounding text.
+
+If a section is indented, then a section break is created by
+resuming unindented text.
+
+Attributes
+----------
+
+
+"""
 import pathlib
 from pathlib import Path
 from typing import Iterable, Optional, Union, Sequence, Dict, Any
@@ -55,10 +88,19 @@ class Corpus:
         self.data_resources = dict()
 
     def __len__(self):
+        """
+        Give the length of the dataset stored
+
+        Returns
+        -------
+        int
+            length of the DataFrame
+        """
         return len(self.dataset["annotation"].unique())
 
     def __getitem__(self, item):
         return self.clone_with_df(self.dataset.query(item))
+
 
     @classmethod
     def from_directory(
@@ -72,6 +114,39 @@ class Corpus:
         audio_ext=".wav",
         spec_ext=".mfcc.npy",
     ):
+        """
+        Create a Corpus object from audios, annotations, and spec stored on the disk.
+
+        Parameters
+        ----------
+        audio_directory : str , optional
+            path of the directory which contains the audio tracks
+        spec_directory : str , optional
+            path of the directory which contains the spectra files
+        annots_directory : str , optional
+            path of the directory which contains hand-made annotations
+        config_path : str , optional
+            path of the directory which contains the configuration
+            by default, default_config (from config.py or config.toml) will be applied
+        annot_format : str , default : "marron1csv
+            <complete>
+        time_precision : float , default : 0.001
+            <complete>
+        audio_ext : str or tuple of str , default : ".wav"
+            extension for the audio files in the audio_directory
+        spec_ext : str , default : ".mfcc.npy"
+            extension for the spec files in the spec_directory
+
+        Returns
+        -------
+        Corpus
+            Contains the audio, annotations and spec files from the given directories
+
+        Raises
+        ------
+        ValueError
+            At least one of audio_directory or spec_directory must be provided.
+        """
         if audio_directory is None and spec_directory is None:
             raise ValueError(
                 "At least one of audio_directory or spec_directory must " "be provided."
@@ -129,7 +204,31 @@ class Corpus:
         )
 
     @classmethod
-    def from_df(cls, df, annots_directory=None, config=None, seq_ids=None):
+    def from_df(cls, df, annots_directory=None, config=default_config, seq_ids=None):
+        """
+        Create a Corpus object from a DataFrame which contains data about canary songs.
+
+        Parameters
+        ----------
+        df : pandas.DataFrame
+            contains data about one or more canary songs
+        annots_directory : str , optional
+            path of the directory which contains hand-made annotations
+        config : config.Config , default : default_config (from config.py or config.toml)
+            contains parameters of the corpus
+        seq_ids : , optional
+            <complete>
+
+        Returns
+        -------
+        Corpus
+            Contains data from 'df'
+
+        Raises
+        ------
+        ValueError
+            'seq_ids' should have same length than 'df'.
+        """
         seq_ids = np.sort(df["notated_path"]) if seq_ids is None else seq_ids
 
         if len(seq_ids) != len(df):
@@ -182,6 +281,25 @@ class Corpus:
         )
 
     def to_directory(self, annots_directory):
+        """
+        Store the annotations on the disk
+        Annotations will be stored on csv format and in the following form :
+            wave  -> name of the audio track it cames from
+            start -> time marker of the begining of the phrase (in seconds)
+            end   -> time marker of the end of the phrase (in seconds)
+            syll  -> class of the phrase
+
+        Parameters
+        ----------
+        annots_directory : str
+            path where the annotations will be stored
+
+        Returns
+        -------
+        Corpus
+            same corpus
+
+        """
         Path(annots_directory).mkdir(parents=True, exist_ok=True)
 
         if not isinstance(self.annotations.annots, Sequence):
@@ -213,6 +331,21 @@ class Corpus:
         return self
 
     def register_data_resource(self, name, data):
+        """
+        Add a new data ressource to a corpus
+
+        Parameters
+        ----------
+        name : str
+            name of the new data ressource
+        data : any
+            data of the new data ressource
+
+        Returns
+        -------
+        Corpus
+            Same corpus with the new data ressource added
+        """
         self.data_resources[name] = data
         return self
 
