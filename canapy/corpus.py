@@ -6,7 +6,7 @@
 """
 Provides the Corpus class for storing canary songs' data.
 
-A corpus can be created from a repository containing audio, annotation, and spectra files,
+A corpus can be created from a repository containing audio, annotation, and spectrogram files,
 or from a DataFrame that already contains data about canary songs.
 Annotations from a corpus can be saved to disk using the 'to_directory' method.
 
@@ -55,7 +55,7 @@ class Corpus:
     audio_directory : pathlib.Path | str
         Path of the directory that contains audio files.
     spec_directory : pathlib.Path | str
-        Path of the directory that contains spectra files.
+        Path of the directory that contains spectrogram files.
     annots_directory : pathlib.Path | str
         Path of the directory that contains annotation files.
     annot_format : str
@@ -71,7 +71,18 @@ class Corpus:
     audio_ext : str
         Extension of audio files in audio_directory.
     spec_ext : str
-        Extension of spectra files in spec_directory.
+        Extension of spectrogram files in spec_directory.
+        
+    Methods
+    -------
+    from_directory(audio_directory=None, spec_directory=None, annots_directory=None, config_path=None,
+                   annot_format="marron1csv", time_precision=0.001, audio_ext=".wav", spec_ext=".mfcc.npy")
+        Create a Corpus object from audios, annotations, and spectrogram files stored on the disk.
+    from_df(df, annots_directory=None, config=default_config, seq_ids=None)
+        Create a Corpus object from a DataFrame that contains data about canary songs.
+    to_directory(self, annots_directory)
+        Store the annotations on the disk.
+
     """
 
     audio_directory: Optional[Union[Path, str]] = attr.field(converter=as_path)
@@ -177,14 +188,14 @@ class Corpus:
         spec_ext=".mfcc.npy",
     ):
         """
-        Create a Corpus object from audios, annotations, and spectra files stored on the disk.
+        Create a Corpus object from audios, annotations, and spectrogram files stored on the disk.
 
         Parameters
         ----------
         audio_directory : str, optional
             Path of the directory that contains the audio tracks.
         spec_directory : str, optional
-            Path of the directory that contains the spectra files.
+            Path of the directory that contains the spectrogram files.
         annots_directory : str, optional
             Path of the directory that contains hand-made annotations.
         config_path : str, optional
@@ -197,12 +208,12 @@ class Corpus:
         audio_ext : str, default=".wav"
             The extension for the audio files in the audio_directory.
         spec_ext : str, default=".mfcc.npy"
-            The extension for the spectra files in the spec_directory.
+            The extension for the spectrogram files in the spec_directory.
 
         Returns
         -------
         Corpus
-            Corpus object that contains the audio, annotations, and spectra files from the given directories.
+            Corpus object that contains the audio, annotations, and spectrogram files from the given directories.
         Raises
         ------
         ValueError
@@ -290,7 +301,7 @@ class Corpus:
             DataFrame that contains data about one or more canary songs.
         annots_directory : str, optional
             Path of the directory that contains hand-made annotations.
-        config : Config, default=default_config (from config.py or config.toml)
+        config : Config, default=default_config (from canapy.config)
             Contains parameters of the corpus.
         seq_ids : Iterable, optional
             Sequence identifiers.
