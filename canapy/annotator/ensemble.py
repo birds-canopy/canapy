@@ -16,6 +16,29 @@ logger = logging.getLogger("canapy")
 
 
 def _check_prediction_lengths(predictions):
+    """
+    Check if the predictions have consistent lengths.
+
+    Parameters
+    ----------
+    predictions : list[dict]
+        List of prediction dictionaries.
+
+    Raises
+    ------
+    ValueError
+        If the corpora have different numbers of annotations or do not represent annotations for the same corpus.
+    ValueError
+        If there is a mismatch in the annotation length in the corpora.
+    ValueError
+        If there is a mismatch in the annotation vocabulary size.
+
+    Returns
+    -------
+    None
+        Meaning all tests have succeeded.
+
+    """
     if not all([set(predictions[0].keys()) == set(p.keys()) for p in predictions]):
         raise ValueError(
             "Corpora have different number of annotations, or do not represent "
@@ -45,6 +68,29 @@ def _check_prediction_lengths(predictions):
 
 
 def hard_vote(corpora, classes=None):
+    """
+    Perform hard voting ensemble on the given corpora.
+
+    Parameters
+    ----------
+    corpora : list[Corpus]
+        List of Corpus objects.
+    classes : list, default=None
+        List of classes.
+
+    Returns
+    -------
+    tuple
+        A tuple containing the keys and values of the ensemble votes.
+
+    Raises
+    ------
+    KeyError
+        If 'nn_output' is not found in Corpus.data_resources.
+    ValueError
+        If there is a mismatch in annotation length or vocabulary size in the corpora.
+
+    """
     raw_predictions = []
     for corpus in corpora:
         if "nn_output" not in corpus.data_resources:
@@ -93,7 +139,58 @@ MODE_REGISTRY = dict(
 
 
 class Ensemble(Annotator):
+    """
+    Ensemble Annotator for audio classification, using Echo State Network (ESN).
+    'Ensemble' refers to the predicting approach of the annotator, where predictions are made by combining the results
+    of others annotators' predictions on the same songs to determine the best one.
+
+    The basic usage of an annotator involves three steps:
+        1. Load your annotator (using the 'from_disk' method or by creating a new one)
+        2. Train your annotator (using the 'fit' method).
+        3. Make predictions with the annotator (using the 'predict' method).
+
+
+
+    Parameters
+    ----------
+    config : object
+        The configuration object for the annotator.
+    spec_directory : str
+        The path to the spectra files.
+    mode : str, default='hard_vote'
+        Type of vote to determine the best prediction
+
+    Attributes
+    ----------
+    config : Config (from canapy.config)
+        The configuration object for the annotator.
+    spec_directory : str
+        The path to the spectrogram files.
+    _mode : str
+        Type of vote to determine the best prediction
+
+    Methods
+    -------
+    fit(corpus)
+        Fit the annotator on the provided training corpus.
+    predict(corpus, return_raw=False, redo_transforms=False)
+        Predict annotations for the given corpus.
+
+    """
+
     def __init__(self, config, spec_directory=None, mode="hard_vote"):
+        """
+        Initialization method.
+
+        Parameters
+        ----------
+        config : object
+            The configuration object for the annotator.
+        spec_directory : str
+            The path to the spectra files.
+        mode : str, default='hard_vote'
+            Type of vote to determine the best prediction
+        """
         if mode not in MODE_REGISTRY:
             raise ValueError(
                 f"'mode' should be one of {', '.join(list(MODE_REGISTRY.keys()))}."
@@ -107,19 +204,115 @@ class Ensemble(Annotator):
 
     @property
     def mode(self):
+        """
+        Get the mode of the annotator.
+
+        Returns
+        -------
+        str
+            The mode of the annotator.
+
+        Example
+        -------
+            >>> from canapy.annotator.ensemble import Ensemble
+            >>> from canapy.config import default_config
+            >>> # Ensemble and default_config are imported to create a new ensemble annotator
+            >>> my_annotator = Ensemble(default_config, "/home/vincent/documents/data_canary/spec")
+            >>> my_annotator.mode()
+            hard_vote
+
+        """
         return self._mode
 
     def fit(self, corpus):
+        """
+        Fit the annotator to the given corpus.
+
+        Parameters
+        ----------
+        corpus : Corpus
+            The corpus object used for training the annotator.
+
+        Returns
+        -------
+        Ensemble
+            The trained annotator itself.
+
+        Notes
+        ----
+        Even though this function returns the trained annotator, the annotator itself is trained.
+
+        The Ensemble annotator does not directly use an ESN. Consequently, the training process involves
+        creating the adapted vocabulary for the annotator.
+
+        Example
+        -------
+            >>> from canapy.annotator.ensemble import Ensemble
+            >>> from canapy.config import default_config
+            >>> # Ensemble and default_config are imported to create a new annotator
+            >>> my_annotator = Ensemble(default_config, "/home/vincent/Documents/data_canary/spec")
+            >>> from canapy.corpus import Corpus
+            >>> corpus = Corpus.from_directory(audio_directory="/path/to/audio", annots_directory="/path/to/annotation")
+            >>> # A new corpus is created to train the annotator
+            >>> my_annotator_trained = my_annotator.fit(corpus)
+            >>> # The annotator is now trained with the given corpus
+
+        """
         self._vocab = np.sort(corpus.dataset["label"].unique()).tolist()
         self._trained = True
         return self
 
-    def predict(
-        self,
-        corpora,
-        return_raw=False,
-        redo_transforms=False,
-    ):
+    def predict(self, corpora, return_raw=False, redo_transforms=False):
+        """
+        Determine the best prediction using predictions from different annotators on the same original corpus
+
+        Parameters
+        ----------
+        corpora : list[Corpus]
+            The corpuses list that have been created by different annotators predictions (using 'return_raw' = True)
+        return_raw : bool, optional
+            If True, raw annotations are added into the 'data_resources'
+            Raw outputs are necessary to train an 'EnsemleAnnotator' on a corpus
+        redo_transforms : bool, optional
+            If True, redo the transformations on the corpus before predicting.
+
+        Returns
+        -------
+        Corpus
+            The corpus object with the best annotations.
+
+        Note
+        ----
+        Annotators need to be trained before being able to make predictions
+
+        Example
+        -------
+            >>> import canapy.annotator as ant
+            >>> from canapy.config import default_config
+            >>> # Annotators and default_config are imported to create a new annotator
+            >>> my_annotator = ant.ensemble.Ensemble(default_config)
+            >>> from canapy.corpus import Corpus
+            >>> corpus = Corpus.from_directory(audio_directory="/path/to/audio", annots_directory="/path/to/annotation")
+            >>> # A new corpus is created to train the annotator
+            >>> my_annotator_trained = my_annotator.fit(corpus)
+            >>> # The annotator is now trained with the given corpus
+            >>> syn_annotator = ant.synannotator.SynAnnotator(default_config)
+            >>> nsyn_annotator = ant.nsynannotator.NSynAnnotator(default_config)
+            >>> # Two more annotators are created
+            >>> syn_annotator.fit(corpus)
+            >>> nsyn_annotator.fit(corpus)
+            >>> # And trained on a corpus
+            >>> unannotated_corpus =  Corpus.from_directory(audio_directory="/path/to/audio")
+            >>> # A new corpus is created with potentially unannotated songs
+            >>> annotated_raw_syn_corpus = syn_annotator.predict(unannotated_corpus, return_raw=True)
+            >>> annotated_raw_nsyn_corpus =  nsyn_annotator.predict(unannotated_corpus, return_raw=True)
+            >>> # Those corpus contains predictions for each annotator and raw output of their model
+            >>> annotated_corpus = my_annotator.predict([annotated_raw_syn_corpus, annotated_raw_nsyn_corpus])
+            >>> # 'annotated_corpus' contains the annotation made by the Ensemble annotator
+            >>> annotated_corpus.to_disk("/path/to/new/annotations")
+            >>> # Those annotations can be stored on the disk using Corpus 'to_disk' method
+
+        """
         if not self.trained:
             raise NotTrainedError(
                 "Call .fit on annotated data (Corpus) before calling " ".predict."
