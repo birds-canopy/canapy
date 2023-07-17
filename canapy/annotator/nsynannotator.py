@@ -1,4 +1,5 @@
-# Author: Nathan Trouvain at 29/06/2023 <nathan.trouvain<at>inria.fr>
+# Authors: Nathan Trouvain at 29/06/2023 <nathan.trouvain<at>inria.fr>
+#          Vincent Gardies at 13/07/2023 <vincent.gardies<at>inria.fr>
 # Licence: MIT License
 # Copyright: Nathan Trouvain
 import logging
@@ -16,8 +17,8 @@ logger = logging.getLogger("canapy")
 
 class NSynAnnotator(Annotator):
     """
-    Not-Syntaxic Annotator for audio classification, using Echo State Network (ESN).
-    'Not-Syntaxic' refers to the training approach of the annotator, where the training corpus is transformed
+    Non-Syntaxic Annotator for audio classification, using Echo State Network (ESN).
+    'Non-Syntaxic' refers to the training approach of the annotator, where the training corpus is transformed
     to have an equal number of occurrences for every label present in the corpus, with a random order.
 
     The basic usage of an annotator involves three steps:
