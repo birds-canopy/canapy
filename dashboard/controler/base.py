@@ -17,12 +17,25 @@ from canapy import plots
 from canapy.corpus import Corpus
 from canapy.annotator import get_annotator, Annotator, get_annotator_names
 from canapy.correction import Corrector
+from canapy.metrics import confusion_matrix, classification_report, segment_error_rate
 
 from .segments import load_repertoire, fetch_misclassified_samples
-from .corpusutils import mark_whole_corpus_as_train
+from .corpusutils import mark_whole_corpus_as_train, query_split
 
 
 logger = logging.getLogger("canapy")
+
+
+def _sort_annotators(annotators: List):
+    # Ensemble should always be last
+    sorted_annots = []
+    if "ensemble" in annotators:
+        annotators.remove("ensemble")
+        sorted_annots = ["ensemble"]
+    else:
+        sorted_annots = []
+    sorted_annots = annotators.copy() + sorted_annots
+    return sorted_annots
 
 
 @attr.define
@@ -53,8 +66,11 @@ class Controler(object):
         self._iter = 1
         self._step = "train"
 
+        self.annotators = _sort_annotators(self.annotators)
+
         self._annotators = dict()
         self._pred_corpora = None
+        self._metrics_store = None
 
         self.initialize_output()
         self.initialize_models()
@@ -74,6 +90,12 @@ class Controler(object):
                 annot_cls = get_annotator(name)
                 annot_obj = annot_cls(self.config, self.output_directory / "spectro")
                 self._annotators[name] = annot_obj
+
+                if name == "ensemble":
+                # Ensemble does not really require training but will grasp the
+                # labels from .fit
+                    annot_obj.fit(self.corpus)
+
             except KeyError:
                 logger.warning(f"Annotator model '{name}' not found in registry. "
                                f"Skipping.")
@@ -100,8 +122,10 @@ class Controler(object):
             logger.critical(e)
 
     def initialize_annots(self):
-        self._pred_corpora = dict()
+        self._pred_corpora = dict(all=dict(), train=dict(), test=dict())
+        self._metrics_store = dict(all=dict(), train=dict(), test=dict())
         logger.info("Annotators predictions (re)initialized.")
+        logger.info("Metrics and scores (re)initialized.")
 
     def next_iter(self):
         self.initialize_models()
@@ -126,7 +150,7 @@ class Controler(object):
             print('Setting current dashboard to "eval".')
 
         elif self.step == "eval" and not export:
-            self.step = "train"
+            self._step = "train"
             print("Updating corpus...")
             self.corpus.update(iteration=self.iter, corrections=self.new_corrections)
             print("Saving corpus chekpoint...")
@@ -136,7 +160,7 @@ class Controler(object):
             self.next_iter()
 
         elif export:
-            self.step = "export"
+            self._step = "export"
 
             print("Updating corpus...")
             self.corpus.update(iteration=self.iter, corrections=self.new_corrections)
@@ -148,7 +172,7 @@ class Controler(object):
         # del_temp()
         # print("All temporary files deleted.")
         # print("Switching panel...")
-        self.dash.switch_panel()
+        self.dashboard.switch_panel()
         print("Done.")
 
     def train(self, annotator_name, export=False, save=False):
@@ -172,6 +196,18 @@ class Controler(object):
             except OSError as e:
                 logger.critical(e)
 
+    def annotate(self, annotator_name, split="all"):
+        if annotator_name == "ensemble":
+            # Get all previous predictions
+            corpora = [query_split(c, split) for c in self._pred_corpora[split].values()]
+        else:
+            corpora = query_split(self.corpus, split)
+
+        annotator = self._annotators[annotator_name]
+        pred_corpus = annotator.predict(corpora, return_raw="ensemble" in self.annotators)
+
+        self._pred_corpora[split][annotator_name] = pred_corpus
+
     def train_syn(self):
         self.train("syn-esn")
 
@@ -185,64 +221,82 @@ class Controler(object):
         self.train("nsyn-esn", export=True, save=True)
 
     def annotate_syn(self):
-        syn, truth, vect = self.annotator.run(
-            model="syn", vectors=True, return_truths=True
-        )
-        self.corpus.annotations["syn"] = create_memmap(syn, "syn_annots")
-        self.corpus.annotations["truth"] = create_memmap(truth, "truth_annots")
-        self.syn_annots_vectors = create_memmap(vect, "syn_vect")
-
-        del syn
-        del truth
-        del vect
-        gc.collect()
+        self.annotate("syn-esn", split="all")
+        # syn, truth, vect = self.annotator.run(
+        #     model="syn", vectors=True, return_truths=True
+        # )
+        # self.corpus.annotations["syn"] = create_memmap(syn, "syn_annots")
+        # self.corpus.annotations["truth"] = create_memmap(truth, "truth_annots")
+        # self.syn_annots_vectors = create_memmap(vect, "syn_vect")
+        #
+        # del syn
+        # del truth
+        # del vect
+        # gc.collect()
 
     def annotate_nsyn(self):
-        nsyn, vect = self.annotator.run(model="nsyn", vectors=True)
-        self.corpus.annotations["nsyn"] = create_memmap(nsyn, "nsyn_annots")
-        self.nsyn_annots_vectors = create_memmap(vect, "nsyn_vect")
-
-        del nsyn
-        del vect
-        gc.collect()
+        self.annotate("nsyn-esn", split="all")
+        # nsyn, vect = self.annotator.run(model="nsyn", vectors=True)
+        # self.corpus.annotations["nsyn"] = create_memmap(nsyn, "nsyn_annots")
+        # self.nsyn_annots_vectors = create_memmap(vect, "nsyn_vect")
+        #
+        # del nsyn
+        # del vect
+        # gc.collect()
 
     def annotate_ensemble(self):
-        ens = self.annotator.run(
-            models_vectors=[self.syn_annots_vectors, self.nsyn_annots_vectors],
-            model="ensemble",
-        )
-        self.corpus.annotations["ensemble"] = create_memmap(ens, "ens_annots")
+        self.annotate("ensemble", split="all")
+        # ens = self.annotator.run(
+        #     models_vectors=[self.syn_annots_vectors, self.nsyn_annots_vectors],
+        #     model="ensemble",
+        # )
+        # self.corpus.annotations["ensemble"] = create_memmap(ens, "ens_annots")
+        #
+        # del ens
+        # del self.syn_annots_vectors
+        # close_memmap("syn_vect")
+        # del self.nsyn_annots_vectors
+        # close_memmap("nsyn_vect")
+        #
+        # gc.collect()
 
-        del ens
-        del self.syn_annots_vectors
-        close_memmap("syn_vect")
-        del self.nsyn_annots_vectors
-        close_memmap("nsyn_vect")
+    def get_metrics(self, split="all"):
+        predictions = self._pred_corpora[split]
 
-        gc.collect()
+        for annot_name, pred_corpus in predictions.items():
 
-    def get_metrics(self):
-        annots = self.corpus.annotations
-        flat_annots = {k: np.concatenate([*s.values()]) for k, s in annots.items()}
+            gold_corpus = query_split(self.corpus, split)
+            classes = np.sort(self.corpus["label"].unique()).tolist()
 
-        truth = flat_annots["truth"]
-        labels = self.corpus.vocab
-        cms = {}
-        reports = {}
-        for model, values in tqdm(
-            flat_annots.items(), "Computing metrics for annotations"
-        ):
+            cm = confusion_matrix(gold_corpus, pred_corpus, classes=classes)
+            report = classification_report(gold_corpus, pred_corpus, classes=classes)
+            # ser = segment_error_rate(gold_corpus, pred_corpus)
 
-            if model != "truth":
-                cms[model] = metrics.confusion_matrix(
-                    truth, values, labels=labels, normalize="true"
-                )
+            self._metrics_store[split]["cm"] = cm
+            self._metrics_store[split]["report"] = report
+            # self._metrics_store[split]["ser"] = ser
 
-                reports[model] = metrics.classification_report(
-                    truth, values, digits=3, output_dict=True, zero_division=0
-                )
-        self.cms = cms
-        self.reports = reports
+        # flat_annots = {k: np.concatenate([*s.values()]) for k, s in annots.items()}
+        #
+        # truth = flat_annots["truth"]
+        # labels = self.corpus.vocab
+        # cms = {}
+        # reports = {}
+        # for model, values in tqdm(
+        #     flat_annots.items(), "Computing metrics for annotations"
+        # ):
+        #
+        #     if model != "truth":
+        #         cms[model] = metrics.confusion_matrix(
+        #             truth, values, labels=labels, normalize="true"
+        #         )
+        #
+        #         reports[model] = metrics.classification_report(
+        #             truth, values, digits=3, output_dict=True, zero_division=0
+        #         )
+        #
+        # self.cms = cms
+        # self.reports = reports
 
         self.fetch_misclassified_samples()
         self.misclassified_counts_plot()

@@ -73,6 +73,6 @@ def frames_to_timed_df(
             "offset_s": offset_s,
             "notated_path": [notated_path] * n_frames,
         }
-    )
+    ).sort_values(by=["notated_path", "onset_s"])
 
     return df
