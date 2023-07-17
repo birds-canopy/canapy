@@ -81,7 +81,6 @@ class Controler(object):
             model.save(self.curr_models / model.name)
 
     def next_step(self, export=False):
-
         if self.step == "train":
             self.step = "eval"
 
@@ -179,7 +178,6 @@ class Controler(object):
         for model, values in tqdm(
             flat_annots.items(), "Computing metrics for annotations"
         ):
-
             if model != "truth":
                 cms[model] = metrics.confusion_matrix(
                     truth, values, labels=labels, normalize="true"
@@ -195,7 +193,6 @@ class Controler(object):
         self.misclassified_counts_plot()
 
     def fetch_misclassified_samples(self):
-
         annots = self.dataset.annotations
         df = self.dataset.df
         bad_ones = {}
@@ -228,7 +225,6 @@ class Controler(object):
         self.misclassified_counts_plot()
 
     def misclassified_counts_plot(self):
-
         s = pd.DataFrame(self.misclass_df.groupby("syll")["syll"].count())
         s.columns = ["counts"]
         s.sort_values(by=["counts"], ascending=False, inplace=True)
@@ -252,7 +248,6 @@ class Controler(object):
         self.misclass_labels = self.misclass_counts.index.values.tolist()
 
     def confusion_matrix(self, model):
-
         labels = self.dataset.vocab
         cm = self.cms[model]
 

@@ -23,7 +23,6 @@ class Canapy(object):
         audioformat=None,
         rate=None,
     ):
-
         self.port = port
         self.server_instance = None
         self.controler = Controler(

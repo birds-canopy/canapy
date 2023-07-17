@@ -72,7 +72,7 @@ class Corpus:
         Extension of audio files in audio_directory.
     spec_ext : str
         Extension of spectrogram files in spec_directory.
-        
+
     Methods
     -------
     from_directory(audio_directory=None, spec_directory=None, annots_directory=None, config_path=None,
@@ -171,8 +171,8 @@ class Corpus:
             >>> corpus_long_phrase = corpus["offset_s - onset_s > 1"]
             >>> # corpus_long_phrase is a copy of corpus where every phrase of the dataset that last less than a second
             >>> # are erased
-
         """
+        print(item)
         return self.clone_with_df(self.dataset.query(item))
 
     @classmethod
@@ -318,7 +318,7 @@ class Corpus:
 
             If some annotations are affected to more than one notated file.
         """
-        seq_ids = np.sort(df["notated_path"]) if seq_ids is None else seq_ids
+        seq_ids = df["notated_path"] if seq_ids is None else seq_ids
 
         if len(seq_ids) != len(df):
             raise ValueError("'seq_ids' should have same length than 'df'.")
@@ -326,9 +326,9 @@ class Corpus:
         annots_dir = as_path(annots_directory)
 
         annotation_list = list()
-        for seq_id in np.unique(seq_ids):
-            seq_idx = np.where(seq_ids == seq_id, True, False)
-            annots = df[seq_idx].sort_values(by="onset_s")
+        for seq_id, annots in df.groupby(seq_ids):
+            # seq_idx = np.where(seq_ids == seq_id, True, False)
+            # annots = df[seq_idx].sort_values(by="onset_s")
 
             seq = crowsetta.Sequence.from_keyword(
                 labels=annots.label, onsets_s=annots.onset_s, offsets_s=annots.offset_s
@@ -458,8 +458,14 @@ class Corpus:
             Copy of the original corpus with a new dataset, 'df'.
 
         """
+
+        if "annotation" in df and "sequence" in df:
+            seq_ids = df["annotation"].astype(str) + df["sequence"].astype(str)
+        else:
+            seq_ids = None
+
         new_corpus = Corpus.from_df(
-            df, annots_directory=self.annots_directory, config=self.config
+            df, annots_directory=self.annots_directory, config=self.config, seq_ids=seq_ids,
         )
 
         new_corpus.audio_directory = self.audio_directory

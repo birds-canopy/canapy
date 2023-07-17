@@ -40,7 +40,6 @@ def _sort_annotators(annotators: List):
 
 @attr.define
 class Controler(object):
-
     data_directory: Path = attr.field(converter=Path)
     output_directory: Path = attr.field(converter=Path)
     config_path: Path = attr.field(converter=Path)
@@ -51,7 +50,6 @@ class Controler(object):
     annotators: List = attr.field(default=["syn-esn", "nsyn-esn", "ensemble"])
 
     def __attrs_post_init__(self):
-
         self.corpus = Corpus.from_directory(
             audio_directory=self.data_directory,
             spec_directory=self.output_directory / "spectro",
@@ -92,18 +90,21 @@ class Controler(object):
                 self._annotators[name] = annot_obj
 
                 if name == "ensemble":
-                # Ensemble does not really require training but will grasp the
-                # labels from .fit
+                    # Ensemble does not really require training but will grasp the
+                    # labels from .fit
                     annot_obj.fit(self.corpus)
 
             except KeyError:
-                logger.warning(f"Annotator model '{name}' not found in registry. "
-                               f"Skipping.")
+                logger.warning(
+                    f"Annotator model '{name}' not found in registry. " f"Skipping."
+                )
 
         if len(self._annotators) == 0:
-            logger.error(f"No Annotator provided! All requested Annotator models "
-                         f"({self.annotators}) are probably invalid, or the list is"
-                         f" empty. Valid annotators are: {get_annotator_names()}.")
+            logger.error(
+                f"No Annotator provided! All requested Annotator models "
+                f"({self.annotators}) are probably invalid, or the list is"
+                f" empty. Valid annotators are: {get_annotator_names()}."
+            )
 
     def initialize_output(self, output=None):
         try:
@@ -114,10 +115,12 @@ class Controler(object):
         try:
             (self.output_directory / "spectro").mkdir(parents=True, exist_ok=True)
 
-            logger.info(f"All results will be stored in {self.output_directory}. "
-                        f"Audio transformations (spectrograms, MFCC...) will be "
-                        f"stored in "
-                        f"{self.output_directory / 'spectro'}.")
+            logger.info(
+                f"All results will be stored in {self.output_directory}. "
+                f"Audio transformations (spectrograms, MFCC...) will be "
+                f"stored in "
+                f"{self.output_directory / 'spectro'}."
+            )
         except OSError as e:
             logger.critical(e)
 
@@ -135,7 +138,9 @@ class Controler(object):
 
     def checkpoint(self):
         try:
-            (self.output_directory / "model" / str(self.iter)).mkdir(parents=True, exist_ok=True)
+            (self.output_directory / "model" / str(self.iter)).mkdir(
+                parents=True, exist_ok=True
+            )
             for name, model in self._annotators:
                 model.to_disk(self.output_directory / str(self.iter) / "model" / name)
         except OSError as e:
@@ -191,20 +196,26 @@ class Controler(object):
             try:
                 (self.output_directory / "models").mkdir(parents=True, exist_ok=True)
                 annotator.to_disk(self.output_directory / "model" / annotator_name)
-                logger.info(f"Saved Annotator '{annotator_name}' in file "
-                            f"{self.output_directory / 'model' / annotator_name}.")
+                logger.info(
+                    f"Saved Annotator '{annotator_name}' in file "
+                    f"{self.output_directory / 'model' / annotator_name}."
+                )
             except OSError as e:
                 logger.critical(e)
 
     def annotate(self, annotator_name, split="all"):
         if annotator_name == "ensemble":
             # Get all previous predictions
-            corpora = [query_split(c, split) for c in self._pred_corpora[split].values()]
+            corpora = [
+                query_split(c, split) for c in self._pred_corpora[split].values()
+            ]
         else:
             corpora = query_split(self.corpus, split)
 
         annotator = self._annotators[annotator_name]
-        pred_corpus = annotator.predict(corpora, return_raw="ensemble" in self.annotators)
+        pred_corpus = annotator.predict(
+            corpora, return_raw="ensemble" in self.annotators
+        )
 
         self._pred_corpora[split][annotator_name] = pred_corpus
 
@@ -264,7 +275,6 @@ class Controler(object):
         predictions = self._pred_corpora[split]
 
         for annot_name, pred_corpus in predictions.items():
-
             gold_corpus = query_split(self.corpus, split)
             classes = np.sort(self.corpus["label"].unique()).tolist()
 

@@ -129,7 +129,7 @@ def compute_mfcc_for_balanced_dataset(corpus, *, resource_name, redo=False, **kw
             audio, rate = lbr.load(audio_path, sr=config.sampling_rate)
 
         annots = df.query("notated_path == @audio_path_")
-        print(len(annots), audio_path, annots.notated_path)
+
         for entry in annots.itertuples():
             start = config.audio_steps(entry.onset_s)
             end = config.audio_steps(entry.offset_s)
@@ -162,6 +162,8 @@ def compute_mfcc_for_balanced_dataset(corpus, *, resource_name, redo=False, **kw
             cepstrum = np.vstack(cepstral_features)
 
             mfcc[entry.Index] = cepstrum
+
+    df["mfcc"] = mfcc
 
     corpus.register_data_resource(resource_name, df)
 

@@ -42,14 +42,13 @@ class App(pn.viewable.Viewer):
         result = self._load()
         self._time = time.time()
 
-        self._status_pane = pn.pane.Markdown(self.status, height=40, align="start", margin=(0,5,10,5))
+        self._status_pane = pn.pane.Markdown(
+            self.status, height=40, align="start", margin=(0, 5, 10, 5)
+        )
         self._result_pane = pn.Column(result)
 
         button = pn.widgets.Button.from_param(self.param.run, sizing_mode="fixed")
-        self._view = pn.Column(
-            pn.Row(button, self._status_pane),
-            self._result_pane
-        )
+        self._view = pn.Column(pn.Row(button, self._status_pane), self._result_pane)
 
     def __panel__(self):
         return self._view
@@ -60,7 +59,7 @@ class App(pn.viewable.Viewer):
 
     def _stop_run(self):
         now = time.time()
-        duration = round(now-self._time,3)
+        duration = round(now - self._time, 3)
         self._time = now
         self.runs += 1
         self.status = f"Finished run {self.runs} in {duration}sec"
@@ -87,5 +86,5 @@ class App(pn.viewable.Viewer):
 if __name__ == "__main__":
     pn.extension(sizing_mode="stretch_width", template="material")
 
-    #App().servable()
+    # App().servable()
     HomeView().show()

@@ -32,7 +32,7 @@ def tag_silences(corpus, **kwargs):
     silence_df["offset_s"] = sil_end
     silence_df["label"] = corpus.config.transforms.annots.silence_tag
 
-    too_short = silence_df[silence_df["offset_s"] - silence_df["onset_s"] <= 0.0].index
+    too_short = silence_df[sil_end - sil_start <= 0.0].index
     silence_df.drop(too_short, axis=0, inplace=True)
 
     df = pd.concat([df, silence_df], ignore_index=True)

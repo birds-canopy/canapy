@@ -11,19 +11,15 @@ def test_nsynannotator():
     #     annots_directory="/home/nathan/Documents/Code/canapy-test/data/",
     # )
     corpus = Corpus.from_directory(
-        audio_directory="/home/vincent/Documents/Travail/Stage_L3/canapy-master_github/data_alizee/fast_train",
-        annots_directory="/home/vincent/Documents/Travail/Stage_L3/canapy-master_github/data_alizee/fast_train",
+        audio_directory="/home/nathan/Documents/Code/canapy-test/data",
+        annots_directory="/home/nathan/Documents/Code/canapy-test/data",
     )
     annotator = NSynAnnotator(
         config=corpus.config,
-        spec_directory="/home/vincent/Documents/Travail/Stage_L3/canapy-reborn/tests/tests/output/transforms",
+        spec_directory="/home/nathan/Documents/Code/canapy-test/data",
     )
     annotator.fit(corpus)
 
-    n, _, cls_pred, _ = annotator.predict(corpus)
+    corpus = annotator.predict(corpus)
 
-    n = n[0]
-
-    print(n)
-    print(cls_pred[0])
-    print(corpus.dataset.query("notated_path == @n").label)
+    # print(corpus.dataset.query("notated_path == @n").label)

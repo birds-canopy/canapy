@@ -23,8 +23,9 @@ def query_split(corpus, split="all"):
         elif split == "train":
             query = "train"
         else:
-            raise ValueError(f"split should be 'all', 'train' or 'test, "
-                             f"not {split}.")
+            raise ValueError(
+                f"split should be 'all', 'train' or 'test, " f"not {split}."
+            )
         return corpus[query]
     else:
         return corpus
