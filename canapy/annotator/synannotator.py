@@ -113,7 +113,7 @@ class SynAnnotator(Annotator):
             >>> from canapy.annotator.synannotator import SynAnnotator
             >>> from canapy.config import default_config
             >>> # SynAnnotator and default_config are imported to create a new annotator
-            >>> my_annotator = SynAnnotator(default_config, "/home/vincent/Documents/data_canary/spec")
+            >>> my_annotator = SynAnnotator(default_config, "/path/to/spec")
             >>> from canapy.corpus import Corpus
             >>> corpus = Corpus.from_directory(audio_directory="/path/to/audio", annots_directory="/path/to/annotation")
             >>> # A new corpus is created to train the annotator
@@ -169,7 +169,7 @@ class SynAnnotator(Annotator):
             >>> from canapy.annotator.synannotator import SynAnnotator
             >>> from canapy.config import default_config
             >>> # SynAnnotator and default_config are imported to create a new annotator
-            >>> my_annotator = SynAnnotator(default_config, "/home/vincent/Documents/data_canary/spec")
+            >>> my_annotator = SynAnnotator(default_config, "/path/to/spec")
             >>> from canapy.corpus import Corpus
             >>> corpus = Corpus.from_directory(audio_directory="/path/to/audio", annots_directory="/path/to/annotation")
             >>> # A new corpus is created to train the annotator

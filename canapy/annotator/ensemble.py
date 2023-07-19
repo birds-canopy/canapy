@@ -218,7 +218,7 @@ class Ensemble(Annotator):
             >>> from canapy.annotator.ensemble import Ensemble
             >>> from canapy.config import default_config
             >>> # Ensemble and default_config are imported to create a new ensemble annotator
-            >>> my_annotator = Ensemble(default_config, "/home/vincent/documents/data_canary/spec")
+            >>> my_annotator = Ensemble(default_config, "/path/to/spec")
             >>> my_annotator.mode()
             hard_vote
 
@@ -251,7 +251,7 @@ class Ensemble(Annotator):
             >>> from canapy.annotator.ensemble import Ensemble
             >>> from canapy.config import default_config
             >>> # Ensemble and default_config are imported to create a new annotator
-            >>> my_annotator = Ensemble(default_config, "/home/vincent/Documents/data_canary/spec")
+            >>> my_annotator = Ensemble(default_config, "/path/to/spec")
             >>> from canapy.corpus import Corpus
             >>> corpus = Corpus.from_directory(audio_directory="/path/to/audio", annots_directory="/path/to/annotation")
             >>> # A new corpus is created to train the annotator

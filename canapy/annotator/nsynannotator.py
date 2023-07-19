@@ -115,7 +115,7 @@ class NSynAnnotator(Annotator):
             >>> from canapy.annotator.nsynannotator import NSynAnnotator
             >>> from canapy.config import default_config
             >>> # NSynAnnotator and default_config are imported to create a new annotator
-            >>> my_annotator = NSynAnnotator(default_config, "/home/vincent/Documents/data_canary/spec")
+            >>> my_annotator = NSynAnnotator(default_config, "/path/to/spec")
             >>> from canapy.corpus import Corpus
             >>> corpus = Corpus.from_directory(audio_directory="/path/to/audio", annots_directory="/path/to/annotation")
             >>> # A new corpus is created to train the annotator
@@ -215,7 +215,7 @@ class NSynAnnotator(Annotator):
             >>> # NSynAnnotator and default_config are imported to create a new annotator
             >>> my_annotator = NSynAnnotator(
             ...     config=corpus.config,
-            ...     spec_directory="/home/vincent/Documents/data_canary/spec")
+            ...     spec_directory="/path/to/spec")
             >>> # A new corpus is created to train the annotator
             >>> my_annotator_trained = my_annotator.fit(corpus)
             >>> # The annotator is now trained with the given corpus

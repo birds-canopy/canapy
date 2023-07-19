@@ -63,14 +63,14 @@ class Annotator(abc.ABC):
         --------
             >>> from canapy.annotator.base import Annotator
 
-            >>> my_annotator = Annotator.from_disk("/home/vincent/documents/data_canary/annotators/saved_annotator")
+            >>> my_annotator = Annotator.from_disk("/path/to/annotator")
             >>> # The annotator saved in the 'saved_annotator' file is now loaded into 'my_annotator'
 
             >>> from canapy.config import default_config
             >>> my_old_config = default_config  # Get the config that the model was saved with
-            >>> my_annotator_old = Annotator.from_disk("/home/vincent/documents/data/canary/annotators/old_model/syn",
+            >>> my_annotator_old = Annotator.from_disk("/path/to/old/model",
             >>>     config=my_old_config  # If no changes were made to the config, default_config will work
-            >>>     spec_directory="/home/vincent/documents/data_canary/spec"
+            >>>     spec_directory="/path/to/spec"
             >>> )
             >>> # The annotator saved in the 'syn' file is loaded into my_annotator_old
 
@@ -194,7 +194,7 @@ class Annotator(abc.ABC):
         -------
             >>> from canapy.annotator.nsynannotator import NSynAnnotator
             >>> from canapy.config import default_config
-            >>> my_annotator = SynAnnotator(default_config, "/home/vincent/Documents/data_canary/spec")
+            >>> my_annotator = SynAnnotator(default_config, "/path/to/spec")
             >>> # A not-syntaxic annotator is used in this example
             >>> from canapy.corpus import Corpus
             >>> corpus = Corpus.from_directory(audio_directory="/path/to/audio", annots_directory="/path/to/annotation")
