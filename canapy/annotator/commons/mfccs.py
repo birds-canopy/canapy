@@ -4,8 +4,9 @@
 import logging
 
 import numpy as np
+import pandas as pd
 
-from ...timings import seconds_to_frames
+from ...timings import seconds_to_frames, seconds_to_audio
 from ...utils.exceptions import NotTrainableError, MissingData
 
 logger = logging.getLogger("canapy")
@@ -46,7 +47,9 @@ def load_mfccs_and_repeat_labels(corpus, purpose="training"):
     df["seqid"] = df["sequence"].astype(str) + df["annotation"].astype(str)
 
     sampling_rate = corpus.config.transforms.audio.sampling_rate
-    hop_length = corpus.config.transforms.audio.as_fftwindow("hop_length")
+    hop_length = seconds_to_audio(
+        corpus.config.transforms.audio.hop_length, sampling_rate
+    )
 
     df["onset_spec"] = seconds_to_frames(df["onset_s"], hop_length, sampling_rate)
     df["offset_spec"] = seconds_to_frames(df["offset_s"], hop_length, sampling_rate)
@@ -109,6 +112,7 @@ def load_mfccs_for_annotation(corpus):
             "Maybe provide and audio/spec directory to the Corpus ?"
         )
 
+    selected_paths = corpus.dataset.notated_path.unique().tolist()
     mfcc_paths = corpus.data_resources["syn_mfcc"]
     mfccs = []
     notated_paths = []
@@ -119,6 +123,11 @@ def load_mfccs_for_annotation(corpus):
             notated_path = spec_path
         else:
             notated_path = row.notated_path
+
+        # We might not want to load all data, but only the subset
+        # actually present in the corpus
+        if notated_path not in selected_paths:
+            continue
 
         mfcc = np.load(spec_path)
 

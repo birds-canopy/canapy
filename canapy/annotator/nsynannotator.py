@@ -8,8 +8,9 @@ import math
 
 from .base import Annotator
 from .commons.esn import predict_with_esn, init_esn_model
-from .commons.postprocess import predictions_to_corpus
+from .commons.postprocess import predictions_to_corpus, extract_vocab
 from ..transforms.nsynesn import NSynESNTransform
+from ..timings import seconds_to_audio, seconds_to_frames
 
 
 logger = logging.getLogger("canapy")
@@ -143,14 +144,20 @@ class NSynAnnotator(Annotator):
                 len_mfcc = row.mfcc.shape[1]
 
             # This case concerns failed transformations into mfcc
-            # Errors are then replaced by null MFCC (filled with 0s) to continue the training
-            # It should not be used with a normal behavior
+            # Errors are then replaced by null MFCC (filled with 0s) to continue the
+            # training It should not be used with a normal behavior
             else:
-                len_mfcc = math.ceil(
-                    (row.offset_s - row.onset_s)
-                    * corpus.config.transforms.audio.sampling_rate
-                    / corpus.config.transforms.audio.as_fftwindow("hop_length")
+                sampling_rate = corpus.config.transforms.audio.sampling_rate
+                frame_size = seconds_to_audio(
+                    corpus.config.transforms.audio.hop_length, sampling_rate
                 )
+
+                len_mfcc = seconds_to_frames(
+                    row.offset_s - row.onset_s,
+                    frame_size=frame_size,
+                    sampling_rate=sampling_rate
+                )
+
                 error_step += 1
                 error_audio_path.add(row.notated_path)
                 train_mfcc.append(np.zeros((len_mfcc, 39)))
@@ -168,7 +175,9 @@ class NSynAnnotator(Annotator):
 
         self._trained = True
 
-        self._vocab = np.sort(corpus.dataset["label"].unique()).tolist()
+        self._vocab = extract_vocab(
+            corpus, silence_tag=self.config.transforms.annots.silence_tag
+            )
 
         return self
 
@@ -227,13 +236,15 @@ class NSynAnnotator(Annotator):
 
         config = self.config
 
-        frame_size = config.transforms.audio.as_fftwindow("hop_length")
+        hop_length = config.transforms.audio.hop_length
         sampling_rate = config.transforms.audio.sampling_rate
         time_precision = config.transforms.annots.time_precision
         min_label_duration = config.transforms.annots.min_label_duration
         min_silence_gap = config.transforms.annots.min_silence_gap
         silence_tag = config.transforms.annots.silence_tag
         lonely_labels = config.transforms.annots.lonely_labels
+
+        frame_size = seconds_to_audio(hop_length, sampling_rate)
 
         return predictions_to_corpus(
             notated_paths=notated_paths,

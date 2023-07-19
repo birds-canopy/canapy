@@ -44,7 +44,7 @@ from .config import Config, default_config
 from .utils import as_path
 
 
-@attr.define
+@attr.define(repr=False)
 class Corpus:
     """
     Store canary songs' data.
@@ -172,8 +172,10 @@ class Corpus:
             >>> # corpus_long_phrase is a copy of corpus where every phrase of the dataset that last less than a second
             >>> # are erased
         """
-        print(item)
         return self.clone_with_df(self.dataset.query(item))
+
+    def __repr__(self):
+        return f"<Corpus at (audio) {self.audio_directory} | (annots) {self.annots_directory}.>"
 
     @classmethod
     def from_directory(
@@ -293,7 +295,7 @@ class Corpus:
     @classmethod
     def from_df(cls, df, annots_directory=None, config=default_config, seq_ids=None):
         """
-        Create a Corpus object from a DataFrame that contains data about canary songs.
+        Create a Corpus object from a DataFrame containing annotations.
 
         Parameters
         ----------
@@ -358,7 +360,7 @@ class Corpus:
 
         annotations = GenericSeq(annots=annotation_list)
 
-        return cls(
+        corpus = cls(
             audio_directory=None,
             spec_directory=None,
             annots_directory=annots_dir,
@@ -368,6 +370,9 @@ class Corpus:
             audio_ext=None,
             spec_ext=None,
         )
+
+        corpus.dataset = df.copy()
+        return corpus
 
     def to_directory(self, annots_directory):
         """

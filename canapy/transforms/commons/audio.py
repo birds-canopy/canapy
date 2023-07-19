@@ -8,6 +8,7 @@ import numpy as np
 import librosa as lbr
 import pandas as pd
 
+from ...timings import seconds_to_audio
 from ...log import log
 
 
@@ -49,7 +50,7 @@ def ls_spec_dir(corpus):
         spec = np.load(str(spec_path))
 
         if spec.dtype.fields is not None and "notated_path" in spec.dtype.fields:
-            notated_path = spec["notated_path"]
+            notated_path = spec["notated_path"][0]
             spec_registry.append(
                 {"notated_path": notated_path, "feature_path": spec_path}
             )
@@ -105,12 +106,15 @@ def compute_mfcc(corpus, *, output_directory, resource_name, redo=False, **kwarg
         else:
             audio, rate = lbr.load(audio_path, sr=config.sampling_rate)
 
+        hop_length = seconds_to_audio(config.hop_length, rate)
+        win_length = seconds_to_audio(config.win_length, rate)
+
         cepstrum = lbr.feature.mfcc(
             y=audio,
             sr=rate,
             n_mfcc=config.n_mfcc,
-            hop_length=config.as_fftwindow("hop_length"),
-            win_length=config.as_fftwindow("win_length"),
+            hop_length=hop_length,
+            win_length=win_length,
             n_fft=config.n_fft,
             fmin=config.fmin,
             fmax=config.fmax,

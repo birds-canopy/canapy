@@ -18,7 +18,6 @@ n_fft=2048 # audio frames
 fmin=500 # Hz
 fmax=8000 # Hz
 lifter=40
-sampling_rate=44100 # Hz
 
 [transforms.audio.delta]
 padding="wrap"
@@ -45,7 +44,7 @@ iss=0.0005
 isd=0.02
 isd2=0.002
 ridge=1e-8
-backend="loky"
+backend="multiprocessing"
 workers=-1
 
 [model.nsyn]
@@ -56,7 +55,7 @@ iss=0.0005
 isd=0.02
 isd2=0.002
 ridge=1e-8
-backend="loky"
+backend="multiprocessing"
 workers=-1
 
 [correction]

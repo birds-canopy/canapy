@@ -2,8 +2,9 @@
 # Licence: MIT License
 # Copyright: Nathan Trouvain
 import pandas as pd
-import sklearn
 import Levenshtein
+
+from sklearn.metrics import classification_report, confusion_matrix
 
 from .utils import as_frame_comparison
 
@@ -19,28 +20,29 @@ def _check_corpus_comparison(gold_corpus, corpus):
         )
 
 
-def classification_report(gold_corpus, corpus, classes=None):
+def sklearn_classification_report(gold_corpus, corpus, classes=None):
     _check_corpus_comparison(gold_corpus, corpus)
 
     gold_frames = as_frame_comparison(gold_corpus, corpus)
     pred_frames = corpus.data_resources["frames_predictions"]
 
-    return sklearn.metrics.classification_report(
+    return classification_report(
         gold_frames.sort_values(by=["notated_path", "onset_s"])["label"],
         pred_frames.sort_values(by=["notated_path", "onset_s"])["label"],
         target_names=classes,
+        labels=classes,
         zero_division=0,
         output_dict=True,
     )
 
 
-def confusion_matrix(gold_corpus, corpus, classes=None):
+def sklearn_confusion_matrix(gold_corpus, corpus, classes=None):
     _check_corpus_comparison(gold_corpus, corpus)
 
     gold_frames = as_frame_comparison(gold_corpus, corpus)
     pred_frames = corpus.data_resources["frames_predictions"]
 
-    return sklearn.metrics.confusion_matrix(
+    return confusion_matrix(
         gold_frames.sort_values(by=["notated_path", "onset_s"])["label"],
         pred_frames.sort_values(by=["notated_path", "onset_s"])["label"],
         labels=classes,
@@ -54,11 +56,8 @@ def segment_error_rate(gold_corpus, corpus):
     gold_df = gold_corpus.dataset
     pred_df = corpus.dataset
 
-    gold_df["seqid"] = str(gold_df["sequence"]) + str(gold_df["annotation"])
-    pred_df["seqid"] = str(pred_df["sequence"]) + str(pred_df["annotation"])
-
-    gold_sequences = gold_df.groupby("seqid")
-    pred_sequences = pred_df.groupby("seqid")
+    gold_sequences = gold_df.groupby("notated_path")
+    pred_sequences = pred_df.groupby("notated_path")
 
     ser = []
     for seqid, gold_seq in gold_sequences:
@@ -68,7 +67,6 @@ def segment_error_rate(gold_corpus, corpus):
 
         ser.append({
             "notated_path": notated_path,
-            "seqid": seqid,
             "ser": 1.0 - Levenshtein.ratio(gold_seq.label.values, pred_seq.label.values)
             })
 

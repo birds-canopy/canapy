@@ -11,6 +11,7 @@ from .base import Transform
 from .commons.audio import compute_mfcc
 from .commons.training import prepare_dataset_for_training, encode_labels
 from ..log import log
+from ..timings import seconds_to_audio
 
 
 def _noisify(audio, config, rs):
@@ -130,6 +131,9 @@ def compute_mfcc_for_balanced_dataset(corpus, *, resource_name, redo=False, **kw
 
         annots = df.query("notated_path == @audio_path_")
 
+        hop_length = seconds_to_audio(config.hop_length, rate)
+        win_length = seconds_to_audio(config.win_length, rate)
+
         for entry in annots.itertuples():
             start = config.audio_steps(entry.onset_s)
             end = config.audio_steps(entry.offset_s)
@@ -141,8 +145,8 @@ def compute_mfcc_for_balanced_dataset(corpus, *, resource_name, redo=False, **kw
                 y=one_label,
                 sr=rate,
                 n_mfcc=config.n_mfcc,
-                hop_length=config.as_fftwindow("hop_length"),
-                win_length=config.as_fftwindow("win_length"),
+                hop_length=hop_length,
+                win_length=win_length,
                 n_fft=config.n_fft,
                 fmin=config.fmin,
                 fmax=config.fmax,

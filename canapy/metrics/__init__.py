@@ -1,1 +1,1 @@
-from .base import classification_report, confusion_matrix, segment_error_rate
+from .base import sklearn_confusion_matrix, sklearn_classification_report, segment_error_rate

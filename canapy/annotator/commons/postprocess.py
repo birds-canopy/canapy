@@ -9,6 +9,13 @@ from ...corpus import Corpus
 from ...timings import frames_to_timed_df
 
 
+def extract_vocab(corpus, silence_tag):
+    vocab = corpus.dataset["label"].unique().tolist()
+    if silence_tag not in vocab:
+        vocab += [silence_tag]
+    return sorted(vocab)
+
+
 def remove_silence(annots_df: pd.DataFrame, silence_tag):
     label_idxs = annots_df["label"] != silence_tag
     return annots_df[label_idxs]

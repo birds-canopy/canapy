@@ -1,1 +1,1 @@
-from base import Corrector
+from .base import Corrector

@@ -26,11 +26,16 @@ logger = logging.getLogger("canapy")
 
 
 @log(fn_type="training data tranform")
-def split_train_test(corpus, *, resource_name, **kwargs):
+def split_train_test(corpus, *, redo=False, **kwargs):
     """Build train and test sets from data for syntactic training.
     Ensure that at least one example of each syllable is present in train set.
     """
     df = corpus.dataset
+
+    # Already split!
+    if "train" in df and not redo:
+        return corpus
+
     config = corpus.config.transforms.training
 
     rs = np.random.default_rng(corpus.config.misc.seed)
@@ -124,11 +129,6 @@ def split_train_test(corpus, *, resource_name, **kwargs):
         f"\nTest: {len(test_df.groupby('seqid'))} ({len(test_df)} labels) "
         f"- {test_time:.3f} s - {test_nosilence_time:.3f} s (w/o silence)"
     )
-
-    # train_res_name, test_res_name = resource_name + "-train", resource_name + "-test"
-
-    # corpus.register_data_resource(train_res_name, train_df)
-    # corpus.register_data_resource(test_res_name, test_df)
 
     df.drop("seqid", axis=1, inplace=True)
 

@@ -41,8 +41,8 @@ def plot_bokeh_confusion_matrix(cm, classes=None, title=None):
         tooltips=[("class", "@ylabel, @xlabel"), ("", "@confusion")],
     )
 
-    p.plot_width = 800
-    p.plot_height = 800
+    p.width = 800
+    p.height = 800
     p.grid.grid_line_color = None
     p.axis.axis_line_color = None
     p.axis.major_tick_line_color = None
@@ -77,16 +77,15 @@ def plot_bokeh_confusion_matrix(cm, classes=None, title=None):
 def plot_bokeh_label_count(df):
 
     s = df.groupby("label")["label"].count()
-    s.columns = ["counts"]
-    s.sort_values(by=["counts"], ascending=False, inplace=True)
+    s.sort_values(ascending=False, inplace=True)
 
-    data = ColumnDataSource({"x": s.index.values.tolist(), "top": s.counts})
+    data = ColumnDataSource({"x": s.index.values.tolist(), "top": s})
 
     p = figure(
         title="Misclassified samples count",
         tools="hover,save",
         x_range=s.index.values.tolist(),
-        plot_height=350,
+        height=350,
         tooltips=[("class", "@x"), ("", "@top")],
     )
 

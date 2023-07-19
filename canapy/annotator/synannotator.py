@@ -7,8 +7,9 @@ import numpy as np
 from .base import Annotator
 from .commons.esn import init_esn_model, predict_with_esn
 from .commons.mfccs import load_mfccs_and_repeat_labels
-from .commons.postprocess import predictions_to_corpus
+from .commons.postprocess import predictions_to_corpus, extract_vocab
 from ..transforms.synesn import SynESNTransform
+from ..timings import seconds_to_audio
 
 logger = logging.getLogger("canapy")
 
@@ -134,7 +135,9 @@ class SynAnnotator(Annotator):
 
         self._trained = True
 
-        self._vocab = np.sort(corpus.dataset["label"].unique()).tolist()
+        self._vocab = extract_vocab(
+            corpus, silence_tag=self.config.transforms.annots.silence_tag
+        )
 
         return self
 
@@ -189,13 +192,15 @@ class SynAnnotator(Annotator):
 
         config = self.config
 
-        frame_size = config.transforms.audio.as_fftwindow("hop_length")
+        hop_length = config.transforms.audio.hop_length
         sampling_rate = config.transforms.audio.sampling_rate
         time_precision = config.transforms.annots.time_precision
         min_label_duration = config.transforms.annots.min_label_duration
         min_silence_gap = config.transforms.annots.min_silence_gap
         silence_tag = config.transforms.annots.silence_tag
         lonely_labels = config.transforms.annots.lonely_labels
+
+        frame_size = seconds_to_audio(hop_length, sampling_rate)
 
         return predictions_to_corpus(
             notated_paths=notated_paths,

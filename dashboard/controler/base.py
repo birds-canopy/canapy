@@ -5,21 +5,25 @@ import itertools
 import gc
 import logging
 from pathlib import Path
-from typing import Union, Optional, List
+from typing import Dict, Optional, List
+from collections import defaultdict
 
 import attr
+import joblib
 import numpy as np
+import pandas as pd
 import panel
 
-from sklearn import metrics
-from tqdm import tqdm
-from canapy import plots
 from canapy.corpus import Corpus
-from canapy.annotator import get_annotator, Annotator, get_annotator_names
+from canapy.annotator import get_annotator, get_annotator_names, Annotator
 from canapy.correction import Corrector
-from canapy.metrics import confusion_matrix, classification_report, segment_error_rate
+from canapy.metrics import sklearn_confusion_matrix, sklearn_classification_report, segment_error_rate
+from canapy.plots import plot_segment_melspectrogram
+from canapy.annotator.commons.postprocess import extract_vocab
+from canapy.transforms.commons.training import split_train_test
+from canapy.timings import seconds_to_audio
 
-from .segments import load_repertoire, fetch_misclassified_samples
+from .segments import fetch_misclassified_samples
 from .corpusutils import mark_whole_corpus_as_train, query_split
 
 
@@ -28,7 +32,6 @@ logger = logging.getLogger("canapy")
 
 def _sort_annotators(annotators: List):
     # Ensemble should always be last
-    sorted_annots = []
     if "ensemble" in annotators:
         annotators.remove("ensemble")
         sorted_annots = ["ensemble"]
@@ -39,15 +42,25 @@ def _sort_annotators(annotators: List):
 
 
 @attr.define
-class Controler(object):
+class Controler:
     data_directory: Path = attr.field(converter=Path)
     output_directory: Path = attr.field(converter=Path)
     config_path: Path = attr.field(converter=Path)
-    dashboard: panel.viewable.Viewable = attr.field()
-    audio_rate: Optional[Union[int, float]] = attr.field()
+    dashboard: panel.viewable.Viewer = attr.field()
     annot_format: str = attr.field(default="marron1csv")
     audio_ext: str = attr.field(default=".wav")
     annotators: List = attr.field(default=["syn-esn", "nsyn-esn", "ensemble"])
+
+    corpus: Optional[Corpus] = attr.field(default=None)
+    config: Optional[dict] = attr.field(default=None)
+    corrector: Optional[Corrector] = attr.field(default=None)
+    _iter: Optional[int] = attr.field(alias="_iter", default=1)
+    _step: Optional[str] = attr.field(alias="_step", default="train")
+    _annotators: Optional[Dict[str, Annotator]] = attr.field(alias="_annotators", default=dict())
+    _pred_corpora: Optional[Dict[str, Dict]] = attr.field(alias="_pred_corpora", default=dict())
+    _metrics_store: Optional[Dict[str, Dict]] = attr.field(alias="_metrics_store", default=dict())
+    _correction_store: Optional[Dict] = attr.field(alias="_correctoin_store", default=dict())
+    _classes: Optional[List[str]] = attr.field(alias="_classes", default=None)
 
     def __attrs_post_init__(self):
         self.corpus = Corpus.from_directory(
@@ -60,19 +73,17 @@ class Controler(object):
         )
 
         self.config = self.corpus.config
-        self.corrector = Corrector(self.output_directory / "checkpoints", list())
+        self.corrector = Corrector(self.output_directory / "checkpoints", [{"class": dict(), "annot": dict()}])
         self._iter = 1
         self._step = "train"
 
         self.annotators = _sort_annotators(self.annotators)
 
-        self._annotators = dict()
-        self._pred_corpora = None
-        self._metrics_store = None
-
         self.initialize_output()
         self.initialize_models()
         self.initialize_annots()
+
+        self.corpus = split_train_test(self.corpus, redo=True)
 
     @property
     def iter(self):
@@ -81,6 +92,18 @@ class Controler(object):
     @property
     def step(self):
         return self._step
+
+    @property
+    def metrics(self):
+        return {k: v for k, v in self._metrics_store.items() if k in ["train", "test"]}
+
+    @property
+    def misclassified_segments(self):
+        return self._metrics_store["misclass"]
+
+    @property
+    def classes(self):
+        return self._classes
 
     def initialize_models(self):
         for name in self.annotators:
@@ -126,13 +149,17 @@ class Controler(object):
 
     def initialize_annots(self):
         self._pred_corpora = dict(all=dict(), train=dict(), test=dict())
-        self._metrics_store = dict(all=dict(), train=dict(), test=dict())
         logger.info("Annotators predictions (re)initialized.")
+        self._metrics_store = dict(all=defaultdict(dict), train=defaultdict(dict), test=defaultdict(dict))
         logger.info("Metrics and scores (re)initialized.")
+        self._correction_store = dict({"class": dict(), "annot": dict()})
 
     def next_iter(self):
         self.initialize_models()
         self.initialize_annots()
+
+        self.corpus = split_train_test(self.corpus, redo=True)
+
         self._iter += 1
         logger.info(f"Current training iteration : {self.iter}")
 
@@ -147,20 +174,23 @@ class Controler(object):
             logger.critical("Failed to create checkpoint.")
             logger.critical(e)
 
+    def upload_corrections(self, corrections, target):
+        self._correction_store[target].update(corrections)
+
     def next_step(self, export=False):
         if self.step == "train":
             self._step = "eval"
-            print("Fetching metrics...")
+            logger.info("Fetching metrics...")
             self.get_metrics()
-            print('Setting current dashboard to "eval".')
+            logger.info('Setting current dashboard to "eval".')
 
         elif self.step == "eval" and not export:
             self._step = "train"
-            print("Updating corpus...")
+            logger.info("Updating corpus...")
             self.corpus.update(iteration=self.iter, corrections=self.new_corrections)
-            print("Saving corpus chekpoint...")
+            logger.info("Saving corpus chekpoint...")
             self.checkpoint()
-            print('Setting current dashboard to "train".')
+            logger.info('Setting current dashboard to "train".')
 
             self.next_iter()
 
@@ -174,11 +204,7 @@ class Controler(object):
             print('Setting current dashboard to "export".')
             self.next_iter()
 
-        # del_temp()
-        # print("All temporary files deleted.")
-        # print("Switching panel...")
         self.dashboard.switch_panel()
-        print("Done.")
 
     def train(self, annotator_name, export=False, save=False):
         annotator = self._annotators[annotator_name]
@@ -207,7 +233,7 @@ class Controler(object):
         if annotator_name == "ensemble":
             # Get all previous predictions
             corpora = [
-                query_split(c, split) for c in self._pred_corpora[split].values()
+                c for c in self._pred_corpora[split].values()
             ]
         else:
             corpora = query_split(self.corpus, split)
@@ -232,107 +258,79 @@ class Controler(object):
         self.train("nsyn-esn", export=True, save=True)
 
     def annotate_syn(self):
-        self.annotate("syn-esn", split="all")
-        # syn, truth, vect = self.annotator.run(
-        #     model="syn", vectors=True, return_truths=True
-        # )
-        # self.corpus.annotations["syn"] = create_memmap(syn, "syn_annots")
-        # self.corpus.annotations["truth"] = create_memmap(truth, "truth_annots")
-        # self.syn_annots_vectors = create_memmap(vect, "syn_vect")
-        #
-        # del syn
-        # del truth
-        # del vect
-        # gc.collect()
+        self.annotate("syn-esn", split="train")
+        self.annotate("syn-esn", split="test")
 
     def annotate_nsyn(self):
-        self.annotate("nsyn-esn", split="all")
-        # nsyn, vect = self.annotator.run(model="nsyn", vectors=True)
-        # self.corpus.annotations["nsyn"] = create_memmap(nsyn, "nsyn_annots")
-        # self.nsyn_annots_vectors = create_memmap(vect, "nsyn_vect")
-        #
-        # del nsyn
-        # del vect
-        # gc.collect()
+        self.annotate("nsyn-esn", split="train")
+        self.annotate("nsyn-esn", split="test")
 
     def annotate_ensemble(self):
-        self.annotate("ensemble", split="all")
-        # ens = self.annotator.run(
-        #     models_vectors=[self.syn_annots_vectors, self.nsyn_annots_vectors],
-        #     model="ensemble",
-        # )
-        # self.corpus.annotations["ensemble"] = create_memmap(ens, "ens_annots")
-        #
-        # del ens
-        # del self.syn_annots_vectors
-        # close_memmap("syn_vect")
-        # del self.nsyn_annots_vectors
-        # close_memmap("nsyn_vect")
-        #
-        # gc.collect()
+        self.annotate("ensemble", split="train")
+        self.annotate("ensemble", split="test")
 
-    def get_metrics(self, split="all"):
-        predictions = self._pred_corpora[split]
+    def get_metrics(self):
 
-        for annot_name, pred_corpus in predictions.items():
+        bad_ones = []
+        for split in ["train", "test"]:
+            predictions = self._pred_corpora[split]
+
+            for annot_name, pred_corpus in predictions.items():
+                gold_corpus = query_split(self.corpus, split)
+                classes = extract_vocab(
+                    self.corpus, silence_tag=self.config.transforms.annots.silence_tag
+                )
+
+                self._classes = classes
+
+                cm = sklearn_confusion_matrix(gold_corpus, pred_corpus, classes=classes)
+                report = sklearn_classification_report(gold_corpus, pred_corpus, classes=classes)
+                ser = segment_error_rate(gold_corpus, pred_corpus)
+
+                self._metrics_store[split]["cm"][annot_name] = cm
+                self._metrics_store[split]["report"][annot_name] = report
+                self._metrics_store[split]["ser"][annot_name] = ser
+
+            sampling_rate = self.config.transforms.audio.sampling_rate
+            hop_length = self.config.transforms.audio.hop_length
+            silence_tag = self.config.transforms.annots.silence_tag
+            min_segment_proportion_agreement = \
+                self.config.correction.min_segment_proportion_agreement
+
             gold_corpus = query_split(self.corpus, split)
-            classes = np.sort(self.corpus["label"].unique()).tolist()
 
-            cm = confusion_matrix(gold_corpus, pred_corpus, classes=classes)
-            report = classification_report(gold_corpus, pred_corpus, classes=classes)
-            # ser = segment_error_rate(gold_corpus, pred_corpus)
+            misclassified = fetch_misclassified_samples(gold_corpus, predictions,
+                                                        hop_length,
+                                                        sampling_rate,
+                                                        min_segment_proportion_agreement,
+                                                        silence_tag=silence_tag,
+                                                        )
+            bad_ones.append(misclassified)
 
-            self._metrics_store[split]["cm"] = cm
-            self._metrics_store[split]["report"] = report
-            # self._metrics_store[split]["ser"] = ser
+        misclassified = pd.concat(bad_ones)
 
-        # flat_annots = {k: np.concatenate([*s.values()]) for k, s in annots.items()}
-        #
-        # truth = flat_annots["truth"]
-        # labels = self.corpus.vocab
-        # cms = {}
-        # reports = {}
-        # for model, values in tqdm(
-        #     flat_annots.items(), "Computing metrics for annotations"
-        # ):
-        #
-        #     if model != "truth":
-        #         cms[model] = metrics.confusion_matrix(
-        #             truth, values, labels=labels, normalize="true"
-        #         )
-        #
-        #         reports[model] = metrics.classification_report(
-        #             truth, values, digits=3, output_dict=True, zero_division=0
-        #         )
-        #
-        # self.cms = cms
-        # self.reports = reports
-
-        self.fetch_misclassified_samples()
-        self.misclassified_counts_plot()
-
-    def fetch_misclassified_samples(self):
-        return fetch_misclassified_samples(df)
-
-    def misclassified_counts_plot(self):
-        p, s = plots.plot_bokeh_label_count(df)
-
-    def confusion_matrix(self, model):
-        p = plots.plot_bokeh_confusion_matrix(cm, classes, title)
-
-    def load_sample(self, sample):
-        return load_sample(s)
+        self._metrics_store["misclass"] = misclassified
 
     def load_repertoire(self, selected_samples):
-        return load_repertoire(selected)
+        audio_conf = self.config.transforms.audio
+        with joblib.Parallel(backend="multiprocessing", n_jobs=-1) as parallel:
+            specs = parallel(
+                joblib.delayed(plot_segment_melspectrogram)(
+                    s.notated_path,
+                    s.onset_s,
+                    s.offset_s,
+                    sampling_rate=audio_conf.sampling_rate,
+                    hop_length=audio_conf.hop_length,
+                    n_fft=audio_conf.n_fft,
+                    win_length=audio_conf.win_length,
+                    fmin=audio_conf.fmin,
+                    fmax=audio_conf.fmax,
+                    return_audio=True
+                    ) for s in selected_samples.itertuples()
+            )
+        return specs
 
     def stop_app(self):
-        del_temp()
-        self.dash.stop()
+        # del_temp()
+        self.dashboard.stop()
         print("Server shutdown.")
-
-
-def make_directory(directory):
-    if not directory.exists():
-        directory.mkdir(parents=True)
-    return directory

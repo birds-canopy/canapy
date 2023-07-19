@@ -1,34 +1,45 @@
+import logging
+
+from pathlib import Path
+from typing import List, Optional
+
+import attr
 import panel as pn
 
 from .controler import Controler
 
-from .train_dash import TrainDashboard
-from .eval_dash import EvalDashboard
-from .export_dash import ExportDashboard
-from .helpers import Registry
+from .view.train.train_dash import TrainDashboard
+from .view.eval.eval_dash import EvalDashboard
+from .view.export.export_dash import ExportDashboard
+from .view.helpers import Registry
 
 MAX_SAMPLE_DISPLAY = 10
 
 
-class Canapy(object):
-    def __init__(
-        self,
-        data,
-        output,
-        config=None,
-        corrections=None,
-        port=None,
-        repertoire=None,
-        vocab=None,
-        audioformat=None,
-        rate=None,
-    ):
-        self.port = port
-        self.server_instance = None
+logger = logging.getLogger("canapy-dashboard")
+
+
+@attr.define
+class CanapyDashboard(pn.viewable.Viewer):
+    data_directory: Path = attr.field(converter=Path)
+    output_directory: Path = attr.field(converter=Path)
+    config_path: Path = attr.field(converter=Path)
+    port: Optional[int] = attr.field()
+    annot_format: str = attr.field(default="marron1csv")
+    audio_ext: str = attr.field(default=".wav")
+    annotators: List = attr.field(default=["syn-esn", "nsyn-esn", "ensemble"])
+
+    def __attrs_post_init__(self):
+
         self.controler = Controler(
-            data, output, self, audioformat=audioformat, rate=rate
+            data_directory=self.data_directory,
+            output_directory=self.output_directory,
+            config_path=self.config_path,
+            dashboard=self,
+            annot_format=self.annot_format,
+            audio_ext=self.audio_ext,
+            annotators=self.annotators,
         )
-        self.labels = self.controler.corpus.vocab
 
         self.layouts = {
             "train": TrainDashboard,
@@ -36,8 +47,14 @@ class Canapy(object):
             "export": ExportDashboard,
         }
 
+        self.subdash = None
+
         self.layout = pn.Row(pn.Spacer())
+
         self.switch_panel()
+
+    def __panel__(self):
+        return self.layout
 
     def switch_panel(self):
         Registry.clean_all()
@@ -47,11 +64,13 @@ class Canapy(object):
         if self.controler.step == "export":
             self.subdash.begin()
 
-    def serve(self):
-        print(f"Starting server...")
-        self.server_instance = self.layout.show(
-            port=self.port, title="Canapy", threaded=True
-        )
+    def show(self, **kwargs):
+        logger.info("Starting server...")
+        # self._server_instance = self.layout.show(
+        #     port=self.port, title="Canapy", threaded=True
+        # )
+        super().show(title="Canapy", port=self.port, threaded=False, open=True)
 
     def stop(self):
-        self.server_instance.stop()
+        super().stop()
+        logger.info("Server shut down.")
