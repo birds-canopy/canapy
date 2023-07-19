@@ -6,15 +6,19 @@ import pandas as pd
 
 
 if __name__ == "__main__":
-    df = pd.DataFrame({
-        "a": list("aaaaaa"),
-        })
+    df = pd.DataFrame(
+        {
+            "a": list("aaaaaa"),
+        }
+    )
 
-    dfp = pd.DataFrame({
-        "p1": list("aaaaaa"),
-        "p2": list("aaaaaa"),
-        "p3": list("aabbbb"),
-        })
+    dfp = pd.DataFrame(
+        {
+            "p1": list("aaaaaa"),
+            "p2": list("aaaaaa"),
+            "p3": list("aabbbb"),
+        }
+    )
 
     x = dfp.apply(lambda column: (df["a"] == column).sum() / len(df), axis="rows")
     print(x)
@@ -28,11 +32,12 @@ if __name__ == "__main__":
     for i in range(10):
         a = dfp.apply(
             lambda col: pd.Series(
-                np.unique(col, return_counts=True) + (
-                    (col == df["a"]).sum() / len(df),),
-                index=["label", "count", "score"]
-                ),
-            axis="rows").T
+                np.unique(col, return_counts=True)
+                + ((col == df["a"]).sum() / len(df),),
+                index=["label", "count", "score"],
+            ),
+            axis="rows",
+        ).T
 
         labels = {r.Index: r.label[np.argmax(r.count)] for r in a.itertuples()}
         b[i] = labels

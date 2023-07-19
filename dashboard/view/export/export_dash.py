@@ -13,7 +13,8 @@ class ExportDashboard(SubDash):
         self.sidebar = SideBar(self, "export")
 
         self.export_info = pn.pane.HTML(
-            f"Models will be exported to {self.controler.models_out}"
+            f"Models will be exported to "
+            f"{str(self.controler.output_directory / 'model')}"
         )
 
         self.syn_indicator = pn.indicators.LoadingSpinner(
@@ -46,7 +47,6 @@ class ExportDashboard(SubDash):
         )
 
     def begin(self):
-
         self.switch_status(self.syn_status, "training")
         self.syn_indicator.value = True
 

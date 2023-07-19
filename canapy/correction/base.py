@@ -2,6 +2,7 @@
 # Licence: MIT License
 # Copyright: Nathan Trouvain
 import toml
+import copy
 
 from pathlib import Path
 from typing import Union, List, Dict
@@ -21,7 +22,7 @@ def correct_annots(corpus, corrections):
     for index, corr in corrections.items():
         df.at[int(index), "label"] = corr
 
-    silence_tag = corpus.config.transform.annots.silence_tag
+    silence_tag = corpus.config.transforms.annots.silence_tag
     df = df[df["label"] != silence_tag]
 
     return corpus.clone_with_df(df)
@@ -47,6 +48,9 @@ class Corrector:
                     f"Should have 'class' and 'annot' keys."
                 )
 
+            # key should be an integer index, but TOML parses it to str
+            correction["annot"] = {int(k): v for k, v in correction["annot"].items()}
+
             correction_history.append(correction)
 
         return cls(
@@ -64,7 +68,7 @@ class Corrector:
             new_corpus = correct_annots(new_corpus, annot_corrections)
 
         if class_corrections is not None:
-            new_corpus = correct_classes(new_corpus, annot_corrections)
+            new_corpus = correct_classes(new_corpus, class_corrections)
 
         if checkpoint:
             self.checkpoint(corrections)
@@ -93,7 +97,10 @@ class Corrector:
         ckpt_correction_file = self.checkpoint_directory / ("correction-" + cktp_step)
         self.checkpoint_directory.mkdir(parents=True, exist_ok=True)
 
+        corr = copy.deepcopy(corrections)
         with open(ckpt_correction_file, "w+") as fp:
-            toml.dump(corrections, fp)
+            # TOML keys can't be integers. Convert the corrected indexes to str.
+            corr["annot"] = {str(k): v for k, v in corr["annot"].items()}
+            toml.dump(corr, fp)
 
         return self

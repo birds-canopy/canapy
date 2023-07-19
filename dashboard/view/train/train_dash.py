@@ -1,9 +1,13 @@
+import logging
 import time
 
 import panel as pn
 
 from ..helpers import SubDash
 from ..helpers import SideBar
+
+
+logger = logging.getLogger("canapy-dashboard")
 
 
 class TrainDashboard(SubDash):
@@ -14,9 +18,7 @@ class TrainDashboard(SubDash):
         self.traindash = TrainerDashboard(self)
         self.annotdash = AnnotatorDashboard(self)
 
-        self.layout = pn.Row(
-            self.sidebar.layout, self.traindash.layout, self.annotdash.layout
-        )
+        self.layout = pn.Row(self.sidebar, self.traindash, self.annotdash)
 
 
 class TrainerDashboard(SubDash):
@@ -59,6 +61,7 @@ class TrainerDashboard(SubDash):
             obj.style = {"color": "green"}
 
     def on_click_train(self, events):
+        self.train_btn.disabled = True
 
         self.switch_status(self.syn_status, "training")
         self.syn_indicator.value = True
@@ -79,6 +82,8 @@ class TrainerDashboard(SubDash):
 
         self.switch_status(self.nsyn_status, "done", duration=toc - tic)
         self.nsyn_indicator.value = False
+
+        logger.info("Trained!")
 
         self.parent.annotdash.begin()
 
@@ -124,7 +129,6 @@ class AnnotatorDashboard(SubDash):
             obj.style = {"color": "green"}
 
     def begin(self):
-
         self.switch_status(self.syn_status, "annotating")
         self.syn_indicator.value = True
 
@@ -154,5 +158,7 @@ class AnnotatorDashboard(SubDash):
 
         self.switch_status(self.ens_status, "done", duration=toc - tic)
         self.ens_indicator.value = False
+
+        logger.info("Annotated!")
 
         self.parent.sidebar.enable_next()

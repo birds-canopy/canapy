@@ -69,7 +69,7 @@ def display_dashboard(**kwargs):
 
 if __name__ == "__main__":
     args = parser.parse_args(
-        ["/home/nathan/Documents/Code/canapy-test/data",
+        ["/home/nathan/Documents/Code/canapy-test/data_short",
          "/home/nathan/Documents/Code/canapy-test/output_new",
          "-c",
          "/home/nathan/Documents/Code/canapy-reborn/canapy/config.toml"])

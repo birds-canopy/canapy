@@ -17,7 +17,11 @@ import panel
 from canapy.corpus import Corpus
 from canapy.annotator import get_annotator, get_annotator_names, Annotator
 from canapy.correction import Corrector
-from canapy.metrics import sklearn_confusion_matrix, sklearn_classification_report, segment_error_rate
+from canapy.metrics import (
+    sklearn_confusion_matrix,
+    sklearn_classification_report,
+    segment_error_rate,
+)
 from canapy.plots import plot_segment_melspectrogram
 from canapy.annotator.commons.postprocess import extract_vocab
 from canapy.transforms.commons.training import split_train_test
@@ -56,10 +60,18 @@ class Controler:
     corrector: Optional[Corrector] = attr.field(default=None)
     _iter: Optional[int] = attr.field(alias="_iter", default=1)
     _step: Optional[str] = attr.field(alias="_step", default="train")
-    _annotators: Optional[Dict[str, Annotator]] = attr.field(alias="_annotators", default=dict())
-    _pred_corpora: Optional[Dict[str, Dict]] = attr.field(alias="_pred_corpora", default=dict())
-    _metrics_store: Optional[Dict[str, Dict]] = attr.field(alias="_metrics_store", default=dict())
-    _correction_store: Optional[Dict] = attr.field(alias="_correctoin_store", default=dict())
+    _annotators: Optional[Dict[str, Annotator]] = attr.field(
+        alias="_annotators", default=dict()
+    )
+    _pred_corpora: Optional[Dict[str, Dict]] = attr.field(
+        alias="_pred_corpora", default=dict()
+    )
+    _metrics_store: Optional[Dict[str, Dict]] = attr.field(
+        alias="_metrics_store", default=dict()
+    )
+    _correction_store: Optional[Dict] = attr.field(
+        alias="_correctoin_store", default=dict()
+    )
     _classes: Optional[List[str]] = attr.field(alias="_classes", default=None)
 
     def __attrs_post_init__(self):
@@ -73,7 +85,9 @@ class Controler:
         )
 
         self.config = self.corpus.config
-        self.corrector = Corrector(self.output_directory / "checkpoints", [{"class": dict(), "annot": dict()}])
+        self.corrector = Corrector(
+            self.output_directory / "checkpoints", [{"class": dict(), "annot": dict()}]
+        )
         self._iter = 1
         self._step = "train"
 
@@ -150,9 +164,12 @@ class Controler:
     def initialize_annots(self):
         self._pred_corpora = dict(all=dict(), train=dict(), test=dict())
         logger.info("Annotators predictions (re)initialized.")
-        self._metrics_store = dict(all=defaultdict(dict), train=defaultdict(dict), test=defaultdict(dict))
+        self._metrics_store = dict(
+            all=defaultdict(dict), train=defaultdict(dict), test=defaultdict(dict)
+        )
         logger.info("Metrics and scores (re)initialized.")
         self._correction_store = dict({"class": dict(), "annot": dict()})
+        logger.info("Current corrections (re)initialized.")
 
     def next_iter(self):
         self.initialize_models()
@@ -165,11 +182,11 @@ class Controler:
 
     def checkpoint(self):
         try:
-            (self.output_directory / "model" / str(self.iter)).mkdir(
-                parents=True, exist_ok=True
-            )
-            for name, model in self._annotators:
-                model.to_disk(self.output_directory / str(self.iter) / "model" / name)
+            ckpt_dir = self.output_directory / "model" / str(self.iter)
+            ckpt_dir.mkdir(parents=True, exist_ok=True)
+            for name, model in self._annotators.items():
+                model.to_disk(ckpt_dir / name)
+                logger.info(f"Annotator checkpoint created at {ckpt_dir / name}.")
         except OSError as e:
             logger.critical("Failed to create checkpoint.")
             logger.critical(e)
@@ -177,32 +194,36 @@ class Controler:
     def upload_corrections(self, corrections, target):
         self._correction_store[target].update(corrections)
 
+    def apply_corrections(self):
+        class_corrections = self._correction_store["class"]
+        annot_corrections = self._correction_store["annot"]
+        self.corpus = self.corrector.correct(
+            self.corpus,
+            class_corrections=class_corrections,
+            annot_corrections=annot_corrections,
+            checkpoint=True,
+        )
+        logger.info(f"Applied corrections on {self.corpus}")
+
     def next_step(self, export=False):
         if self.step == "train":
             self._step = "eval"
-            logger.info("Fetching metrics...")
             self.get_metrics()
             logger.info('Setting current dashboard to "eval".')
 
         elif self.step == "eval" and not export:
             self._step = "train"
-            logger.info("Updating corpus...")
-            self.corpus.update(iteration=self.iter, corrections=self.new_corrections)
-            logger.info("Saving corpus chekpoint...")
             self.checkpoint()
-            logger.info('Setting current dashboard to "train".')
-
+            self.apply_corrections()
             self.next_iter()
+            logger.info("Setting current dashboard to 'train'.")
 
         elif export:
             self._step = "export"
-
-            print("Updating corpus...")
-            self.corpus.update(iteration=self.iter, corrections=self.new_corrections)
-            print("Saving corpus chekpoint...")
-            self.corpus.checkpoint(self.output)
-            print('Setting current dashboard to "export".')
+            self.checkpoint()
+            self.apply_corrections()
             self.next_iter()
+            logger.info("Setting current dashboard to 'export'.")
 
         self.dashboard.switch_panel()
 
@@ -232,9 +253,7 @@ class Controler:
     def annotate(self, annotator_name, split="all"):
         if annotator_name == "ensemble":
             # Get all previous predictions
-            corpora = [
-                c for c in self._pred_corpora[split].values()
-            ]
+            corpora = [c for c in self._pred_corpora[split].values()]
         else:
             corpora = query_split(self.corpus, split)
 
@@ -270,12 +289,16 @@ class Controler:
         self.annotate("ensemble", split="test")
 
     def get_metrics(self):
-
         bad_ones = []
         for split in ["train", "test"]:
             predictions = self._pred_corpora[split]
 
             for annot_name, pred_corpus in predictions.items():
+                logger.info(
+                    f"Computing metrics for split: "
+                    f"{split} | annotator: {annot_name}."
+                )
+
                 gold_corpus = query_split(self.corpus, split)
                 classes = extract_vocab(
                     self.corpus, silence_tag=self.config.transforms.annots.silence_tag
@@ -284,8 +307,13 @@ class Controler:
                 self._classes = classes
 
                 cm = sklearn_confusion_matrix(gold_corpus, pred_corpus, classes=classes)
-                report = sklearn_classification_report(gold_corpus, pred_corpus, classes=classes)
+                report = sklearn_classification_report(
+                    gold_corpus, pred_corpus, classes=classes
+                )
                 ser = segment_error_rate(gold_corpus, pred_corpus)
+
+                logger.info(f"Report: \n {report}")
+                logger.info(f"Segment error rate: \n {ser}")
 
                 self._metrics_store[split]["cm"][annot_name] = cm
                 self._metrics_store[split]["report"][annot_name] = report
@@ -294,24 +322,32 @@ class Controler:
             sampling_rate = self.config.transforms.audio.sampling_rate
             hop_length = self.config.transforms.audio.hop_length
             silence_tag = self.config.transforms.annots.silence_tag
-            min_segment_proportion_agreement = \
+            min_segment_proportion_agreement = (
                 self.config.correction.min_segment_proportion_agreement
+            )
 
             gold_corpus = query_split(self.corpus, split)
 
-            misclassified = fetch_misclassified_samples(gold_corpus, predictions,
-                                                        hop_length,
-                                                        sampling_rate,
-                                                        min_segment_proportion_agreement,
-                                                        silence_tag=silence_tag,
-                                                        )
+            misclassified = fetch_misclassified_samples(
+                gold_corpus,
+                predictions,
+                hop_length,
+                sampling_rate,
+                min_segment_proportion_agreement,
+                silence_tag=silence_tag,
+            )
             bad_ones.append(misclassified)
 
         misclassified = pd.concat(bad_ones)
 
+        logger.info(f"Found {len(misclassified)} potentially misclassified samples.")
+
         self._metrics_store["misclass"] = misclassified
 
     def load_repertoire(self, selected_samples):
+        logger.info(
+            f"Loading repertoire samples for label(s): {selected_samples.label.unique()}"
+        )
         audio_conf = self.config.transforms.audio
         with joblib.Parallel(backend="multiprocessing", n_jobs=-1) as parallel:
             specs = parallel(
@@ -325,12 +361,13 @@ class Controler:
                     win_length=audio_conf.win_length,
                     fmin=audio_conf.fmin,
                     fmax=audio_conf.fmax,
-                    return_audio=True
-                    ) for s in selected_samples.itertuples()
+                    return_audio=True,
+                )
+                for s in selected_samples.itertuples()
             )
         return specs
 
     def stop_app(self):
         # del_temp()
         self.dashboard.stop()
-        print("Server shutdown.")
+        logger.info("Server shutdown.")

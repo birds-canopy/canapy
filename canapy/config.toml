@@ -30,7 +30,7 @@ max_sequences=-1
 test_ratio=0.2
 
 [transforms.training.balance]
-min_class_total_duration=30 # seconds
+min_class_total_duration=2  #30 # seconds
 min_silence_duration=0.2 # seconds
 
 [transforms.training.balance.data_augmentation]

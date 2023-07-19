@@ -3,14 +3,18 @@ import panel as pn
 from ..controler import Controler
 
 
-class SubDash(object):
-    def __init__(self, parent):
+class SubDash(pn.viewable.Viewer):
+    def __init__(self, parent, **kwargs):
+        super().__init__(**kwargs)
         self.parent = parent
         self.controler: Controler = parent.controler
+        self.layout = pn.Spacer()
+
+    def __panel__(self):
+        return self.layout
 
 
 class Registry(object):
-
     instances = list()
 
     @classmethod
@@ -56,12 +60,16 @@ class SideBar(SubDash):
 
         self.title = title
 
-        self.title_pane = pn.pane.HTML(f"<h1>{title}</h1>")
+        self.title_pane = pn.pane.HTML(f"<h1>{self.title.capitalize()}</h1>")
 
         self.next_btn = pn.widgets.Button(name="Next step", disabled=True)
         self.next_btn.on_click(self.on_click_next)
 
-        self.quit_btn = pn.widgets.Button(name="Quit")
+        self.quit_btn = pn.widgets.Button(
+            name="Quit",
+            button_type="warning",
+            icon="square-rounded-x",
+        )
         self.quit_btn.on_click(self.on_click_stop)
 
         self.layout = pn.Column(
@@ -69,7 +77,9 @@ class SideBar(SubDash):
             self.next_btn,
             pn.Spacer(height=100),
             self.quit_btn,
-            width=150,
+            width=100,
+            sizing_mode="stretch_height",
+            styles={"background": "WhiteSmoke"},
         )
 
         if self.title == "eval":
@@ -82,7 +92,9 @@ class SideBar(SubDash):
                 self.export_btn,
                 pn.Spacer(height=100),
                 self.quit_btn,
-                width=150,
+                width=100,
+                sizing_mode="stretch_height",
+                styles={"background": "WhiteSmoke"},
             )
 
             self.enable_next()
@@ -98,7 +110,9 @@ class SideBar(SubDash):
                 self.next_btn,
                 pn.Spacer(height=100),
                 self.quit_btn,
-                width=150,
+                width=100,
+                sizing_mode="stretch_height",
+                styles={"background": "WhiteSmoke"},
             )
 
     def on_click_next(self, events):

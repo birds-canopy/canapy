@@ -114,8 +114,8 @@ def compute_mfcc_for_balanced_dataset(corpus, *, resource_name, redo=False, **kw
 
     rs = np.random.default_rng(corpus.config.misc.seed)
 
-    if resource_name in corpus.data_resources and not redo:
-        return
+    # if resource_name in corpus.data_resources and not redo:
+    #     return corpus
 
     audio_paths = df["notated_path"].unique()
 

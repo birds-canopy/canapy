@@ -39,10 +39,11 @@ def plot_bokeh_confusion_matrix(cm, classes=None, title=None):
         x_range=classes,
         y_range=list(reversed(classes)),
         tooltips=[("class", "@ylabel, @xlabel"), ("", "@confusion")],
+        sizing_mode='stretch_both'
     )
 
-    p.width = 800
-    p.height = 800
+    # p.width = 800
+    # p.height = 800
     p.grid.grid_line_color = None
     p.axis.axis_line_color = None
     p.axis.major_tick_line_color = None
@@ -115,7 +116,7 @@ def plot_segment_melspectrogram(
     else:
         y, sampling_rate = lbr.load(audio_file, sr=sampling_rate)
 
-    max_length = 3 * sampling_rate
+    max_length = 1 * sampling_rate
     d = offset_s * sampling_rate - onset_s * sampling_rate
     delta = max(0, (max_length - d)) / 2
 
@@ -146,7 +147,7 @@ def plot_segment_melspectrogram(
 
     spec = lbr.power_to_db(spec)
 
-    fig = matplotlib.figure.Figure(figsize=(3, 3))
+    fig = matplotlib.figure.Figure(figsize=(1.5, 0.5))
     ax = fig.subplots()
     ax.axis("off")
     fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
@@ -157,20 +158,24 @@ def plot_segment_melspectrogram(
     sample_offset = spec.shape[1] - audio_to_frames(e_delta - offset_audio,
                     seconds_to_audio(hop_length, sampling_rate)),
 
-    ax.imshow(spec, origin="lower", cmap="magma")
+    ax.imshow(spec, origin="lower", cmap="magma", aspect="auto")
     ax.axvline(
         sample_onset,
         color="white",
         linestyle="--",
+        lw=1,
         marker=">",
         markevery=0.01,
+        markersize=5,
         )
     ax.axvline(
         sample_offset,
         color="white",
         linestyle="--",
+        lw=1,
         marker="<",
         markevery=0.01,
+        markersize=5,
         )
 
     if return_audio:

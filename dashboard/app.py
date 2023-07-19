@@ -30,7 +30,6 @@ class CanapyDashboard(pn.viewable.Viewer):
     annotators: List = attr.field(default=["syn-esn", "nsyn-esn", "ensemble"])
 
     def __attrs_post_init__(self):
-
         self.controler = Controler(
             data_directory=self.data_directory,
             output_directory=self.output_directory,
@@ -41,25 +40,24 @@ class CanapyDashboard(pn.viewable.Viewer):
             annotators=self.annotators,
         )
 
-        self.layouts = {
+        self.views = {
             "train": TrainDashboard,
             "eval": EvalDashboard,
             "export": ExportDashboard,
         }
-
         self.subdash = None
-
-        self.layout = pn.Row(pn.Spacer())
-
+        self.current_view = pn.Row(
+            pn.Spacer(sizing_mode="stretch_both"), sizing_mode="stretch_both"
+        )
         self.switch_panel()
 
     def __panel__(self):
-        return self.layout
+        return self.current_view
 
     def switch_panel(self):
         Registry.clean_all()
-        self.subdash = self.layouts[self.controler.step](self)
-        self.layout[0] = self.subdash.layout
+        self.subdash = self.views[self.controler.step](self)
+        self.current_view[0] = self.subdash.layout
 
         if self.controler.step == "export":
             self.subdash.begin()

@@ -1,6 +1,8 @@
 # Author: Nathan Trouvain at 18/07/2023 <nathan.trouvain<at>inria.fr>
 # Licence: MIT License
 # Copyright: Nathan Trouvain
+import pathlib
+
 import panel as pn
 
 from canapy.plots import plot_bokeh_label_count
@@ -20,10 +22,10 @@ class SampleCorrectionDashboard(SubDash):
         self.class_selectors = self.build_class_selectors()
 
         self.save_btn = pn.widgets.Button(
-            name="Save all", width=500, button_type="success"
+            name="Save all", width=500, button_type="primary"
         )
         self.save_btn.on_click(self.on_click_save)
-        self.save_msg = pn.pane.HTML(style={"color": "green"}, background="white")
+        self.save_msg = pn.pane.HTML(styles=dict(color="green", background="white"))
 
         self.repertoire_view = RepertoireView(
             self, num_panel=1, orientation="row", num_samples=4
@@ -53,7 +55,7 @@ class SampleCorrectionDashboard(SubDash):
         misclass = self.controler.misclassified_segments
         for lbl in misclass.label.unique():
             # n_error = self.controler.misclass_counts.loc[lbl]["counts"]
-            n_error = len(misclass.query("label==@label"))
+            n_error = len(misclass.query("label==@lbl"))
             display = ClassSelectionView(lbl, n_error, self)
             self.registry["class"][lbl] = display
             grid.append(display.layout)
@@ -98,7 +100,8 @@ class ClassSelectionView(SubDash):
         )
         self.select_btn.on_click(self.on_click_notify_display)
         self.corrected_msg = pn.pane.HTML(
-            object=f"{self.num_corrected}/{num_error} corrected", background="white"
+            object=f"{self.num_corrected}/{num_error} corrected",
+            styles=dict(background="white"),
         )
 
         self.layout = pn.Column(self.select_btn, self.corrected_msg)
@@ -109,30 +112,23 @@ class ClassSelectionView(SubDash):
     def receive_correction(self, increment):
         self.num_corrected += increment
 
-        style = {"color": "black"}
+        style = {"color": "black", "background": "white"}
         if self.num_corrected == self.num_error:
-            style = {"color": "green"}
+            style = {"color": "green", "background": "white"}
 
         self.layout[1] = pn.pane.HTML(
             object=f"{self.num_corrected}/{self.num_error} corrected",
-            background="white",
-            style=style,
+            styles=style,
         )
 
 
 class SampleCorrectorView(SubDash):
     def __init__(self, parent, label):
-
         super().__init__(parent)
 
-        self.misclassified_segments = self.controler.misclassified_segments.query("label==@label")
-
-        # self.misclass_index = self.misclass_samples.index.values.tolist()
-        # self.misclass_preds = {
-        #     idx: models_pred
-        #     for idx, models_pred in self.controler.misclass_samples.items()
-        #     if idx in self.misclass_index
-        # }
+        self.misclassified_segments = self.controler.misclassified_segments.query(
+            "label==@label"
+        )
 
         self.label = label
         self.registry = Registry()
@@ -149,12 +145,14 @@ class SampleCorrectorView(SubDash):
     def build_display(self):
         segments = self.controler.load_repertoire(self.misclassified_segments)
         grid = pn.GridBox(ncols=4)
-        for segment, annots in zip(segments, self.misclassified_segments.iterrows()):
-            if self.registry.get(annots.Index) is None:
+        for segment, (idx, annots) in zip(
+            segments, self.misclassified_segments.iterrows()
+        ):
+            if self.registry.get(idx) is None:
                 display = SingleSampleCorrectorView(annots, segment, self.parent)
-                self.registry[annots.Index] = display
+                self.registry[idx] = display
             else:
-                display = self.registry[annots.Index]
+                display = self.registry[idx]
             grid.append(display.layout)
         return grid
 
@@ -168,43 +166,52 @@ class SingleSampleCorrectorView(SubDash):
 
         self.predictions = self.repertoire_entry.filter(regex="pred_.*")
         # Retrieve model names as index
-        self.predictions.index = [p.split("_")[1] for p in self.predictions]
+        self.predictions.index = [p.split("_")[1] for p in self.predictions.index]
 
-        self.text_input = pn.widgets.TextInput(max_width=100)
+        self.text_input = pn.widgets.TextInput(width=75)
         self.corrected = False
         self.text_input.param.watch(self.on_correction_notify, "value")
 
-        self.img = pn.pane.Matplotlib(spec[0])
-        self.audio = pn.pane.Audio(spec[1], sample_rate=round(spec[3]))
-        self.short_audio = pn.pane.Audio(spec[2], sample_rate=round(spec[3]))
+        sampling_rate = round(self.controler.config.transforms.audio.sampling_rate)
 
-        models_preds = ', '.join([f"{idx}: {p}" for idx, p in self.predictions.items()])
+        self.img = pn.pane.Matplotlib(spec[0])
+        self.audio = pn.pane.Audio(spec[1], sample_rate=sampling_rate)
+        self.short_audio = pn.pane.Audio(spec[2], sample_rate=sampling_rate)
+
+        models_preds = ", ".join([f"{idx}: {p}" for idx, p in self.predictions.items()])
+
+        notated_file = pathlib.Path(self.repertoire_entry.notated_path).stem
+
+        file_tooltip = pn.widgets.TooltipIcon(
+            value=f"From audio: {notated_file}"
+                  f"\n start: {self.repertoire_entry.onset_s:.3f} s, "
+                  f"end: {self.repertoire_entry.offset_s:.3f} s"
+                  f"\n duration: {self.repertoire_entry.offset_s - self.repertoire_entry.onset_s:.3f} s"
+            )
 
         self.infos = pn.pane.HTML(
-            f"""<p>{self.repertoire_entry.notated_path}</p>
-                <p>start: {self.repertoire_entry.onset_s:.3f} s, end: {self.repertoire_entry.offset_s:.3f} s</p>
-                <p>Models predictions: </p>
+            f"""<p>Models predictions:</p>
                 <p>{models_preds}</p>
             """
         )
 
         self.label_title = pn.pane.HTML(
-            f"{self.label}", background="WhiteSmoke", style={"font-size": "2em"}
+            f"{self.label}", styles={"background": "WhiteSmoke", "font-size": "2em"}
         )
 
         self.label_status = pn.pane.HTML(
-            background="WhiteSmoke", style={"color": "orange"}
+            styles={"background": "WhiteSmoke", "color": "orange"}
         )
 
         self.layout = pn.Row(
-            pn.Column(self.infos, self.img, self.audio, self.short_audio),
+            pn.Column(file_tooltip, self.infos, self.img, self.audio, self.short_audio),
             pn.Column(
                 self.label_title,
                 pn.pane.HTML("Correction :"),
                 self.text_input,
                 self.label_status,
             ),
-            background="WhiteSmoke",
+            styles=dict(background="WhiteSmoke"),
             margin=10,
         )
 

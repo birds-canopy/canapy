@@ -15,8 +15,9 @@ def _check_corpus_comparison(gold_corpus, corpus):
 
     if gold_notated != df_notated:
         raise ValueError(
-            "Ground truth corpus and predicted corpus do not match: "
-            "different audio have been annotated."
+            f"Ground truth corpus and predicted corpus do not match: "
+            f"different audio have been annotated. "
+            f"Mismatched: {gold_notated - df_notated}"
         )
 
 

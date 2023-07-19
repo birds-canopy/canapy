@@ -24,8 +24,10 @@ parser.add_argument(
     "output_directory", type=str, help="Output directory of models and checkpoints."
 )
 parser.add_argument(
-    "-c", "--config_path", type=str,
-    )
+    "-c",
+    "--config_path",
+    type=str,
+)
 
 parser.add_argument(
     "--port",
@@ -35,9 +37,7 @@ parser.add_argument(
     default=9321,
     help="Port use by the Bokeh server. By default, 9321.",
 )
-parser.add_argument(
-    "--annot_format", type=str, default="marron1csv"
-    )
+parser.add_argument("--annot_format", type=str, default="marron1csv")
 parser.add_argument(
     "--audio_ext",
     type=str,
@@ -51,12 +51,11 @@ parser.add_argument(
     "--annotators",
     action="append",
     nargs="+",
-    default=["syn-esn", "nsyn-esn", "ensemble"]
+    default=["syn-esn", "nsyn-esn", "ensemble"],
 )
 
 
 def display_dashboard(**kwargs):
-
     pn.extension()
     dashboard = CanapyDashboard(**kwargs)
     dashboard.show()

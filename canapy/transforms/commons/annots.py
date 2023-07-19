@@ -71,17 +71,20 @@ def merge_labels(corpus, **kwargs):
         )
     ).cumsum()
 
+    # We define aggregation functions this way so that we don't inadvertedly
+    # remove unknown columns from the dataset.
+    agg_funcs = {}
+    for col in df.columns:
+        if "onset" in col:
+            agg_funcs[col] = min
+        elif "offset" in col:
+            agg_funcs[col] = max
+        else:
+            agg_funcs[col] = "first"
+
     df = (
         df.groupby(groups + [gemini_groups], as_index=False)
-        .agg(
-            {
-                "label": "first",
-                "onset_s": min,
-                "offset_s": max,
-                "notated_path": "first",
-                "annot_path": "first",
-            }
-        )
+        .agg(agg_funcs)
         .sort_values(by=["annotation", "sequence", "onset_s"])
     )
 

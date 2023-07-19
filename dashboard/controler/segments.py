@@ -9,6 +9,7 @@ from canapy.timings import seconds_to_frames, seconds_to_audio
 from canapy.metrics.utils import as_frame_comparison
 from canapy.corpus import Corpus
 
+
 def fetch_misclassified_samples(
     gold_corpus: Corpus,
     predictions: Dict[str, Corpus],
@@ -17,13 +18,16 @@ def fetch_misclassified_samples(
     min_segment_proportion_agreement: float,
     silence_tag: str = "SIL",
 ):
-
     # Retrieve all data as framed data (one annotation per timestep)
-    gold_frames = as_frame_comparison(gold_corpus, predictions[list(predictions.keys())[0]])
+    gold_frames = as_frame_comparison(
+        gold_corpus, predictions[list(predictions.keys())[0]]
+    )
     gold_frames = gold_frames.sort_values(by=["notated_path", "onset_s"])
 
     pred_frames = {
-        f"pred_{n}": p.data_resources["frames_predictions"].sort_values(by=["notated_path", "onset_s"])["label"]
+        f"pred_{n}": p.data_resources["frames_predictions"].sort_values(
+            by=["notated_path", "onset_s"]
+        )["label"]
         for n, p in predictions.items()
     }
 
@@ -59,15 +63,19 @@ def fetch_misclassified_samples(
             # against the annotated frames true value (from gold corpus).
             counts = preds.apply(
                 lambda col: pd.Series(
-                    np.unique(col, return_counts=True) + ((col == annot_frames["label"]).sum() / len(preds), ),
-                    index=["label", "count", "score"]
-                    ),
-                axis="rows").T
+                    np.unique(col, return_counts=True)
+                    + ((col == annot_frames["label"]).sum() / len(preds),),
+                    index=["label", "count", "score"],
+                ),
+                axis="rows",
+            ).T
 
             # If all models achieve less than min_segment_proportion_agreement accuracy,
             # then this segment should be considered as problematic
             if (counts["score"] < min_segment_proportion_agreement).all():
-                bad_ones[one_annot.Index] = {r.Index: r.label[np.argmax(r.count)] for r in counts.itertuples()}
+                bad_ones[one_annot.Index] = {
+                    r.Index: r.label[np.argmax(r.count)] for r in counts.itertuples()
+                }
 
     bad_ones = pd.DataFrame.from_dict(bad_ones, orient="index")
 
