@@ -2,6 +2,7 @@
 # Licence: MIT License
 # Copyright: Nathan Trouvain
 import logging
+from collections import UserDict
 from typing import List
 
 import numpy as np
@@ -14,19 +15,24 @@ MAX_ARRAY_SIZE = 1e8
 logger = logging.getLogger("canapy")
 
 
-class _StructuredContainer:
+class _StructuredContainer(UserDict):
 
-    def __init__(self, data, dtype, shapes):
-        self._data = data
+    def __init__(self, arrays, dtype, shapes):
+        self._arrays = arrays
         self._dtype = dtype
         self._shapes = shapes
 
+        super().__init__()
+
     def __getitem__(self, item):
         shape = self._shapes[item]
-        return self._data[item].reshape(*shape)
+        return self._arrays[item].reshape(*shape)
 
     def __setitem__(self, key, value):
         raise NotImplementedError(f"Can't set item of {self}.")
+
+    def __contains__(self, item):
+        return item in self.keys()
 
     def items(self):
         for k in self._dtype.fields.keys():
