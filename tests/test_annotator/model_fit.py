@@ -14,8 +14,8 @@ def print_config(config=None):
 
 def load_corpus(verif_print=False):
     my_corpus_audio_and_anot = Corpus.from_directory(
-        audio_directory="/home/vincent/Documents/data_canary/express",
-        annots_directory="/home/vincent/Documents/data_canary/express",
+        audio_directory="/home/vincent/Documents/data_canary/audio",
+        annots_directory="/home/vincent/Documents/data_canary/annotations",
         )
     my_corpus_audio = Corpus.from_directory(
         audio_directory="/home/vincent/Documents/data_canary/express",
@@ -109,21 +109,21 @@ def predict_annotators(corpus, trained_syn, trained_nsyn, trained_ensemble, veri
     # Prediction of ensemble annotator
     corpus_syn_predict_raw = trained_syn.predict(corpus, return_raw=True)
     corpus_nsyn_predict_raw = trained_nsyn.predict(corpus, return_raw=True)
-    #corpus_ensemble_predict = trained_ensemble.predict([corpus_syn_predict_raw, corpus_nsyn_predict_raw])
+    corpus_ensemble_predict = trained_ensemble.predict([corpus_syn_predict_raw, corpus_nsyn_predict_raw])
 
     if verif_print:
         print(corpus_syn_predict.dataset)
         print(corpus_nsyn_predict.dataset)
-        #print(corpus_ensemble_predict)
+        print(corpus_ensemble_predict)
 
-    return corpus_syn_predict, corpus_nsyn_predict
+    return corpus_syn_predict, corpus_nsyn_predict, corpus_ensemble_predict
 
 def metrics(g_corpus, p_corpus, print_verif=False):
 
-    from canapy.metrics import classification_report, confusion_matrix, segment_error_rate
+    from canapy.metrics import sklearn_classification_report, sklearn_confusion_matrix, segment_error_rate
 
-    r1 = classification_report(g_corpus, p_corpus)
-    r2 = confusion_matrix(g_corpus, p_corpus)
+    r1 = sklearn_classification_report(g_corpus, p_corpus)
+    r2 = sklearn_confusion_matrix(g_corpus, p_corpus)
     r3 = segment_error_rate(g_corpus, p_corpus)
 
     if print_verif:
@@ -132,27 +132,60 @@ def metrics(g_corpus, p_corpus, print_verif=False):
         print("segment_error_rate : ", r3)
 
 
+def jupyter():
+
+    from canapy.corpus import Corpus
+    from canapy.annotator import get_annotator
+    from canapy.config import default_config
+
+    syn_annotator = get_annotator("syn-esn")(default_config, "../../tuto/spec")
+    nsyn_annotator = get_annotator("nsyn-esn")(default_config, "../../tuto/spec")
+    ensemble_annotator = get_annotator("ensemble")(default_config, "../../tuto/spec")
+
+
+    corpus_annotated_songs = Corpus.from_directory(audio_directory="../../tuto/annotated_songs", annots_directory="../../tuto/annotated_songs")
+
+    corpus_non_annotated_songs = Corpus.from_directory(audio_directory="../../tuto/non_annotated_songs")
+
+
+    syn_annotator.fit(corpus_annotated_songs)
+    #nsyn_annotator.fit(corpus_annotated_songs)
+    #ensemble_annotator.fit(corpus_annotated_songs)
+    print(len(corpus_non_annotated_songs))
+
+    corpus_syn_predict = syn_annotator.predict(corpus_non_annotated_songs)
+    #corpus_nsyn_predict = nsyn_annotator.predict(corpus_non_annotated_songs)
+
+    #corpus_syn_predict_raw = syn_annotator.predict(corpus_non_annotated_songs, return_raw=True)
+    #corpus_nsyn_predict_raw = nsyn_annotator.predict(corpus_non_annotated_songs, return_raw=True)
+
+    #corpus_ensemble_predict = ensemble_annotator.predict([corpus_syn_predict, corpus_nsyn_predict_raw])
+
+
 if __name__ == "__main__":
 
     #print_config()
 
     #load_annotators()
 
-    my_corpus, my_corpus_audio = load_corpus()
+    #my_corpus, my_corpus_audio = load_corpus()
 
-    test_corpus_query(my_corpus)
+    #test_corpus_query(my_corpus)
 
-    syn, nsyn, ensemble = create_annotators(my_corpus)
+    #syn, nsyn, ensemble = create_annotators(my_corpus)
 
-    trained_syn, trained_nsyn, trained_ensemble = train_annotators(my_corpus, syn, nsyn, ensemble)
+    #trained_syn, trained_nsyn, trained_ensemble = train_annotators(my_corpus, syn, nsyn, ensemble)
 
-    c1, c2 = predict_annotators(my_corpus, trained_syn, trained_nsyn, trained_ensemble, verif_print=True)
+    #c1, c2, c3 = predict_annotators(my_corpus, trained_syn, trained_nsyn, trained_ensemble, verif_print=True)
 
-    print("\n\n\n\n\n\n\n SYN")
-    metrics(my_corpus, c1)
-    print("\n\n\n\n\n\n\n NSYN")
-    metrics(my_corpus, c2)
+    #print("\n\n\n\n\n\n\n SYN")
+    #metrics(my_corpus, c1, print_verif=True)
+    #print("\n\n\n\n\n\n\n NSYN")
+    #metrics(my_corpus, c2, print_verif=True)
+    #print("\n\n\n\n\n\n\n ENSEMBLE")
+    #metrics(my_corpus, c3, print_verif=True)
 
+    jupyter()
 
 
 
