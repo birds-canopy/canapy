@@ -10,7 +10,6 @@ from collections import defaultdict
 
 import attr
 import joblib
-import numpy as np
 import pandas as pd
 import panel
 
@@ -25,7 +24,7 @@ from canapy.metrics import (
 from canapy.plots import plot_segment_melspectrogram
 from canapy.annotator.commons.postprocess import extract_vocab
 from canapy.transforms.commons.training import split_train_test
-from canapy.timings import seconds_to_audio
+from canapy.utils.tempstorage import close_tempfiles
 
 from .segments import fetch_misclassified_samples
 from .corpusutils import mark_whole_corpus_as_train, query_split
@@ -193,6 +192,7 @@ class Controler:
 
     def upload_corrections(self, corrections, target):
         self._correction_store[target].update(corrections)
+        logger.info(f"Uploaded corrections {target}: {corrections} to store.")
 
     def apply_corrections(self):
         class_corrections = self._correction_store["class"]
@@ -203,7 +203,18 @@ class Controler:
             annot_corrections=annot_corrections,
             checkpoint=True,
         )
-        logger.info(f"Applied corrections on {self.corpus}")
+        logger.info(f"Applied corrections on {self.corpus}:"
+                    f"\nClass merge:\n{class_corrections}"
+                    f"\nAnnotation correction:\n{annot_corrections}")
+
+    def export_corpus(self):
+        try:
+            export_dir = self.output_directory / "corrected_annotations"
+            export_dir.mkdir(parents=True, exist_ok=True)
+            self.corpus.to_directory(str(export_dir))
+        except OSError as e:
+            logger.critical("Failed to create export directory for annotations:")
+            logger.critical(e)
 
     def next_step(self, export=False):
         if self.step == "train":
@@ -223,6 +234,7 @@ class Controler:
             self.checkpoint()
             self.apply_corrections()
             self.next_iter()
+            self.export_corpus()
             logger.info("Setting current dashboard to 'export'.")
 
         self.dashboard.switch_panel()
@@ -295,7 +307,7 @@ class Controler:
 
             for annot_name, pred_corpus in predictions.items():
                 logger.info(
-                    f"Computing metrics for split: "
+                    f"Calculating metrics for split: "
                     f"{split} | annotator: {annot_name}."
                 )
 
@@ -312,8 +324,15 @@ class Controler:
                 )
                 ser = segment_error_rate(gold_corpus, pred_corpus)
 
-                logger.info(f"Report: \n {report}")
-                logger.info(f"Segment error rate: \n {ser}")
+                float_format = lambda x: f"{x:.3f}"
+                logger.info(
+                    f"Report <{split}|{annot_name}>:"
+                    f"\n{pd.DataFrame(report).to_string(float_format=float_format)}"
+                )
+                logger.info(
+                    f"Segment error rate: {ser['ser'].mean():.3f} (mean) "
+                    f"± {ser['ser'].std():.3f} (std)"
+                )
 
                 self._metrics_store[split]["cm"][annot_name] = cm
                 self._metrics_store[split]["report"][annot_name] = report
@@ -368,6 +387,6 @@ class Controler:
         return specs
 
     def stop_app(self):
-        # del_temp()
+        close_tempfiles()
         self.dashboard.stop()
-        logger.info("Server shutdown.")
+

@@ -23,7 +23,7 @@ logger = logging.getLogger("canapy-dashboard")
 class CanapyDashboard(pn.viewable.Viewer):
     data_directory: Path = attr.field(converter=Path)
     output_directory: Path = attr.field(converter=Path)
-    config_path: Path = attr.field(converter=Path)
+    config_path: Optional[Path] = attr.field(converter=lambda x: Path(x) if x is not None else x)
     port: Optional[int] = attr.field()
     annot_format: str = attr.field(default="marron1csv")
     audio_ext: str = attr.field(default=".wav")
@@ -64,11 +64,8 @@ class CanapyDashboard(pn.viewable.Viewer):
 
     def show(self, **kwargs):
         logger.info("Starting server...")
-        # self._server_instance = self.layout.show(
-        #     port=self.port, title="Canapy", threaded=True
-        # )
-        super().show(title="Canapy", port=self.port, threaded=False, open=True)
+        super().show(title="Canapy", port=self.port, threaded=True, open=True)
 
     def stop(self):
-        super().stop()
         logger.info("Server shut down.")
+        exit()

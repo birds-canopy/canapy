@@ -2,6 +2,7 @@
 # Licence: MIT License
 # Copyright: Nathan Trouvain
 import numpy as np
+import reservoirpy as rpy
 
 from reservoirpy.nodes import Reservoir, Ridge, ESN
 from reservoirpy.mat_gen import fast_spectral_initialization
@@ -22,6 +23,9 @@ def maximum_a_posteriori(logits, classes=None):
 
 
 def init_esn_model(model_config, input_dim, audio_features, seed=None):
+
+    rpy.set_seed(seed)
+
     scalings = []
     if "mfcc" in audio_features:
         iss = np.ones((input_dim,)) * model_config.iss
@@ -42,8 +46,7 @@ def init_esn_model(model_config, input_dim, audio_features, seed=None):
         lr=model_config.leak,
         input_scaling=input_scaling,
         bias_scaling=bias_scaling,
-        W=fast_spectral_initialization,
-        seed=seed,
+        W=fast_spectral_initialization
     )
 
     readout = Ridge(ridge=model_config.ridge)

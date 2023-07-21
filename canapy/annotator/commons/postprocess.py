@@ -7,6 +7,7 @@ import scipy
 
 from ...corpus import Corpus
 from ...timings import frames_to_timed_df
+from ...utils.arrays import to_structured
 
 
 def extract_vocab(corpus, silence_tag):
@@ -166,6 +167,9 @@ def predictions_to_corpus(
     if raw_preds is not None:
         if not isinstance(raw_preds, dict):
             raw_preds = dict(zip(notated_paths, raw_preds))
-        corpus.register_data_resource("nn_output", raw_preds)
+        # Save raw neural network outputs (logits, softmax activity...) as
+        # structured array for convenience. This allows for easy memory mapping to avoid
+        # memory issues.
+        corpus.register_data_resource("nn_output", to_structured(raw_preds))
 
     return corpus

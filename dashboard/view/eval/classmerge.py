@@ -65,7 +65,7 @@ class MetricsView(SubDash):
                 fig_pane = pn.pane.Bokeh(p, sizing_mode="stretch_both")
 
                 df = pd.DataFrame(metrics["report"][name]).T
-                score_table = pn.widgets.Tabulator(df)
+                score_table = pn.widgets.Tabulator(df, disabled=True)
                 score_table.style.pipe(format_score_df)
 
                 sub_tabs.append(

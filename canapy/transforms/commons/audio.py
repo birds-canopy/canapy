@@ -19,7 +19,6 @@ class AudioNotFound(Exception):
     pass
 
 
-@log(fn_type="audio transform")
 def ls_audio_dir(corpus):
     audio_dir = pathlib.Path(corpus.audio_directory)
     audio_ext = corpus.audio_ext
@@ -34,7 +33,6 @@ def ls_audio_dir(corpus):
     return audio_paths
 
 
-@log(fn_type="audio transform")
 def ls_spec_dir(corpus):
     spec_dir = pathlib.Path(corpus.spec_directory)
     spec_ext = corpus.spec_ext
@@ -79,16 +77,22 @@ def compute_mfcc(corpus, *, output_directory, resource_name, redo=False, **kwarg
     df = corpus.dataset
     config = corpus.config.transforms.audio
 
-    if resource_name in corpus.data_resources and not redo:
-        return corpus
-
     spec_path = corpus.spec_directory
     if spec_path is not None and not redo:
+        # look for saved MFCCs from previous computations
         cepstrum_df = ls_spec_dir(corpus)
 
-        if len(cepstrum_df) > 0:
+        # Maybe we have switched corpus but not output directory,
+        # and MFCCs must be updated
+        if len(set(df["notated_path"].unique()) - set(cepstrum_df["notated_path"].unique())) == 0:
+            logger.info(f"Found previously computed MFCCs in {output_directory}. "
+                        f"Will use them.")
             corpus.register_data_resource(resource_name, cepstrum_df)
             return corpus
+        else:
+            logger.warning(f"Mismatch between saved MFCCs in {output_directory} "
+                           f"and current audio files in {corpus}. MFCCs will be "
+                           f"recomputed.")
 
     if len(df) > 0:  # training/testing data available
         audio_paths = df["notated_path"].unique()
@@ -133,6 +137,10 @@ def compute_mfcc(corpus, *, output_directory, resource_name, redo=False, **kwarg
 
         cepstrum = np.vstack(cepstral_features)
 
+        # MFCCs are stored as structured arrays for convenience.
+        # Arrays have fields:
+        # notated_path: string - Audio file path
+        # feature: float - corresponding MFCCs
         dtype = np.dtype(
             [
                 ("notated_path", np.array(str(audio_path)).dtype),
