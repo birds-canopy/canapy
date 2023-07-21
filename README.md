@@ -55,7 +55,7 @@ Your directories don't have to have the same names as above, just make sure to e
 In a terminal running in the `project` directory, run :
 
 ```bash
-python -m canapy.audacity -r ./bird1 -o ./bird1_dataset/
+canapy-audacity-convert -r ./bird1 -o ./bird1_dataset/
 ```
 
 This will prompt you to confirm the exportation of the annotations and audio found in the Audacity files.
@@ -117,7 +117,7 @@ You can now launch the dashboard to train the annotation models and check the qu
 
 To run the dashboard, simply do:
 ```bash
-python -m canapy ./bird1_dataset ./bird1_output
+canapy ./bird1_dataset ./bird1_output
 ```
 
 The dashboard should open in your browser, at localhost:9321. If not, simply reach localhost:9321 in your favorite browser.

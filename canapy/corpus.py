@@ -41,7 +41,7 @@ import numpy as np
 import crowsetta
 from crowsetta.formats.seq import GenericSeq
 
-from .config import Config, default_config
+from config import Config, default_config
 from .utils import as_path
 
 

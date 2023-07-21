@@ -22,6 +22,7 @@ from canapy.metrics import (
     segment_error_rate,
 )
 from canapy.plots import plot_segment_melspectrogram
+from canapy.utils import as_path
 from canapy.annotator.commons.postprocess import extract_vocab
 from canapy.transforms.commons.training import split_train_test
 from canapy.utils.tempstorage import close_tempfiles
@@ -46,9 +47,9 @@ def _sort_annotators(annotators: List):
 
 @attr.define
 class Controler:
-    data_directory: Path = attr.field(converter=Path)
-    output_directory: Path = attr.field(converter=Path)
-    config_path: Path = attr.field(converter=Path)
+    data_directory: Path = attr.field(converter=as_path)
+    output_directory: Path = attr.field(converter=as_path)
+    config_path: Path = attr.field(converter=as_path)
     dashboard: panel.viewable.Viewer = attr.field()
     annot_format: str = attr.field(default="marron1csv")
     audio_ext: str = attr.field(default=".wav")

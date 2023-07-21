@@ -6,8 +6,9 @@ from typing import List, Optional
 import attr
 import panel as pn
 
-from .controler import Controler
+from canapy.utils import as_path
 
+from .controler import Controler
 from .view.train.train_dash import TrainDashboard
 from .view.eval.eval_dash import EvalDashboard
 from .view.export.export_dash import ExportDashboard
@@ -21,9 +22,9 @@ logger = logging.getLogger("canapy-dashboard")
 
 @attr.define
 class CanapyDashboard(pn.viewable.Viewer):
-    data_directory: Path = attr.field(converter=Path)
-    output_directory: Path = attr.field(converter=Path)
-    config_path: Optional[Path] = attr.field(converter=lambda x: Path(x) if x is not None else x)
+    data_directory: Path = attr.field(converter=as_path)
+    output_directory: Path = attr.field(converter=as_path)
+    config_path: Optional[Path] = attr.field(converter=as_path)
     port: Optional[int] = attr.field()
     annot_format: str = attr.field(default="marron1csv")
     audio_ext: str = attr.field(default=".wav")

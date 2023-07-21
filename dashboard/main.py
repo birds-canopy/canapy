@@ -55,15 +55,10 @@ parser.add_argument(
 )
 
 
-def display_dashboard(**kwargs):
+def display_dashboard():
+    args = parser.parse_args()
     pn.extension()
-    dashboard = CanapyDashboard(**kwargs)
+    dashboard = CanapyDashboard(**vars(args))
     dashboard.show()
 
     return 0
-
-
-if __name__ == "__main__":
-    args = parser.parse_args()
-    # print("Starting...")
-    display_dashboard(**vars(args))

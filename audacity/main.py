@@ -25,14 +25,11 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import librosa as lbr
 import soundfile as sf
-import seaborn as sns
 from tqdm import tqdm
 
 from . import aup as audacity
-from ..dataset import Config
-from ..config import default_config
+from config import Config, default_config
 
-sns.set(context="paper", style="dark")
 
 AUP_HEAD = (
     '<?xml version="1.0" standalone="no" ?> '
@@ -125,63 +122,60 @@ def fetch_audacity_projects(datasource):
 
     return all_files
 
+#
+# def get_config(config_path):
+#     """Get user defined JSON configuration file,
+#     or return the default config.
+#
+#     Parameters
+#     ----------
+#     config_path : str or Path-like object, optional
+#         Configuration file to open. Defaults to None.
+#
+#     Returns
+#     -------
+#     Config
+#         A Config object storing the configuration.
+#     """
+#     if config_path is not None:
+#         config_path = Path(config_path)
+#         if config_path.is_file():
+#             with config_path.open("r") as f:
+#                 config = Config(json.load(f))
+#                 check_config(config)
+#             return config
+#         else:
+#             raise FileNotFoundError(f"No JSON configuration file {config_path} found.")
+#     else:
+#         return Config(default_config())
+#
 
-def get_config(config_path):
-    """Get user defined JSON configuration file,
-    or return the default config.
-
-    Parameters
-    ----------
-    config_path : str or Path-like object, optional
-        Configuration file to open. Defaults to None.
-
-    Returns
-    -------
-    Config
-        A Config object storing the configuration.
-    """
-    if config_path is not None:
-        config_path = Path(config_path)
-        if config_path.is_file():
-            with config_path.open("r") as f:
-                config = Config(json.load(f))
-                check_config(config)
-            return config
-        else:
-            raise FileNotFoundError(f"No JSON configuration file {config_path} found.")
-    else:
-        return Config(default_config())
+# def check_config(config):
+#     """Check the presence of required args in
+#     configuration.
+#
+#     Required arguments for Audacity projects exportation
+#     are 'n_fft', 'hop_length' and 'sampling_rate'.
+#
+#     Parameters
+#     ----------
+#     config : Config
+#     """
+#     # for arg in ["n_fft", "hop_length", "sampling_rate"]:
+#     #     if config.get(arg) is None:
+#     #         raise ValueError(
+#     #             f"Argument '{arg}' is required but not found in config file."
+#     #         )
+#     pass
 
 
-def check_config(config):
-    """Check the presence of required args in
-    configuration.
-
-    Required arguments for Audacity projects exportation
-    are 'n_fft', 'hop_length' and 'sampling_rate'.
-
-    Parameters
-    ----------
-    config : Config
-    """
-    for arg in ["n_fft", "hop_length", "sampling_rate"]:
-        if config.get(arg) is None:
-            raise ValueError(
-                f"Argument '{arg}' is required but not found in config file."
-            )
-
-
-def build_output_directories(out, repertoire=True):
+def build_output_directories(out):
     """Build directory structure for dataset.
 
     Parameters
     ----------
     out : str or Path like object
         Root for the dataset directories
-    repertoire : bool, optional
-        If True, will also build directories to
-        store separate copies of each repertoire
-        sample in the dataset.
     Returns
     -------
     Path like objects
@@ -199,10 +193,10 @@ def build_output_directories(out, repertoire=True):
     if not audios_dir.exists():
         audios_dir.mkdir(parents=True)
 
-    if repertoire:
-        rep_dir = out / "repertoire"
-        if not rep_dir.exists():
-            rep_dir.mkdir(parents=True)
+    # if repertoire:
+    #     rep_dir = out / "repertoire"
+    #     if not rep_dir.exists():
+    #         rep_dir.mkdir(parents=True)
 
     return out, audios_dir, annots_dir, rep_dir
 
@@ -388,112 +382,112 @@ def get_save_path(syll, start, end, sr, audio_file):
     start, end = math.ceil(start * sr), math.ceil(end * sr)
     file_name = f"{syll}-{start}-{end}-{file_name}"
     return file_name
-
-
-def cut_sample(audio, mel, start, end, config):
-    """Extract a phrase sample from a song.
-
-    Parameters
-    ----------
-    audio : np.ndarray
-        Song audio track
-    mel : np.ndarray
-        Mel spectrogram of the track
-    start : float
-        Start of phrase
-    end : float
-        End of phrase
-    config : Config
-        Configuration object
-
-    Returns
-    -------
-    np.ndarray, np.ndarray, float
-        [description]
-    """
-    sr = config.sampling_rate
-    mr = sr / config.as_fftwindow("hop_length")
-    dilatation = 1 / 25
-    delta = dilatation * 1 / (end - start)
-    wstart = math.ceil(start * sr)
-    wend = math.ceil(end * sr)
-    mstart = math.ceil(start * mr)
-    mend = math.ceil(end * mr)
-
-    # if (start-delta >= 0) and (end+delta) < (len(audio)/sr):
-    #     wstart = math.ceil((start - delta) * sr)
-    #     wend = math.ceil((end + delta) * sr)
-
-    sample = audio[wstart:wend]
-
-    if (start - delta) * mr >= 0 and (end + delta) * mr < mel.shape[1]:
-        mstart = math.ceil((start - delta) * mr)
-        mend = math.ceil((end + delta) * mr)
-
-    mel_sample = mel[:, mstart:mend]
-
-    return sample, mel_sample, delta
-
-
-def export_repertoire(df, audio_dir, rep_dir, config):
-
-    waves = df.groupby("wave").groups.keys()
-
-    df["repertoire_file"] = [None for i in range(len(df))]
-
-    success = 0
-    failure = 0
-    for file in tqdm(waves, "Exporting repertoire"):
-
-        wave, sr = lbr.load(audio_dir / file, sr=config.sampling_rate)
-        mel = lbr.power_to_db(
-            lbr.feature.melspectrogram(wave, sr, n_fft=1024, hop_length=512)
-        )
-        lbl = df.loc[df["wave"] == file]
-
-        mr = config.sampling_rate / config.as_fftwindow("hop_length")
-
-        for lbl_entry in lbl.itertuples():
-            index = lbl_entry.Index
-            syll = lbl_entry.syll
-            start = lbl_entry.start
-            end = lbl_entry.end
-
-            if syll != "SIL":
-                try:
-                    sample, mel_sample, delta = cut_sample(
-                        wave, mel, start, end, config
-                    )
-                    file_name = get_save_path(syll, start, end, sr, file)
-
-                    fig = plt.figure()
-                    ax = plt.gca()
-                    plt.axis("off")
-                    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
-
-                    ax.imshow(mel_sample, origin="lower", cmap="magma")
-                    ax.axvline(math.floor(delta * mr), color="white", linestyle="--")
-                    ax.axvline(
-                        math.ceil(mel_sample.shape[1] - delta * mr),
-                        color="white",
-                        linestyle="--",
-                    )
-
-                    fig.savefig(f"{Path(rep_dir) / file_name}.png")
-                    plt.clf()
-                    plt.close(fig)
-
-                    sf.write(f"{Path(rep_dir) / file_name}.wav", sample, sr)
-
-                    df.at[index, "repertoire_file"] = file_name
-
-                    success += 1
-
-                except Exception as e:
-                    failure += 1
-                    print(f"Repertoire failure : syllable {syll}: {e}")
-
-    print(f"{success} syllables sucessfuly exported in repertoire. {failure} failures.")
+#
+#
+# def cut_sample(audio, mel, start, end, config):
+#     """Extract a phrase sample from a song.
+#
+#     Parameters
+#     ----------
+#     audio : np.ndarray
+#         Song audio track
+#     mel : np.ndarray
+#         Mel spectrogram of the track
+#     start : float
+#         Start of phrase
+#     end : float
+#         End of phrase
+#     config : Config
+#         Configuration object
+#
+#     Returns
+#     -------
+#     np.ndarray, np.ndarray, float
+#         [description]
+#     """
+#     sr = config.sampling_rate
+#     mr = sr / config.as_fftwindow("hop_length")
+#     dilatation = 1 / 25
+#     delta = dilatation * 1 / (end - start)
+#     wstart = math.ceil(start * sr)
+#     wend = math.ceil(end * sr)
+#     mstart = math.ceil(start * mr)
+#     mend = math.ceil(end * mr)
+#
+#     # if (start-delta >= 0) and (end+delta) < (len(audio)/sr):
+#     #     wstart = math.ceil((start - delta) * sr)
+#     #     wend = math.ceil((end + delta) * sr)
+#
+#     sample = audio[wstart:wend]
+#
+#     if (start - delta) * mr >= 0 and (end + delta) * mr < mel.shape[1]:
+#         mstart = math.ceil((start - delta) * mr)
+#         mend = math.ceil((end + delta) * mr)
+#
+#     mel_sample = mel[:, mstart:mend]
+#
+#     return sample, mel_sample, delta
+#
+#
+# def export_repertoire(df, audio_dir, rep_dir, config):
+#
+#     waves = df.groupby("wave").groups.keys()
+#
+#     df["repertoire_file"] = [None for i in range(len(df))]
+#
+#     success = 0
+#     failure = 0
+#     for file in tqdm(waves, "Exporting repertoire"):
+#
+#         wave, sr = lbr.load(audio_dir / file, sr=config.sampling_rate)
+#         mel = lbr.power_to_db(
+#             lbr.feature.melspectrogram(wave, sr, n_fft=1024, hop_length=512)
+#         )
+#         lbl = df.loc[df["wave"] == file]
+#
+#         mr = config.sampling_rate / config.as_fftwindow("hop_length")
+#
+#         for lbl_entry in lbl.itertuples():
+#             index = lbl_entry.Index
+#             syll = lbl_entry.syll
+#             start = lbl_entry.start
+#             end = lbl_entry.end
+#
+#             if syll != "SIL":
+#                 try:
+#                     sample, mel_sample, delta = cut_sample(
+#                         wave, mel, start, end, config
+#                     )
+#                     file_name = get_save_path(syll, start, end, sr, file)
+#
+#                     fig = plt.figure()
+#                     ax = plt.gca()
+#                     plt.axis("off")
+#                     plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+#
+#                     ax.imshow(mel_sample, origin="lower", cmap="magma")
+#                     ax.axvline(math.floor(delta * mr), color="white", linestyle="--")
+#                     ax.axvline(
+#                         math.ceil(mel_sample.shape[1] - delta * mr),
+#                         color="white",
+#                         linestyle="--",
+#                     )
+#
+#                     fig.savefig(f"{Path(rep_dir) / file_name}.png")
+#                     plt.clf()
+#                     plt.close(fig)
+#
+#                     sf.write(f"{Path(rep_dir) / file_name}.wav", sample, sr)
+#
+#                     df.at[index, "repertoire_file"] = file_name
+#
+#                     success += 1
+#
+#                 except Exception as e:
+#                     failure += 1
+#                     print(f"Repertoire failure : syllable {syll}: {e}")
+#
+#     print(f"{success} syllables sucessfuly exported in repertoire. {failure} failures.")
 
 
 def export_annotations(df, annots_dir):
@@ -544,9 +538,9 @@ def print_repertoire(df):
     df.drop(["duration"], axis=1, inplace=True)
 
 
-def convert(datasource=None, repertoire=None, config=None, output=None):
-
-    config = get_config(config)
+def convert(datasource, output):
+    #
+    # config = get_config(config)
 
     files = fetch_audacity_projects(datasource)
 
@@ -556,13 +550,13 @@ def convert(datasource=None, repertoire=None, config=None, output=None):
 
     if input("Is it ok ? (y/n)\n") != "n":
         output, audio_dir, annots_dir, rep_dir = build_output_directories(
-            output[0], repertoire
+            output[0],
         )
 
         extract_audio(files, audio_dir)
 
-        if repertoire:
-            export_repertoire(df, audio_dir, rep_dir, config)
+        # if repertoire:
+        #     export_repertoire(df, audio_dir, rep_dir, config)
 
         export_annotations(df, annots_dir)
 
@@ -573,8 +567,7 @@ def convert(datasource=None, repertoire=None, config=None, output=None):
     return 0
 
 
-if __name__ == "__main__":
-
+def main():
     args = parser.parse_args()
 
     convert(**vars(args))

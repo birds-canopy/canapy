@@ -17,8 +17,24 @@ logger = logging.getLogger("canapy")
 
 class _StructuredContainer(UserDict):
 
-    def __init__(self, arrays, dtype, shapes):
-        self._arrays = arrays
+    def __init__(self, **dict_of_arrays):
+        dtype = np.dtype(
+            [(k, v.dtype, v.shape) for k, v in dict_of_arrays.items()]
+            )
+        shapes = {k: v.shape for k, v in dict_of_arrays.items()}
+
+        if total_size(dict_of_arrays.values()) > MAX_ARRAY_SIZE:
+            logger.info(f"Saving data resource as memory map in temporary file: "
+                        f"arrays exceed {MAX_ARRAY_SIZE} bytes."
+                        )
+            array = np.memmap(tempfile(), dtype=dtype, shape=(1,))
+        else:
+            array = np.zeros(1, dtype=dtype)
+
+        for k, v in dict_of_arrays.items():
+            array[k] = v
+
+        self._array = array
         self._dtype = dtype
         self._shapes = shapes
 
@@ -26,7 +42,7 @@ class _StructuredContainer(UserDict):
 
     def __getitem__(self, item):
         shape = self._shapes[item]
-        return self._arrays[item].reshape(*shape)
+        return self._array[item].reshape(*shape)
 
     def __setitem__(self, key, value):
         raise NotImplementedError(f"Can't set item of {self}.")
@@ -47,23 +63,7 @@ class _StructuredContainer(UserDict):
 
 
 def to_structured(dict_of_arrays):
-    dtype = np.dtype(
-        [(k, v.dtype, v.shape) for k, v in dict_of_arrays.items()]
-    )
-    shapes = {k: v.shape for k, v in dict_of_arrays.items()}
-
-    if total_size(dict_of_arrays.values()) > MAX_ARRAY_SIZE:
-        logger.info(f"Saving data resource as memory map in temporary file: "
-                    f"arrays exceed {MAX_ARRAY_SIZE} bytes."
-        )
-        array = np.memmap(tempfile(), dtype=dtype, shape=(1, ))
-    else:
-        array = np.zeros(1, dtype=dtype)
-
-    for k, v in dict_of_arrays.items():
-        array[k] = v
-
-    return _StructuredContainer(array, dtype, shapes)
+    return _StructuredContainer(**dict_of_arrays)
 
 
 def total_size(arrays: List[np.ndarray]):
