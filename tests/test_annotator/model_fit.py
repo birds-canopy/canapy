@@ -149,17 +149,17 @@ def jupyter():
 
 
     syn_annotator.fit(corpus_annotated_songs)
-    #nsyn_annotator.fit(corpus_annotated_songs)
-    #ensemble_annotator.fit(corpus_annotated_songs)
+    nsyn_annotator.fit(corpus_annotated_songs)
+    ensemble_annotator.fit(corpus_annotated_songs)
     print(len(corpus_non_annotated_songs))
 
     corpus_syn_predict = syn_annotator.predict(corpus_non_annotated_songs)
-    #corpus_nsyn_predict = nsyn_annotator.predict(corpus_non_annotated_songs)
+    corpus_nsyn_predict = nsyn_annotator.predict(corpus_non_annotated_songs)
 
-    #corpus_syn_predict_raw = syn_annotator.predict(corpus_non_annotated_songs, return_raw=True)
-    #corpus_nsyn_predict_raw = nsyn_annotator.predict(corpus_non_annotated_songs, return_raw=True)
+    corpus_syn_predict_raw = syn_annotator.predict(corpus_non_annotated_songs, return_raw=True)
+    corpus_nsyn_predict_raw = nsyn_annotator.predict(corpus_non_annotated_songs, return_raw=True)
 
-    #corpus_ensemble_predict = ensemble_annotator.predict([corpus_syn_predict, corpus_nsyn_predict_raw])
+    corpus_ensemble_predict = ensemble_annotator.predict([corpus_syn_predict, corpus_nsyn_predict_raw])
 
 
 if __name__ == "__main__":
