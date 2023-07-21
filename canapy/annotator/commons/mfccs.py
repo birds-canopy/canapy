@@ -112,7 +112,7 @@ def load_mfccs_for_annotation(corpus):
             "Maybe provide and audio/spec directory to the Corpus ?"
         )
 
-    selected_paths = corpus.dataset.notated_path.unique().tolist()
+    # selected_paths = corpus.dataset.notated_path.unique().tolist()
     mfcc_paths = corpus.data_resources["syn_mfcc"]
     mfccs = []
     notated_paths = []
@@ -126,8 +126,8 @@ def load_mfccs_for_annotation(corpus):
 
         # We might not want to load all data, but only the subset
         # actually present in the corpus
-        if notated_path not in selected_paths:
-            continue
+        # if notated_path not in selected_paths:
+        #    continue
 
         mfcc = np.load(spec_path)
 

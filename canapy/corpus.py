@@ -29,6 +29,7 @@ Example
     >>> # Print the data of a new corpus where there are no 'cri' annotations
 
 """
+import logging
 import pathlib
 from pathlib import Path
 from typing import Iterable, Optional, Union, Sequence, Dict, Any
@@ -42,6 +43,9 @@ from crowsetta.formats.seq import GenericSeq
 
 from .config import Config, default_config
 from .utils import as_path
+
+
+logger = logging.getLogger("canapy")
 
 
 @attr.define(repr=False)
@@ -479,8 +483,25 @@ class Corpus:
         new_corpus.audio_ext = self.audio_ext
         new_corpus.spec_ext = self.spec_ext
 
+        notated_paths = df.notated_path.unique()
         # Do not copy data_resources! All clones should be able to access
         # heavy transformed data without redoing the transform.
-        new_corpus.data_resources = self.data_resources
+        filtered_resources = self.data_resources
+        for name, resource in self.data_resources.items():
+            if isinstance(resource, (pd.DataFrame, dict)) and "notated_path" in resource:
+                if isinstance(resource, pd.DataFrame):
+                     filtered = resource.query("notated_path in @notated_paths")
+                elif isinstance(resource, dict):
+                    filtered = {path: v for path, v in resource.items() if path in notated_paths}
+
+                if len(filtered) == 0:
+                    logger.warning(
+                        f"No match found between data_resource '{resource}' notated_path and new dataframe "
+                        f"notated_path. Audio in cloned corpus have changed. Removing resource.")
+                    del filtered_resources[name]
+                else:
+                    filtered_resources[name] = filtered
+
+        new_corpus.data_resources = filtered_resources
 
         return new_corpus

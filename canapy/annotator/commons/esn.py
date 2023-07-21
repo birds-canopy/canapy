@@ -52,7 +52,8 @@ def init_esn_model(model_config, input_dim, audio_features, seed=None):
         reservoir=reservoir,
         readout=readout,
         workers=model_config.workers,
-        backend=model_config.backend,
+        backend="sequential"
+        #backend=model_config.backend,
     )
 
 
