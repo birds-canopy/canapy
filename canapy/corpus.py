@@ -487,6 +487,7 @@ class Corpus:
         # Do not copy data_resources! All clones should be able to access
         # heavy transformed data without redoing the transform.
         filtered_resources = self.data_resources
+        delete_list = []
         for name, resource in self.data_resources.items():
             if isinstance(resource, (pd.DataFrame, dict)) and "notated_path" in resource:
                 if isinstance(resource, pd.DataFrame):
@@ -498,9 +499,12 @@ class Corpus:
                     logger.warning(
                         f"No match found between data_resource '{resource}' notated_path and new dataframe "
                         f"notated_path. Audio in cloned corpus have changed. Removing resource.")
-                    del filtered_resources[name]
+                    delete_list.append(name)
                 else:
                     filtered_resources[name] = filtered
+
+        for name in delete_list:
+            del filtered_resources[name]
 
         new_corpus.data_resources = filtered_resources
 

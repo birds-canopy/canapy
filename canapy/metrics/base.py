@@ -17,7 +17,7 @@ def _check_corpus_comparison(gold_corpus, corpus):
         raise ValueError(
             f"Ground truth corpus and predicted corpus do not match: "
             f"different audio have been annotated. "
-            f"Mismatched: {gold_notated - df_notated}"
+            f"Mismatched: {gold_notated.symmetric_difference(df_notated)}"
         )
 
 
