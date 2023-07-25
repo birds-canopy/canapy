@@ -8,7 +8,7 @@ import pickle
 import logging
 
 from pathlib import Path
-from ..config import default_config
+from config import default_config
 from .commons.compat import _Compat, _CompatModelUnpickler
 
 logger = logging.getLogger("canapy")

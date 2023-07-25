@@ -60,7 +60,7 @@ def test_corpus_query(corpus, verif_print=False):
 
 def create_annotators(corpus, verif_print=False):
 
-    from canapy.config import default_config
+    from config import default_config
 
     from canapy.annotator.synannotator import SynAnnotator
 
@@ -136,7 +136,7 @@ def jupyter():
 
     from canapy.corpus import Corpus
     from canapy.annotator import get_annotator
-    from canapy.config import default_config
+    from config import default_config
 
     syn_annotator = get_annotator("syn-esn")(default_config, "../../tuto/spec")
     nsyn_annotator = get_annotator("nsyn-esn")(default_config, "../../tuto/spec")
@@ -159,7 +159,19 @@ def jupyter():
     corpus_syn_predict_raw = syn_annotator.predict(corpus_non_annotated_songs, return_raw=True)
     corpus_nsyn_predict_raw = nsyn_annotator.predict(corpus_non_annotated_songs, return_raw=True)
 
-    corpus_ensemble_predict = ensemble_annotator.predict([corpus_syn_predict, corpus_nsyn_predict_raw])
+    corpus_ensemble_predict = ensemble_annotator.predict([corpus_syn_predict_raw, corpus_nsyn_predict_raw])
+
+
+def dashboard():
+    import panel as pn
+
+    from dashboard.app import CanapyDashboard
+
+    args = {'data_directory':'./tuto/annotated_songs', 'output_directory':'./tuto/results', 'config_path':'./config/template/default.config.toml', 'port':9321, 'annot_format':'marron1csv', 'audio_ext':'.wav', 'annotators':['syn-esn', 'nsyn-esn']}
+
+    pn.extension()
+    dashboard = CanapyDashboard(**vars(args))
+    dashboard.show()
 
 
 if __name__ == "__main__":
@@ -185,9 +197,9 @@ if __name__ == "__main__":
     #print("\n\n\n\n\n\n\n ENSEMBLE")
     #metrics(my_corpus, c3, print_verif=True)
 
-    jupyter()
+    #jupyter()
 
-
+    dashboard()
 
 
 
