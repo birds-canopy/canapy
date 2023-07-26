@@ -1,6 +1,6 @@
 import panel as pn
 
-from ..controler import Controler
+from dashboard.controler import Controler
 
 
 class SubDash(pn.viewable.Viewer):

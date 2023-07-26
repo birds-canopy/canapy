@@ -6,12 +6,12 @@ from typing import List, Optional
 import attr
 import panel as pn
 
-from .controler import Controler
+from controler import Controler
 
-from .view.train.train_dash import TrainDashboard
-from .view.eval.eval_dash import EvalDashboard
-from .view.export.export_dash import ExportDashboard
-from .view.helpers import Registry
+from view.train.train_dash import TrainDashboard
+from view.eval.eval_dash import EvalDashboard
+from view.export.export_dash import ExportDashboard
+from view.helpers import Registry
 
 MAX_SAMPLE_DISPLAY = 10
 

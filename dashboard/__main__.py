@@ -8,7 +8,7 @@ import argparse
 
 import panel as pn
 
-from .app import CanapyDashboard
+from app import CanapyDashboard
 
 
 parser = argparse.ArgumentParser(prog="canapy", description=__doc__)

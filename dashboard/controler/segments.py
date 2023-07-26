@@ -4,11 +4,13 @@
 from typing import Dict
 import pandas as pd
 import numpy as np
+import logging
 
 from canapy.timings import seconds_to_frames, seconds_to_audio
 from canapy.metrics.utils import as_frame_comparison
 from canapy.corpus import Corpus
 
+logger = logging.getLogger("canapy-dashboard")
 
 def fetch_misclassified_samples(
     gold_corpus: Corpus,
@@ -72,10 +74,13 @@ def fetch_misclassified_samples(
 
             # If all models achieve less than min_segment_proportion_agreement accuracy,
             # then this segment should be considered as problematic
-            if (counts["score"] < min_segment_proportion_agreement).all():
-                bad_ones[one_annot.Index] = {
-                    r.Index: r.label[np.argmax(r.count)] for r in counts.itertuples()
-                }
+            try:
+                if (counts["score"] < min_segment_proportion_agreement).all():
+                    bad_ones[one_annot.Index] = {
+                        r.Index: r.label[np.argmax(r.count)] for r in counts.itertuples()
+                    }
+            except:
+                logger.warning("An error have occurred during metrics' calculation of a frame")
 
     bad_ones = pd.DataFrame.from_dict(bad_ones, orient="index")
 
