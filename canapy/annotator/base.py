@@ -66,7 +66,7 @@ class Annotator(abc.ABC):
             >>> my_annotator = Annotator.from_disk("/path/to/annotator")
             >>> # The annotator saved in the 'saved_annotator' file is now loaded into 'my_annotator'
 
-            >>> from canapy.config import default_config
+            >>> from config import default_config
             >>> my_old_config = default_config  # Get the config that the model was saved with
             >>> my_annotator_old = Annotator.from_disk("/path/to/old/model",
             >>>     config=my_old_config  # If no changes were made to the config, default_config will work
@@ -118,7 +118,7 @@ class Annotator(abc.ABC):
         Example
         -------
             >>> from canapy.annotator.synannotator import SynAnnotator
-            >>> from canapy.config import default_config
+            >>> from config import default_config
             >>> my_annotator = SynAnnotator(default_config, "/home/vincent/Documents/data_canary/spec")
             >>> my_annotator.to_disk("/home/vincent/Documents/data_canary/annotators/my_annotator")
             >>> # The annotator is now saved in the disk
@@ -140,7 +140,7 @@ class Annotator(abc.ABC):
         Example
         -------
             >>> from canapy.annotator.ensemble import Ensemble
-            >>> from canapy.config import default_config
+            >>> from config import default_config
             >>> my_ensemble_annotator = Ensemble (default_config, None)
             >>> # For example, we are using an Ensemble annotator
             >>> print(f"My annotator is trained : {my_ensemble_annotator.trained()}")
@@ -193,7 +193,7 @@ class Annotator(abc.ABC):
         Example
         -------
             >>> from canapy.annotator.nsynannotator import NSynAnnotator
-            >>> from canapy.config import default_config
+            >>> from config import default_config
             >>> my_annotator = SynAnnotator(default_config, "/path/to/spec")
             >>> # A not-syntaxic annotator is used in this example
             >>> from canapy.corpus import Corpus

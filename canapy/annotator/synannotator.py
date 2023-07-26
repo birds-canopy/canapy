@@ -35,7 +35,7 @@ class SynAnnotator(Annotator):
 
     Attributes
     ----------
-    config : Config (from canapy.config)
+    config : Config (from config)
         The configuration object for the annotator.
     transforms : NSynESNTransform (from canapy.transforms.nsynesn)
         The NSynESNTransform object used for transforming the data.
@@ -58,7 +58,7 @@ class SynAnnotator(Annotator):
 
         Parameters
         ----------
-        config : Config (from canapy.config)
+        config : Config (from config)
             Contains parameters of the corpus.
         spec_directory
             The path to the spectrogram files.
@@ -111,7 +111,7 @@ class SynAnnotator(Annotator):
         Example
         -------
             >>> from canapy.annotator.synannotator import SynAnnotator
-            >>> from canapy.config import default_config
+            >>> from config import default_config
             >>> # SynAnnotator and default_config are imported to create a new annotator
             >>> my_annotator = SynAnnotator(default_config, "/path/to/spec")
             >>> from canapy.corpus import Corpus
@@ -167,7 +167,7 @@ class SynAnnotator(Annotator):
         Example
         -------
             >>> from canapy.annotator.synannotator import SynAnnotator
-            >>> from canapy.config import default_config
+            >>> from config import default_config
             >>> # SynAnnotator and default_config are imported to create a new annotator
             >>> my_annotator = SynAnnotator(default_config, "/path/to/spec")
             >>> from canapy.corpus import Corpus

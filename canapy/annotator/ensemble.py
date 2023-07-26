@@ -163,7 +163,7 @@ class Ensemble(Annotator):
 
     Attributes
     ----------
-    config : Config (from canapy.config)
+    config : Config (from config)
         The configuration object for the annotator.
     spec_directory : str
         The path to the spectrogram files.
@@ -216,7 +216,7 @@ class Ensemble(Annotator):
         Example
         -------
             >>> from canapy.annotator.ensemble import Ensemble
-            >>> from canapy.config import default_config
+            >>> from config import default_config
             >>> # Ensemble and default_config are imported to create a new ensemble annotator
             >>> my_annotator = Ensemble(default_config, "/path/to/spec")
             >>> my_annotator.mode()
@@ -249,7 +249,7 @@ class Ensemble(Annotator):
         Example
         -------
             >>> from canapy.annotator.ensemble import Ensemble
-            >>> from canapy.config import default_config
+            >>> from config import default_config
             >>> # Ensemble and default_config are imported to create a new annotator
             >>> my_annotator = Ensemble(default_config, "/path/to/spec")
             >>> from canapy.corpus import Corpus
@@ -292,7 +292,7 @@ class Ensemble(Annotator):
         Example
         -------
             >>> import canapy.annotator as ant
-            >>> from canapy.config import default_config
+            >>> from config import default_config
             >>> # Annotators and default_config are imported to create a new annotator
             >>> my_annotator = ant.ensemble.Ensemble(default_config)
             >>> from canapy.corpus import Corpus
