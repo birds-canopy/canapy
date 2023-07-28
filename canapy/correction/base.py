@@ -36,9 +36,10 @@ class Corrector:
     @classmethod
     def from_checkpoints(cls, checkpoint_directory):
         ckpt_dir = Path(checkpoint_directory)
-
+        print(ckpt_dir)
         correction_history = []
-        for ckpt in sorted(ckpt_dir.glob("*.toml")):
+        #for ckpt in sorted(ckpt_dir.glob("*.toml")):
+        for ckpt in sorted(ckpt_dir.iterdir()):
             with open(ckpt, "r") as fp:
                 correction = toml.load(fp)
 

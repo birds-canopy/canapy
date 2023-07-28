@@ -31,7 +31,7 @@ def load_mfccs_and_repeat_labels(corpus, purpose="training"):
                 "not properly divided between train and test data."
             )
     else:
-        raise ValueError("'purpose' should be either 'training' or 'eval'.")
+        raise ValueError(f"'purpose' should be either 'training' or 'eval', not {purpose}")
 
     # load data
     df = corpus.dataset.query(split).copy()
@@ -62,11 +62,16 @@ def load_mfccs_and_repeat_labels(corpus, purpose="training"):
     annotations = []
     for seqid in df["seqid"].unique():
         seq_annots = df.query("seqid == @seqid")
-
-        notated_audio = seq_annots["notated_path"].unique()[0]
-        notated_spec = mfcc_paths.query("notated_path == @notated_audio")[
-            "feature_path"
-        ].unique()[0]
+        try :
+            notated_audio = seq_annots["notated_path"].unique()[0]
+            notated_spec = mfcc_paths.query("notated_path == @notated_audio")[
+                "feature_path"
+            ].unique()[0]
+        except:
+            print(notated_audio)
+            for x in mfcc_paths["notated_path"]:
+                print(x)
+            raise ValueError
 
         seq_end = seq_annots["offset_spec"].iloc[-1]
         mfcc = np.load(notated_spec)
