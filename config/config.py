@@ -22,6 +22,8 @@ class Config(UserDict):
             toml.dump(dict(**self.data), fp)
 
     def __setattr__(self, attr, value):
+        if "data" not in self.__dict__:
+            self.__dict__["data"] = {}
         self.data[attr] = value
 
     def __getattr__(self, attr):
