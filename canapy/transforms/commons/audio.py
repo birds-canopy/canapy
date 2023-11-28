@@ -106,7 +106,7 @@ def compute_mfcc(corpus, *, output_directory, resource_name, redo=False, **kwarg
 
         if audio_path.suffix == ".npy":
             audio = np.load(str(audio_path))
-            rate = corpus.config.sampling_rate
+            rate = config.sampling_rate
         else:
             audio, rate = lbr.load(audio_path, sr=config.sampling_rate)
 
