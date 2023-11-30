@@ -1,6 +1,7 @@
 # Author: Nathan Trouvain at 27/06/2023 <nathan.trouvain<at>inria.fr>
 # Licence: MIT License
 # Copyright: Nathan Trouvain
+import warnings
 
 import pandas as pd
 import numpy as np
@@ -76,16 +77,20 @@ def merge_labels(corpus, **kwargs):
     agg_funcs = {}
     for col in df.columns:
         if "onset" in col:
-            agg_funcs[col] = min
+            agg_funcs[col] = "min"
         elif "offset" in col:
-            agg_funcs[col] = max
+            agg_funcs[col] = "max"
         else:
             agg_funcs[col] = "first"
-
-    df = (
-        df.groupby(groups + [gemini_groups], as_index=False)
-        .agg(agg_funcs)
-        .sort_values(by=["annotation", "sequence", "onset_s"])
-    )
+    
+    # Remove pandas FutureWarning with groupby and as_index=False.
+    # Grouped columns must be preserved here and not turned into index.
+    with warnings.catch_warnings(): 
+        warnings.simplefilter("ignore")
+        df = (
+            df.groupby(groups + [gemini_groups], as_index=False)
+            .agg(agg_funcs)
+            .sort_values(by=["annotation", "sequence", "onset_s"])
+        )
 
     return corpus.clone_with_df(df)
