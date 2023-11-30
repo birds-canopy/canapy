@@ -43,6 +43,7 @@ toml = "^0.10.2"
 [tool.poetry.group.dev.dependencies]
 black = "^23.3.0"
 pytest = "^7.4.0"
+notebook = "*"
 
 [tool.poetry.scripts]
 canapy = "dashboard.main:display_dashboard"
