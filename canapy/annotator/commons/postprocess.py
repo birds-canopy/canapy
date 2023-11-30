@@ -3,7 +3,6 @@
 # Copyright: Nathan Trouvain
 import numpy as np
 import pandas as pd
-import scipy
 
 from ...corpus import Corpus
 from ...timings import frames_to_timed_df
@@ -33,12 +32,12 @@ def frame_df_to_annots_df(
     # Aggregate: define phrase label and onset/offset
     # "A (0) A (1) A (2) A (3)" -> "A (0, 3)"
     df = (
-        frame_df.groupby(gemini_groups, as_index=False)
+        frame_df.groupby(gemini_groups)
         .agg(
             {
                 "label": "first",
-                "onset_s": min,
-                "offset_s": max,
+                "onset_s": "min",
+                "offset_s": "max",
                 "notated_path": "first",
             }
         )
@@ -53,13 +52,16 @@ def frame_df_to_annots_df(
     # "A (0, 4), [B (4, 5), C (5, 6), B (6, 7)], C (7, 10)"
     # -> very short: [B C B] -> majority: B
     # -> "A (0, 4), B (4, 7), C (7, 10)"
+    def mode(x):
+        return max(x.values.tolist(), key=x.values.tolist().count)
+    
     df = (
-        df.groupby(short_samples, as_index=False)
+        df.groupby(short_samples)
         .agg(
             {
-                "label": lambda x: scipy.stats.mode(x)[0][0],
-                "onset_s": min,
-                "offset_s": max,
+                "label": mode,
+                "onset_s": "min",
+                "offset_s": "max",
                 "notated_path": "first",
             }
         )
@@ -82,12 +84,12 @@ def frame_df_to_annots_df(
     ).cumsum()
 
     df = (
-        df.groupby(short_samples, as_index=False)
+        df.groupby(short_samples)
         .agg(
             {
-                "label": lambda x: scipy.stats.mode(x)[0][0],
-                "onset_s": min,
-                "offset_s": max,
+                "label": mode,  # mode of labels
+                "onset_s": "min",
+                "offset_s": "max",
                 "notated_path": "first",
             }
         )
@@ -107,12 +109,12 @@ def frame_df_to_annots_df(
     ).cumsum()
 
     df = (
-        df.groupby(gemini_groups, as_index=False)
+        df.groupby(gemini_groups)
         .agg(
             {
                 "label": "first",
-                "onset_s": min,
-                "offset_s": max,
+                "onset_s": "min",
+                "offset_s": "max",
                 "notated_path": "first",
             }
         )
