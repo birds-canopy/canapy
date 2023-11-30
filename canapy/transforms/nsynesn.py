@@ -135,8 +135,8 @@ def compute_mfcc_for_balanced_dataset(corpus, *, resource_name, redo=False, **kw
         win_length = seconds_to_audio(config.win_length, rate)
 
         for entry in annots.itertuples():
-            start = config.audio_steps(entry.onset_s)
-            end = config.audio_steps(entry.offset_s)
+            start = seconds_to_audio(entry.onset_s, rate)
+            end = seconds_to_audio(entry.offset_s, rate)
             one_label = audio[start:end]
             if hasattr(entry, "augmented"):
                 one_label = _noisify(one_label, corpus.config, rs)
