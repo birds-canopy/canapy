@@ -12,7 +12,7 @@ def test_ensemble(prediction_corpus, prediction_corpus2, config):
     corpus = annotator.predict([prediction_corpus, prediction_corpus2])
 
     assert len(corpus.dataset) > 0
-    assert annotator.vocab == list("abcdefgh")
+    assert annotator.vocab == ["SIL"] + list("abcdefgh")
 
     annotator = Ensemble(config)
 

@@ -2,24 +2,15 @@
 # Licence: MIT License
 # Copyright: Nathan Trouvain
 from canapy.annotator.nsynannotator import NSynAnnotator
-from canapy.corpus import Corpus
 
 
-def test_nsynannotator():
-    # corpus = Corpus.from_directory(
-    #     audio_directory="/home/nathan/Documents/Code/canapy-test/data/",
-    #     annots_directory="/home/nathan/Documents/Code/canapy-test/data/",
-    # )
-    corpus = Corpus.from_directory(
-        audio_directory="/home/nathan/Documents/Code/canapy-test/data",
-        annots_directory="/home/nathan/Documents/Code/canapy-test/data",
-    )
+def test_nsynannotator(corpus, spec_directory, output_directory):
     annotator = NSynAnnotator(
         config=corpus.config,
-        spec_directory="/home/nathan/Documents/Code/canapy-test/data",
+        spec_directory=spec_directory,
     )
     annotator.fit(corpus)
 
-    corpus = annotator.predict(corpus)
+    pred_corpus = annotator.predict(corpus)
 
-    # print(corpus.dataset.query("notated_path == @n").label)
+    pred_corpus.to_directory(output_directory)

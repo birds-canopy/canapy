@@ -1,6 +1,8 @@
 # Author: Nathan Trouvain at 06/07/2023 <nathan.trouvain<at>inria.fr>
 # Licence: MIT License
 # Copyright: Nathan Trouvain
+import pytest
+
 import numpy as np
 import pandas as pd
 

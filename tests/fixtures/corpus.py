@@ -1,6 +1,8 @@
 # Author: Nathan Trouvain at 05/07/2023 <nathan.trouvain<at>inria.fr>
 # Licence: MIT License
 # Copyright: Nathan Trouvain
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -8,16 +10,35 @@ import pytest
 from canapy.corpus import Corpus
 
 
-@pytest.fixture(scope="session")
-def corpus():
+@pytest.fixture()
+def corpus(audio_directory, annot_directory):
+    print(audio_directory)
     c = Corpus.from_directory(
-        audio_directory="/home/nathan/Documents/Code/canapy-test/data/",
-        annots_directory="/home/nathan/Documents/Code/canapy-test/data/",
+        audio_directory=str(audio_directory),
+        annots_directory=str(annot_directory),
     )
     return c
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture()
+def audio_only_corpus(audio_directory):
+    c = Corpus.from_directory(
+        audio_directory=str(audio_directory),
+    )
+    return c
+
+
+@pytest.fixture()
+def empty_corpus(tmpdir_factory):
+    empty = Path(str(tmpdir_factory.mktemp("empty")))
+    c = Corpus.from_directory(
+        audio_directory=str(empty),
+        annots_directory=str(empty),
+    )
+    return c
+
+
+@pytest.fixture()
 def df():
     df = pd.DataFrame(
         {
@@ -34,7 +55,7 @@ def df():
     return df
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture()
 def predictions_df():
     df = pd.DataFrame(
         {
@@ -50,7 +71,7 @@ def predictions_df():
     return df
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture()
 def prediction_corpus(config):
     classes = list("abcdefghi")
 
@@ -90,7 +111,7 @@ def prediction_corpus(config):
     return corpus
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture()
 def prediction_corpus2(config):
     df = pd.DataFrame(
         {
@@ -129,7 +150,7 @@ def prediction_corpus2(config):
     return corpus
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture()
 def prediction_corpus_no_raw(config):
     df = pd.DataFrame(
         {

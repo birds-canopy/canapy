@@ -10,8 +10,11 @@ import pandas as pd
 from canapy.corpus import Corpus
 
 
-def test_to_directory(corpus):
-    corpus.to_directory("output")
+def test_to_directory(corpus, output_directory, annot_directory):
+    corpus.to_directory(str(output_directory))
+    out_files = [f.name for f in sorted(output_directory.glob("*.csv"))]
+    in_files = [f.name for f in sorted(annot_directory.glob("*.csv"))]
+    assert out_files == in_files
 
 
 def test_from_df(corpus):
