@@ -125,7 +125,7 @@ def compute_mfcc_for_balanced_dataset(corpus, *, resource_name, redo=False, **kw
 
         if audio_path.suffix == ".npy":
             audio = np.load(str(audio_path))
-            rate = corpus.config.sampling_rate
+            rate = config.sampling_rate
         else:
             audio, rate = lbr.load(audio_path, sr=config.sampling_rate)
 
