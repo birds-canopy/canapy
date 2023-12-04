@@ -30,7 +30,8 @@ def ls_audio_dir(corpus):
         raise AudioNotFound(
             f"No audio data file with extension '{audio_ext}' found in {audio_dir}. "
             f"Consider changing the 'audio_ext' parameter when loading your Corpus, "
-            f"if your audio data is not in '{audio_ext} format."
+            f"if your audio data is not in '{audio_ext} format, or checking that {audio_dir} "
+            f"is not empty."
         )
 
     return audio_paths
