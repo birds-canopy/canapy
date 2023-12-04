@@ -107,11 +107,11 @@ def compute_mfcc(corpus, *, output_directory, resource_name, redo=False, **kwarg
 
         if audio_path.suffix == ".npy":
             audio = np.load(str(audio_path))
-            if audio.ndim > 1:  # more than one channel
+            if audio.ndim == 2:  # more than one channel
                 if audio.shape[1] < 3 and audio.shape[0] > 3: # time should always be second dimension
                     audio = audio.T
-            else:
-                raise ValueError("Audio {audio_path} dimension is {audio.shape}. " 
+            elif audio.ndim > 2:
+                raise ValueError(f"Audio {audio_path} dimension is {audio.shape}. " 
                                  "Audio array should be one or two dimensional.")
 
             rate = config.sampling_rate
