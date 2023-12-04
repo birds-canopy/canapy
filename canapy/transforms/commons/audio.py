@@ -2,6 +2,7 @@
 # Licence: MIT License
 # Copyright: Nathan Trouvain
 import logging
+from multiprocessing import Value
 import pathlib
 
 import numpy as np
@@ -106,6 +107,13 @@ def compute_mfcc(corpus, *, output_directory, resource_name, redo=False, **kwarg
 
         if audio_path.suffix == ".npy":
             audio = np.load(str(audio_path))
+            if audio.ndim > 1:  # more than one channel
+                if audio.shape[1] < 3 and audio.shape[0] > 3: # time should always be second dimension
+                    audio = audio.T
+            else:
+                raise ValueError("Audio {audio_path} dimension is {audio.shape}. " 
+                                 "Audio array should be one or two dimensional.")
+
             rate = config.sampling_rate
         else:
             audio, rate = lbr.load(audio_path, sr=config.sampling_rate)
@@ -152,7 +160,7 @@ def compute_mfcc(corpus, *, output_directory, resource_name, redo=False, **kwarg
         data["feature"] = cepstrum
 
         notated_name = audio_path.stem
-        mfcc_path = pathlib.Path(output_directory) / (notated_name + ".mfcc.npy")
+        mfcc_path = pathlib.Path(output_directory) / "mfcc" / (notated_name + ".mfcc.npy")
 
         np.save(str(mfcc_path), data)
 
