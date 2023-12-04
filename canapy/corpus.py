@@ -252,14 +252,14 @@ class Corpus:
 
         annotations = GenericSeq(annots=list())
 
-        if not audio_dir.exists() or audio_dir.is_dir():
+        if not audio_dir.exists() or not audio_dir.is_dir():
             warnings.warn(f"Looks like audio_dir path {audio_dir} is "
                            "not a directory, or does not exist.")
 
         if annots_directory is not None:
             annots_dir = Path(annots_directory)
 
-            if not annots_dir.exists() or annots_dir.is_dir():
+            if not annots_dir.exists() or not annots_dir.is_dir():
                 warnings.warn(f"Looks like annots_dir path {annots_dir} "
                                "is not a directory, or does not exist.")
 
