@@ -29,6 +29,9 @@ Example
     >>> # Print the data of a new corpus where there are no 'cri' annotations
 
 """
+from distutils.log import warn
+from email.mime import audio
+import warnings
 import logging
 import pathlib
 from pathlib import Path
@@ -251,8 +254,16 @@ class Corpus:
 
         annotations = GenericSeq(annots=list())
 
+        if not audio_dir.exists() or audio_dir.is_dir():
+            warnings.warn(f"Looks like audio_dir path {audio_dir} is "
+                           "not a directory, or does not exist.")
+
         if annots_directory is not None:
             annots_dir = Path(annots_directory)
+
+            if not annots_dir.exists() or annots_dir.is_dir():
+                warnings.warn(f"Looks like annots_dir path {annots_dir} "
+                               "is not a directory, or does not exist.")
 
             scribe = crowsetta.Transcriber(format=annot_format)
             annot_ext = crowsetta.formats.by_name(annot_format).ext
