@@ -1,7 +1,6 @@
 # Author: Nathan Trouvain at 27/06/2023 <nathan.trouvain<at>inria.fr>
 # Licence: MIT License
 # Copyright: Nathan Trouvain
-import math
 import toml
 import collections.abc
 

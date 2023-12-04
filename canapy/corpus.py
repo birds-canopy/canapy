@@ -29,8 +29,6 @@ Example
     >>> # Print the data of a new corpus where there are no 'cri' annotations
 
 """
-from distutils.log import warn
-from email.mime import audio
 import warnings
 import logging
 import pathlib
