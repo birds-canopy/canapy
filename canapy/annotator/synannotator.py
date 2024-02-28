@@ -11,6 +11,9 @@ from .commons.postprocess import predictions_to_corpus, extract_vocab
 from ..transforms.synesn import SynESNTransform
 from ..timings import seconds_to_audio
 
+from config import default_config
+
+
 logger = logging.getLogger("canapy")
 
 
@@ -52,7 +55,10 @@ class SynAnnotator(Annotator):
         Predict annotations for the given corpus.
     """
 
-    def __init__(self, config, spec_directory):
+    def __init__(
+        self,
+        config=default_config,
+    ):  # spec_directory):
         """
         Initialization method.
 
@@ -66,7 +72,7 @@ class SynAnnotator(Annotator):
         """
         self.config = config
         self.transforms = SynESNTransform()
-        self.spec_directory = spec_directory
+        # self.spec_directory = spec_directory
         self.rpy_model = self.initialize()
 
     def initialize(self):
@@ -124,7 +130,7 @@ class SynAnnotator(Annotator):
         corpus = self.transforms(
             corpus,
             purpose="training",
-            output_directory=self.spec_directory,
+            output_directory=corpus.spec_directory,
         )
 
         _, _, train_mfcc, train_labels = load_mfccs_and_repeat_labels(

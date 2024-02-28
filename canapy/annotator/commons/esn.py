@@ -46,7 +46,7 @@ def init_esn_model(model_config, input_dim, audio_features, seed=None):
         lr=model_config.leak,
         input_scaling=input_scaling,
         bias_scaling=bias_scaling,
-        W=fast_spectral_initialization
+        W=fast_spectral_initialization,
     )
 
     readout = Ridge(ridge=model_config.ridge)
@@ -67,13 +67,14 @@ def predict_with_esn(
 ):
     if not annotator.trained:
         raise NotTrainedError(
-            "Call .fit on annotated data (Corpus) before calling " ".predict."
+            "Call .fit on annotated data (Corpus) before calling .predict."
         )
 
     corpus = annotator.transforms(
         corpus,
         purpose="annotation",
-        output_directory=annotator.spec_directory,
+        output_directory=corpus.spec_directory,
+        redo=redo_transforms,
     )
 
     notated_paths, mfccs = load_mfccs_for_annotation(corpus)

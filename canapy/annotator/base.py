@@ -31,7 +31,11 @@ class Annotator(abc.ABC):
     _vocab: list = list()
 
     @classmethod
-    def from_disk(cls, path, config=default_config, spec_directory=None):
+    def from_disk(
+        cls,
+        path,
+        config=default_config,
+    ):  # spec_directory=None):
         """
         Load an annotator object from disk.
 
@@ -86,8 +90,8 @@ class Annotator(abc.ABC):
 
         # This case concerns Annotators made with this version of Canapy
         if isinstance(loaded_annot, Annotator):
-            if spec_directory is not None:
-                loaded_annot.spec_directory = spec_directory
+            # if spec_directory is not None:
+            #     loaded_annot.spec_directory = spec_directory
             return loaded_annot
 
         # This case concerns Annotators made with a previous version of Canapy
@@ -98,7 +102,7 @@ class Annotator(abc.ABC):
                 "nsyn-esn" if len(path) > 3 and path[-4] == "n" else "syn-esn"
             )
 
-            new_annotator = annotator_type(config, spec_directory)
+            new_annotator = annotator_type(config)  # spec_directory)
             new_annotator._trained = True
             new_annotator.rpy_model = loaded_annot.esn
             new_annotator._vocab = loaded_annot.vocab

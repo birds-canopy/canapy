@@ -29,9 +29,9 @@ Example
     >>> # Print the data of a new corpus where there are no 'cri' annotations
 
 """
-import warnings
 import logging
 import pathlib
+import shutil
 from pathlib import Path
 from typing import Iterable, Optional, Union, Sequence, Dict, Any
 
@@ -192,7 +192,8 @@ class Corpus:
         annot_format="marron1csv",
         time_precision=0.001,
         audio_ext=".wav",
-        spec_ext=".mfcc.npy",
+        spec_ext=".mfcc.npz",
+        redo_transforms=False,
     ):
         """
         Create a Corpus object from audios, annotations, and spectrogram files stored on the disk.
@@ -202,20 +203,24 @@ class Corpus:
         audio_directory : str, optional
             Path of the directory that contains the audio tracks.
         spec_directory : str, optional
-            Path of the directory that contains the spectrogram files.
+            Path of the directory that contains the spectrogram files. If None,
+            will create a spectrogram directory in `audio_directory`.
         annots_directory : str, optional
             Path of the directory that contains hand-made annotations.
         config_path : str, optional
             Path of the directory that contains the configuration.
-            By default, default_config (from config.py or config.toml) will be applied.
+            By default, `default_config` (from config.py or config.toml) will be applied.
         annot_format : str, default="marron1csv"
             The format of the annotation data.
         time_precision : float, default=0.001
             The time precision.
         audio_ext : str, default=".wav"
-            The extension for the audio files in the audio_directory.
-        spec_ext : str, default=".mfcc.npy"
-            The extension for the spectrogram files in the spec_directory.
+            The extension for the audio files in the `audio_directory`.
+        spec_ext : str, default=".mfcc.npz"
+            The extension for the spectrogram files in the `spec_directory`.
+        redo_preprocessing : bool, default=False
+            If True, will recompute all preprocesing steps, including spectrograms.
+            If `spec_directory` is specified, its content will be erased.
 
         Returns
         -------
@@ -243,8 +248,15 @@ class Corpus:
         """
         if audio_directory is None and spec_directory is None:
             raise ValueError(
-                "At least one of audio_directory or spec_directory must " "be provided."
+                "At least one of audio_directory or spec_directory must be provided."
             )
+
+        if audio_directory is None and redo_transforms:
+            logger.warn(
+                "Can't redo preprocessing if no audio file is provided! (audio_directory is None). "
+                "redo_preprocessing will be ignored."
+            )
+            redo_transforms = False
 
         audio_dir = as_path(audio_directory)
         spec_dir = as_path(spec_directory)
@@ -252,16 +264,22 @@ class Corpus:
 
         annotations = GenericSeq(annots=list())
 
-        if not audio_dir.exists() or not audio_dir.is_dir():
-            warnings.warn(f"Looks like audio_dir path {audio_dir} is "
-                           "not a directory, or does not exist.")
+        # Check audio directory
+        if audio_dir is not None and (not audio_dir.exists() or not audio_dir.is_dir()):
+            logger.warn(
+                f"Looks like audio_dir path ({audio_dir}) is "
+                "not a directory, or does not exist."
+            )
 
+        # Check annotation directory and load annotations if needed
         if annots_directory is not None:
             annots_dir = Path(annots_directory)
 
             if not annots_dir.exists() or not annots_dir.is_dir():
-                warnings.warn(f"Looks like annots_dir path {annots_dir} "
-                               "is not a directory, or does not exist.")
+                logger.warn(
+                    f"Looks like annots_dir path {annots_dir} "
+                    "is not a directory, or does not exist."
+                )
 
             scribe = crowsetta.Transcriber(format=annot_format)
             annot_ext = crowsetta.formats.by_name(annot_format).ext
@@ -289,6 +307,23 @@ class Corpus:
 
             annotations = GenericSeq(annots=annotations)
 
+        # Check spec_dir
+        if audio_dir is not None and spec_dir is None:
+            spec_dir = audio_dir / "spectrograms"
+
+        if spec_dir is not None and spec_dir.is_dir():
+            logger.info(f"Spectrogram directory already created at {spec_dir}.")
+            if redo_transforms:
+                logger.warn(
+                    f"Removing content of {spec_dir} as redo_preprocessing is True"
+                )
+                shutil.rmtree(spec_dir)
+                spec_dir.mkdir()
+        elif spec_dir is not None:
+            spec_dir.mkdir(parents=True, exist_ok=True)
+            logger.info(f"Created spectrogram directory at {spec_dir}")
+
+        # Load configuration or use default
         if config_path is not None:
             config = Config.from_file(config_path)
         else:
@@ -483,7 +518,10 @@ class Corpus:
             seq_ids = None
 
         new_corpus = Corpus.from_df(
-            df, annots_directory=self.annots_directory, config=self.config, seq_ids=seq_ids,
+            df,
+            annots_directory=self.annots_directory,
+            config=self.config,
+            seq_ids=seq_ids,
         )
 
         new_corpus.audio_directory = self.audio_directory
@@ -498,16 +536,22 @@ class Corpus:
         filtered_resources = self.data_resources
         delete_list = []
         for name, resource in self.data_resources.items():
-            if isinstance(resource, (pd.DataFrame, dict)) and "notated_path" in resource:
+            if (
+                isinstance(resource, (pd.DataFrame, dict))
+                and "notated_path" in resource
+            ):
                 if isinstance(resource, pd.DataFrame):
-                     filtered = resource.query("notated_path in @notated_paths")
+                    filtered = resource.query("notated_path in @notated_paths")
                 elif isinstance(resource, dict):
-                    filtered = {path: v for path, v in resource.items() if path in notated_paths}
+                    filtered = {
+                        path: v for path, v in resource.items() if path in notated_paths
+                    }
 
                 if len(filtered) == 0:
                     logger.warning(
                         f"No match found between data_resource '{resource}' notated_path and new dataframe "
-                        f"notated_path. Audio in cloned corpus have changed. Removing resource.")
+                        f"notated_path. Audio in cloned corpus have changed. Removing resource."
+                    )
                     delete_list.append(name)
                 else:
                     filtered_resources[name] = filtered

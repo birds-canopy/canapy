@@ -71,10 +71,12 @@ def load_mfccs_and_repeat_labels(corpus, purpose="training"):
         seq_end = seq_annots["offset_spec"].iloc[-1]
         mfcc = np.load(notated_spec)
 
-        # MFCC may be stored as structured arrays for convenience
+        # MFCC may be stored as archive arrays for convenience
         # (see transforms/commons/audio.py)
-        if mfcc.dtype.fields is not None and "feature" in mfcc.dtype.fields:
+        if hasattr(mfcc, "keys") and "feature" in mfcc:
             mfcc = mfcc["feature"].squeeze()
+        else:
+            raise KeyError("No key named 'feature' in mfcc archive file.")
 
         if seq_end > mfcc.shape[1]:
             logger.warning(
@@ -133,7 +135,7 @@ def load_mfccs_for_annotation(corpus):
 
         # MFCC may be stored as structured arrays for convenience
         # (see transforms/commons/audio.py)
-        if mfcc.dtype.fields is not None and "feature" in mfcc.dtype.fields:
+        if hasattr(mfcc, "keys") and "feature" in mfcc:
             mfcc = mfcc["feature"].squeeze()
 
         mfccs.append(mfcc.T)

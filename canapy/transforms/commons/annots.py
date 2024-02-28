@@ -82,10 +82,10 @@ def merge_labels(corpus, **kwargs):
             agg_funcs[col] = "max"
         else:
             agg_funcs[col] = "first"
-    
-    # Remove pandas FutureWarning with groupby and as_index=False.
-    # Grouped columns must be preserved here and not turned into index.
-    with warnings.catch_warnings(): 
+
+    # Remove pandas FutureWarning with groupby and as_index=False.
+    # Grouped columns must be preserved here and not turned into index.
+    with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         df = (
             df.groupby(groups + [gemini_groups], as_index=False)

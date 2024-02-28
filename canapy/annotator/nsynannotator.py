@@ -4,13 +4,14 @@
 # Copyright: Nathan Trouvain
 import logging
 import numpy as np
-import math
 
 from .base import Annotator
 from .commons.esn import predict_with_esn, init_esn_model
 from .commons.postprocess import predictions_to_corpus, extract_vocab
 from ..transforms.nsynesn import NSynESNTransform
 from ..timings import seconds_to_audio, seconds_to_frames
+
+from config import default_config
 
 
 logger = logging.getLogger("canapy")
@@ -54,7 +55,7 @@ class NSynAnnotator(Annotator):
 
     """
 
-    def __init__(self, config, spec_directory):
+    def __init__(self, config=default_config):  # spec_directory):
         """
         Initialization method.
 
@@ -68,7 +69,7 @@ class NSynAnnotator(Annotator):
         """
         self.config = config
         self.transforms = NSynESNTransform()
-        self.spec_directory = spec_directory
+        # self.spec_directory = spec_directory
         self.rpy_model = self.initialize()
 
     def initialize(self):
@@ -126,7 +127,7 @@ class NSynAnnotator(Annotator):
         corpus = self.transforms(
             corpus,
             purpose="training",
-            output_directory=self.spec_directory,
+            output_directory=corpus.spec_directory,
         )
 
         # load data
@@ -155,7 +156,7 @@ class NSynAnnotator(Annotator):
                 len_mfcc = seconds_to_frames(
                     row.offset_s - row.onset_s,
                     frame_size=frame_size,
-                    sampling_rate=sampling_rate
+                    sampling_rate=sampling_rate,
                 )
 
                 error_step += 1
@@ -177,7 +178,7 @@ class NSynAnnotator(Annotator):
 
         self._vocab = extract_vocab(
             corpus, silence_tag=self.config.transforms.annots.silence_tag
-            )
+        )
 
         return self
 
