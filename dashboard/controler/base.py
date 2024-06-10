@@ -1,11 +1,9 @@
 # Author: Nathan Trouvain at 10/07/2023 <nathan.trouvain<at>inria.fr>
 # Licence: MIT License
 # Copyright: Nathan Trouvain
-import itertools
-import gc
 import logging
 from pathlib import Path
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Mapping
 from collections import defaultdict
 
 import attr
@@ -47,16 +45,18 @@ def _sort_annotators(annotators: List):
 
 @attr.define
 class Controler:
-    data_directory: Path = attr.field(converter=as_path)
+    annots_directory: Path = attr.field(converter=as_path)
+    audio_directory: Path = attr.field(converter=as_path)
     output_directory: Path = attr.field(converter=as_path)
-    config_path: Path = attr.field(converter=as_path)
+    spec_directory: Path = attr.field(converter=as_path)
+    config_path: Optional[Path] = attr.field(converter=as_path)
     dashboard: panel.viewable.Viewer = attr.field()
     annot_format: str = attr.field(default="marron1csv")
     audio_ext: str = attr.field(default=".wav")
-    annotators: List = attr.field(default=["syn-esn", "nsyn-esn", "ensemble"])
+    annotators: List[str] = attr.field(default=["syn-esn", "nsyn-esn", "ensemble"])
 
     corpus: Optional[Corpus] = attr.field(default=None)
-    config: Optional[dict] = attr.field(default=None)
+    config: Optional[Mapping] = attr.field(default=None)
     corrector: Optional[Corrector] = attr.field(default=None)
     _iter: Optional[int] = attr.field(alias="_iter", default=1)
     _step: Optional[str] = attr.field(alias="_step", default="train")
@@ -76,9 +76,9 @@ class Controler:
 
     def __attrs_post_init__(self):
         self.corpus = Corpus.from_directory(
-            audio_directory=self.data_directory,
-            spec_directory=self.output_directory / "spectro",
-            annots_directory=self.data_directory,
+            audio_directory=self.audio_directory,
+            spec_directory=self.spec_directory,
+            annots_directory=self.annots_directory,
             config_path=self.config_path,
             annot_format=self.annot_format,
             audio_ext=self.audio_ext,
@@ -123,7 +123,7 @@ class Controler:
         for name in self.annotators:
             try:
                 annot_cls = get_annotator(name)
-                annot_obj = annot_cls(self.config, self.output_directory / "spectro")
+                annot_obj = annot_cls(self.config)
                 self._annotators[name] = annot_obj
 
                 if name == "ensemble":
@@ -133,7 +133,7 @@ class Controler:
 
             except KeyError:
                 logger.warning(
-                    f"Annotator model '{name}' not found in registry. " f"Skipping."
+                    f"Annotator model '{name}' not found in registry. Skipping."
                 )
 
         if len(self._annotators) == 0:
@@ -204,9 +204,11 @@ class Controler:
             annot_corrections=annot_corrections,
             checkpoint=True,
         )
-        logger.info(f"Applied corrections on {self.corpus}:"
-                    f"\nClass merge:\n{class_corrections}"
-                    f"\nAnnotation correction:\n{annot_corrections}")
+        logger.info(
+            f"Applied corrections on {self.corpus}:"
+            f"\nClass merge:\n{class_corrections}"
+            f"\nAnnotation correction:\n{annot_corrections}"
+        )
 
     def export_corpus(self):
         try:
@@ -325,7 +327,9 @@ class Controler:
                 )
                 ser = segment_error_rate(gold_corpus, pred_corpus)
 
-                float_format = lambda x: f"{x:.3f}"
+                def float_format(x):
+                    return f"{x:.3f}"
+
                 logger.info(
                     f"Report <{split}|{annot_name}>:"
                     f"\n{pd.DataFrame(report).to_string(float_format=float_format)}"
@@ -390,4 +394,3 @@ class Controler:
     def stop_app(self):
         close_tempfiles()
         self.dashboard.stop()
-

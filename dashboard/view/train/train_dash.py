@@ -41,7 +41,8 @@ class TrainerDashboard(SubDash):
         self.layout = pn.Column(
             pn.Row(
                 pn.Column(
-                    pn.pane.HTML("Syn training:"), self.syn_indicator, self.syn_status
+                    pn.pane.HTML(
+                        "Syn training:"), self.syn_indicator, self.syn_status
                 ),
                 pn.Column(
                     pn.pane.HTML("NSyn training:"),
@@ -52,7 +53,7 @@ class TrainerDashboard(SubDash):
             self.train_btn,
         )
 
-    def switch_status(self, obj, status, duration=None):
+    def switch_status(self, obj, status, duration=0.0):
         if status == "training":
             obj.object = "<h2>Training...</h2>"
             obj.style = {"color": "blue"}
@@ -108,10 +109,12 @@ class AnnotatorDashboard(SubDash):
 
         self.layout = pn.Row(
             pn.Column(
-                pn.pane.HTML("Syn annotation:"), self.syn_indicator, self.syn_status
+                pn.pane.HTML(
+                    "Syn annotation:"), self.syn_indicator, self.syn_status
             ),
             pn.Column(
-                pn.pane.HTML("NSyn annotations:"), self.nsyn_indicator, self.nsyn_status
+                pn.pane.HTML(
+                    "NSyn annotations:"), self.nsyn_indicator, self.nsyn_status
             ),
             pn.Column(
                 pn.pane.HTML("Ensemble annotations:"),
@@ -120,7 +123,7 @@ class AnnotatorDashboard(SubDash):
             ),
         )
 
-    def switch_status(self, obj, status, duration=None):
+    def switch_status(self, obj, status, duration=0.0):
         if status == "annotating":
             obj.object = "<h2>Annotating...</h2>"
             obj.style = {"color": "blue"}
