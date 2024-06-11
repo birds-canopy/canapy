@@ -23,7 +23,7 @@ pip install -e git+https://gitlab.inria.fr/ntrouvai/canapy.git
 or by installing a local copy:
 
 ```bash
-pip install -e <path to canapy directory containing setup.py>
+pip install -e <path to canapy directory containing pyproject.toml>
 ```
 
 (this might take a while, consider downloading the zipped repository and installing it locally instead if you don't have a good connection.)
@@ -308,61 +308,138 @@ Modifying this object could be useful if you are manipulating other birds than c
 
 A configuration file looks like this. All the keys are mandatory:
 
-```json
-{
-    "syn": {
-        "N": 1000,
-        "sr": 0.4,
-        "leak": 1e-1,
-        "iss": 5e-4,
-        "isd": 2e-2,
-        "isd2": 2e-3,
-        "ridge": 1e-8
-    },
-    "nsyn": {
-        "N": 1000,
-        "sr": 0.4,
-        "leak": 1e-1,
-        "iss": 5e-4,
-        "isd": 2e-2,
-        "isd2": 2e-3,
-        "ridge": 1e-8
-    },
-    "sampling_rate": 44100,
-    "n_fft": 0.025,
-    "hop_length": 0.01,
-    "n_mfcc": 20,
-    "lifter": 40,
-    "fmin": 500,
-    "fmax": null,
-    "mfcc": true,
-    "delta": true,
-    "delta2": true,
-    "padding": "wrap",
-    "min_class_duration": 30,
-    "min_silence_duration": 0.2,
-    "min_analysis_window_per_sample": 2,
-    "min_correct_timesteps_per_sample": 0.66,
-    "min_frame_nb": 2,
-    "keep_separate": [
-        "cri"
-    ],
-    "test_ratio": 0.2,
-    "seed": 1234
-}
+```toml
+[misc]
+seed=42
+
+[transforms.annots]
+time_precision=0.001 # seconds
+min_label_duration=0.02 # seconds
+lonely_labels=["cri", "TRASH"]
+min_silence_gap=0.001 # seconds
+silence_tag="SIL"
+
+[transforms.audio]
+audio_features=["mfcc", "delta", "delta2"]
+sampling_rate=44100 # Hz
+n_mfcc=13
+hop_length=0.01 # seconds
+win_length=0.02 # seconds
+n_fft=2048 # audio frames
+fmin=500 # Hz
+fmax=8000 # Hz
+lifter=40
+
+[transforms.audio.delta]
+padding="wrap"
+
+[transforms.audio.delta2]
+padding="wrap"
+
+[transforms.training]
+max_sequences=-1
+test_ratio=0.2
+
+[transforms.training.balance]
+min_class_total_duration=2  #30 # seconds
+min_silence_duration=0.2 # seconds
+
+[transforms.training.balance.data_augmentation]
+noise_std=0.01
+
+[model.syn]
+units=1000
+sr=0.4
+leak=0.1
+iss=0.0005
+isd=0.02
+isd2=0.002
+ridge=1e-8
+backend="multiprocessing"
+workers=-1
+
+[model.nsyn]
+units=1000
+sr=0.4
+leak=0.1
+iss=0.0005
+isd=0.02
+isd2=0.002
+ridge=1e-8
+backend="multiprocessing"
+workers=-1
+
+[correction]
+min_segment_proportion_agreement=0.66
 ```
 
-We won't explain everything, as you should not change most of these parameters in any case. This is what you need to know when creating your own configuration file :
+## Configuration Parameters
 
-- the `syn` and `nsyn` keys store the ESNs parameters, and should not be changed unless you really know what you are doing.
-- the `sampling_rate`, `hop_length` and `n_fft` keys controls the audio and spectral representations of the song, respectively the sampling rate, in Hz, the length of the jump between to spectral analysis windows, in seconds, and the length of the analysis window, in seconds. These parameters should also not be changed, as the ESNs parameters heavily depends on them. But you will probably have to use it if you want to analyze the annotations, as one annotation per spectral window is produced by the ESN.
-- the `min_class_duration` key controls what should be the duration of all classes of syllables in the balanced dataset used during the nsyn training. By default, it is set to 30sec of song per class. If a class has too few examples to reach a 30sec duration, the Dataset object will produce clones of the samples until the duration is reached. Random noise will then be added to the clones to artificially make each clone unique.
-- the `min_silence_duration` controls what is the minimum duration in seconds for a silence sample in the balanced dataset. It is set to 0.2 sec, to avoid training the nsyn model with very short samples.
-- the `min_analysis_window_per_sample` controls what samples should be considered as irrelevant and removed of the dataset, because they are too shorts. By default, a sample should be represented by at least 2 timesteps in the preprocessed dataset.
-- the `min_correct_timesteps_per_sample` key controls which samples should be considered as "bad" in the sample correction dashboard. By default, if 66% of the timesteps representing an annotation are badly annotated by a model, then this annotation is considered as a source of disagreement and will be displayed in the sample correction dashboard.
-- the `keep_separate` key stores a list of syllables categories that should not be merged in the dataset even if neighbours in time. For example, the "cri" category, which represents canary calls that are not part of a song, should be always kept apart, because there is sometime a huge amount of silence between them.
-- the `test_ratio` key controls what proportion of songs should be used as test songs when training the models.
-- the `seed` key is really important and controls all the stochastic systems of Canapy. It should be fixed, to ensure reproducibility. Also, if you want to statistically validate a correction run, you should rerun the dashboard several times with different seeds.
+### [misc]
+
+- **seed = 42**: Defines the seed for random number generators to ensure reproducible results.
+
+### [transforms.annots]
+
+- **time_precision = 0.001**: Time accuracy of annotations, in seconds.
+- **min_label_duration = 0.02**: Minimum duration of a label, in seconds. Labels shorter than this value will be ignored or merged.
+- **lonely_labels = [‘cri’, ‘TRASH’]**: List of labels considered ‘isolated’ and which may require special treatment.
+- **min_silence_gap = 0.001**: Minimum silence interval, in seconds, to separate two audio segments.
+- **silence_tag = ‘SIL’**: Tag used to mark silence segments.
+
+### [transforms.audio]
+
+- **audio_features = [‘mfcc’, ‘delta’, ‘delta2’]**: List of audio features to be extracted, in this case the mel-frequency cepstral coefficients (MFCC) and their first and second derivatives.
+- **sampling_rate = 44100**: Audio sampling rate, in Hertz.
+- **n_mfcc = 13**: Number of MFCC coefficients to extract.
+- **hop_length = 0.01**: Jump interval between analysis windows, in seconds.
+- **win_length = 0.02**: Length of analysis window, in seconds.
+- **n_fft = 2048**: Number of points for the Fast Fourier Transform (FFT), used to calculate the spectrogram.
+- **fmin = 500**: Minimum frequency to be considered when extracting characteristics, in Hertz.
+- **fmax = 8000**: Maximum frequency to be considered when extracting characteristics, in Hertz.
+- **lifter = 40**: Parameter for lifting cepstral coefficients, often used to accentuate the high-frequency characteristics of MFCCs.
+
+### [transforms.audio.delta]
+
+- **padding = ‘wrap’**: Padding method for first derivatives (delta), here using circular padding.
+
+### [transforms.audio.delta2]
+
+- **padding = ‘wrap’**: Padding method for second derivatives (delta2), here using circular padding.
+
+### [transforms.training]
+
+- **max_sequences = -1**: Maximum number of sequences for training. -1 can mean that there is no limit.
+- **test_ratio = 0.2**: Proportion of data used for the test, in this case 20%.
+
+### [transforms.training.balance]
+
+- **min_class_total_duration = 2**: Minimum total duration for each class when balancing data, in seconds.
+- **min_silence_duration = 0.2**: Minimum duration of silence segments to consider when balancing data, in seconds.
+
+### [transforms.training.balance.data_augmentation]
+
+- **noise_std = 0.01**: Standard deviation of noise added for data augmentation, here to simulate white Gaussian noise.
+
+### [model.syn]
+
+- **units = 1000**: Number of units in the recursive syn model.
+- **sr = 0.4**: Sampling rate syn.
+- **leak = 0.1**: Leakage parameter for recurrent units.
+- **iss = 0.0005**: Parameter for input scaling syn.
+- **isd = 0.02**: Parameter for syn density.
+- **isd2 = 0.002**: Second syn density parameter.
+- **ridge = 1e-8**: Ridge regularisation parameter.
+- **backend = ‘multiprocessing’**: Backend used for parallel calculation.
+- **workers = -1**: Number of workers for the multiprocessing backend. -1 means using all available CPUs.
+
+### [model.nsyn]
+
+The same parameters as for [model.syn], applied to another recurrent model (nsyn).
+
+### [correction]
+
+- **min_segment_proportion_agreement=0.66**: Minimum proportion of agreement to consider a segment as valid when correcting annotations.
 
 You can create your own configuration file by adding it in the directory where the dataset is loaded. For example, a good dataset directory structure would be:
 
