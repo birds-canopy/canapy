@@ -1,11 +1,9 @@
-# Tutorial
-In this tutorial we will demonstrate step by step the training of a predictive model based on few annotated songs.
-After following this tutorial, you will be able to:
-- get corresponding CSV from an Audacity file composed of waves and their annotations,
-- build a model based,
-- make annotations with this model on non annotated data.
+<center>Canapy</center>
+
+<center>**Automatic audio annotation tools for animal vocalizations**</center>
 
 **Summary:**
+
 - [1. Installation](#installation)
 - [2. Prepare the data](#prepare_data)
 - [3. Run the dashboard](#dashboard)
@@ -28,77 +26,104 @@ pip install -e <path to canapy directory containing pyproject.toml>
 
 (this might take a while, consider downloading the zipped repository and installing it locally instead if you don't have a good connection.)
 
-## Prepare the data <a name="prepare_data"></a>
-In order to train a model to predict annotations you have to feed it songs (**wave files**), corresponding annotations (**CSV files**) and some specific JSON files such as corrections.json, vocab.json or config.json if you want to change the configuration parameters of audio manipulations.
-If you have an Audacity file containing your songs and corresponding annotations Canapy is also able to transform it to the right format for the model to be trained.
+## Prepare your dataset <a name="prepare_data"></a>
 
-### Export annotations from Audacity
+Canapy uses supervised machine learning tools to create automatic annotators,
+and thus requires some hand-made annotations to bootstrap the annotation pipeline.
+Using our proposed method, we recommend to ideally have between 30 minutes and 1
+hour of annotated sounds to train an automatic annotator. This may of course vary
+depending on the nature of the annotated vocalizations. Canapy was primarily
+designed to annotate bird songs, in particular domestic canary songs.
 
-Audacity is a free and open-source software, with which you can manipulate audio files and annotate your bird songs. Your songs and annotations would have this aspect on the Audacity software:
-<br/> ![Screenshot Audacity](images/example_audacity.png)
-On the first line you can see the spectrogram of the song and on the second line the corresponding annotations track.
-Make sure that your audio files contain only one song per file.
+Two sources of data are required to train an annotator: annotations and audio.
 
-Consider the following project storing some bird songs and annotations in Audacity .aup format:
+### Annotations
 
-```
-project
-├── bird1
-│   ├── songs0.aup
-│   ├── songs0_data
-│   ├── songs1.aup
-│   └── songs1_data
-├── bird1_dataset
-```
+Annotations are typically segments of audio labeled using a custom code representing
+different vocal units, like phonemes, syllables or words in human speech. In their
+most essential form, they are defined using the triplet (onset, offset, label),
+representing an annotated segment, delineated in time.
 
-Your directories don't have to have the same names as above, just make sure to enter the name you gave them in the command line. 
-In a terminal running in the `project` directory, run :
+For the time being, canapy only deals with non-overlapping annotation segments,
+and can thus only work on a single track of annotations.
 
-```bash
-canapy-audacity-convert -r ./bird1 -o ./bird1_dataset/
-```
+#### The default annotation format: marron1csv
 
-This will prompt you to confirm the exportation of the annotations and audio found in the Audacity files.
-This will then produce the following tree:
+This format is inspired by the M1-spring dataset, a dataset of more than 400
+hand-labeled songs of one domestic canary. It's a simple, straightforward format,
+that is best expressed in a comma-separated values spreadsheet (.csv file).
 
-```
-├── bird1
-│   ├── songs0.aup
-│   ├── songs0_data
-│   ├── songs1.aup
-│   └── songs1_data
-├── bird1_dataset
-    ├── data
-    └── repertoire
-```
+Four named columns of data are needed to define an annotation:
 
-The `data` directory stores all annotations tracks in CSV files. 
-The `repertoire` provides you extract of phrases based on the annotations: 
-- png of spectrograms:
-<br/> ![Screenshot spectrogram](images/example_spectrogram_phrase.png)
-- and sound of the phrase (not the entire song).
-annotations in the dataset. You can disable it by removing the `-r` option when calling canapy.audacity.
+- `wave`: the name of the audio track being annotated.
+- `start`: the beginning of the annotation on the audio track, in seconds
+- `end`: the end of the annotation on the audio track, in seconds
+- `syll`: the annotation label
 
-As stated before, you could also add JSON files such as corrections.json, vocab.json or config.json:
-- corrections.json: if you already have some corrections in mind or if you already have a corrections.json file from a previous training (checkpoint or final version) you can put it here. You can check an example for this file here: [corrections.json example](#corrections_json) ;
-- vocab.json: if you already know the precise list of vocabulary of your dataset you can make a JSON file like this. Here is an example: [vocab.json example](#vocab_json) ;
-- config.json: this is the configuration file of the trained model, it contains audio manipulation parameters such as the sampling rate. If you want to modify it please check the [Config object](#config_object) part.
+> [!WARNING]
+> TODO change screenshot
 
-### CSV files
-The columns of the annotations CSV needed to train models with Canapy are:
-- wave: the name of the audio track (the .wav file representing the annotated song).
-- start: the beginning of the annotation on the audio track, in seconds
-- end: the end of the annotation on the audio track, in seconds
-- syll: the annotation label
-- repertoire_file: the name of the repertoire entry stored in the `repertoire` directory. (if you used the Audacity extractor and `-r` parameter)
-
-Below, an example (this CSV corresponds to the song displayed in the Audacity example above):
+An example .csv file may look like this:
 <br/> ![Screenshot CSV](images/example_csv.png)
 
-### Recap of structure format
-Thus, the basic data you need to train the model is a repertoire like this:
+#### Use another format
+
+Audio annotations come in many different formats these days. You may have used
+Audacity, Raven, or Praat to annotate your data by hand.
+
+By default, canapy uses its own annotation format, called marron1csv, to process
+annotation data. To allow using a different format, canapy was built on top of
+crowsetta, an audio annotation formats managing tool, which can handle many
+different annotation format coming from many different annotation software.
+We recommend diving into crowsetta documentation to learn more about annotation
+formats.
+
+### Audio
+
+Audio recordings handled by canapy can have any sampling frequency. They must be
+mono audio recordings. If stereo audio are provided, they will be converted to mono.
+
+Canapy currently works with two audio data formats: WAV files (.wav) and Numpy arrays
+(.npy).
+
+### Training dataset format
+
+When creating new automatic annotators for your data, you should provide
+some hand-labeled audios in order to train canapy to annotate this data.
+
+Because canapy will try to split your dataset in two parts (one for training
+and one to test its capabilities), you should provide several audio and
+annotation files. Canapy will consider each audio file as one sequence
+of vocalizations, and will never cut this sequence when training or
+annotating. When dealing with songbirds for instance, one file should
+ideally contain a single song sequence.
+
+Your dataset should therefore looks something like this:
+
+```text
+├── song_dataset
+    └── annotations
+        ├── song1.csv
+        ├── song2.csv
+        ...
+        └── songN.csv
+    ├── audio
+        ├── song1.wav
+        ├── song2.wav
+        ...
+        └── songN.wav
 ```
-├── bird1_dataset
+
+Here, .csv files in the annotations/ folder
+contain annotations in marron1csv format (depending on
+your annotation format you may have different file extension) and .wav
+files in the audio/ folder are your audio recordings in WAV format.
+
+You can also provide audio recording and annotation files all
+mixed in a single directory:
+
+```text
+├── song_dataset
     └── data
         ├── song1.csv
         ├── song1.wav
@@ -109,202 +134,323 @@ Thus, the basic data you need to train the model is a repertoire like this:
         └── songN.wav
 ```
 
-Before running the dashboard you can divide your data into two repository (training and testing), in case you would like to see the results on new data by yourself. However, this process is not mandatory, Canapy already splits the data for the training of the model.   
+Pay attention to how your audio files are named. Audio filenames
+will be used by annotation tools to link annotations with their
+corresponding audio. For instance, using the marron1csv annotation
+format, all values in the `wave` column in the .csv files must match one of the
+audio filenames.
 
-## Run the dashboard <a name="dashboard"></a>
+### Non-annotated dataset format
 
-You can now launch the dashboard to train the annotation models and check the quality of the dataset.
+Once training has been performed, your dataset may consist only of audio
+files. As no dataset split is required for annotating files, your dataset
+may be one single file, or several smaller files. We do not recommend using
+too long files however. Depending on your computer, using very long recordings
+may be suboptimal, or even crash the annotator.
 
-To run the dashboard, simply do:
-```bash
-canapy ./bird1_dataset ./bird1_output
-```
+## Using canapy Python library
 
-The dashboard should open in your browser, at localhost:9321. If not, simply reach localhost:9321 in your favorite browser.
-All the data produced by the dashboard (models and checkpoints) will be stored in `./bird1_output`.
-The first dashboard you will see in the one devoted to train the model.
+Canapy is primarily a Python tool to build simple and fast automatic
+audio annotation pipelines, using a simple yet efficient machine learning
+technique: Reservoir Computing.
 
-### Dashboard 1: train
+An annotation pipeline can be defined using two objects: the Corpus and the
+Annotator.
 
-Click on the button `start training` to begin the training of the models and then produce the annotations. Metrics should display in the terminal where you started the dashboard. 
-At the end of the training sequence, click on "Next step" to display the "eval" dashboard (it can take some time to display, don't worry, click only **once** on the button).
-The first dashboard will train annotation models on the current version of the dataset, and produce their respective versions of the annotations.
+### Dealing with data: the Corpus object
 
-Two models are built during the training phase. They both are based on an Echo State Network (ESN), a kind of artificial neural network, and have the same parameters. They are, however, trained on two different tasks:
-- the **syn** model (syntactic model) is trained to annotate whole songs. Entire songs and annotations files are presented to the models during training. Thus, the model is trained only on the available data, meaning that imbalance in number between the categories of bird phrases is preserved. The model is also expected to rely on syntactic information to produce its annotations, being trained on the real order of the phrases in the songs.
-- the **nsyn** model (non syntactic model) is trained to annotate only randomly mixed phrases, with an artificially balanced number of phrases samples. This model is expected to rely only on inner characteristics of each type of syllables to annotate the songs, without taking into account their context in the song. Imbalance in number is also *not* preserved, meaning the model has to give the same importance to all categories of syllables.
+The Corpus object is a representation of your dataset within canapy.
+It holds reference to audio data, is in charge with loading and
+formatting your annotations (when needed), and may also store some
+other things like preprocessed data - spectrograms, for instance.
 
-Finally, a third model, called **ensemble**, combine the outputs of the two previous models with a vote system, to combine the "judgements" of the two models in a new one.
+#### Create a Corpus object
 
-### Dashboard 2: eval
-
-The second dashboard displays the performances of the three models during the *real* annotation task: all three models are fed with the whole songs contained in the hand-annotated dataset, and we will now look at the differences between their annotations and the handmade ones.
-
-This dashboard is divided in two parts: 
-- the Class merge dashboard 
-- the Sample correction dashboard
-You can switch between them with the buttons at the top of the dashboard.
-
-#### Class merge
-In the `Class merge` dashboard, you can use the confusion matrices to inspect syllables categories where the models make a lot of mistakes. If the mistake pattern seems stable (high confusion between two classes, and potential agreement between the models), this could be the sign that the confused categories could be merged into one. This happens a lot on handmade annotations, due to obvious spelling mistakes in the annotations labels, or to disagreement in the naming between the human annotators, or to "over-classification" of certain patterns.
-<br/> ![Screenshot Confusionmatrix](images/example_confusion_matrix.png)
-You can use the inspector at the right of the confusion matrices (clicking on the two buttons at the top right of the above screenshot) to display some class samples and see if a merge is coherent. When you have taken your decision, simply write the new name of the class you want to modify in the correction panel at the extreme right of the dashboard (for example, if you want to merge categories A and A1, because they are really close, simply write "A" under "A1" class text input).
-If the class contains few samples and doesn't seem well-founded you can delete it by writing 'DELETE' in the text input under the name of the syllable category. Sometimes, some classes contains very few instances that are not sufficient for the model to recognize them, meaning they will not be usable. In this case making a 'TRASH' class is a good idea. 
-<br/> ![Screenshot corrections](images/example_class_corrections.png)
-
-Make sure to click on the `Save corrections` button under the syllable types input text to save your changes.
-
-Moreover, you can find help to make corrections while looking to the metrics indicated under the confusion matrix. 
-<br/> ![Screenshot metrics](images/example_metrics.png)
-<br/> For example here the models achieve 97.06% accuracy each which is pretty good. However, you can see classes like C1, L, L2... that scores 0% in precision, recall and f1-score, meaning they may be deleted. If you choose to keep this model it will do a great job detecting the other classes but may lack experience recognizing the phrases labeled as C1, L,L2...
-
-
-#### Sample correction
-You can also inspect the samples about which the models disagree the most in the `Sample correction` dashboard. Here, all the annotations that are confused with another class over at least 2/3 of their time length by the models can be displayed, and manually corrected (the 2/3 time length disagreement parameter can be changed in the configuration file (see section 6.)). 
-Again, at the right of the bar plot showing the disagreements' distribution, an inspector allows you to display samples of all the categories of syllables. 
-The models aren't always right, as they use prediction you have the last word on which label to attribute to a phrase.
-If the sample correction is empty, don't panic! it only means that the models performs well (maybe too well?) on the dataset. It is often the case with little datasets, where the models overfit the misrepresented categories of syllables. In any way, you should first focus on merging whole categories of syllables before correcting single samples.
-
-Make sure to click on the `Save all` button on the right of the distribution figure to save your changes.
-
-### Next step
-You have two choices then:
-
-- click the `Next step` button. This will redirect you to the 'train' dashboard. Indeed, after you have applied corrections on the dataset, you should retrain the models to see the increase in performance, and to check if by changing the data distribution new disagreements do not appear. You should do 3-4 iterations of training-evaluating to be sure that you have fixed all the annotations.
-Below, the comparison of the initial confusion matrix of the syntactic model and its matrix after some corrections:
-<br/> ![Screenshot Confusionmatrix_not_corrected](images/example_confusion_matrix_firsttraining.png) ![Screenshot Confusionmatrix_corrected](images/example_confusion_matrix_after_corrections.png) 
-- click the `Export` button. If you are happy with the models performances and the annotations' distribution of the dataset, after some iterations, you can click on this button to be redirected to the 'export' dashboard. This dashboard will simply retrain all the models with all the corrections applied on the dataset, and save them in the output directory, with the correction file, the configuration file, etc.
-
-In any case, a checkpoint of the current state of your analysis will be saved : corrections, configuration, models and annotations will be stored in the `output/checkpoint` directory, in a subdirectory named after the iteration number (`1` if it is your first run, `2` if it is the second time you apply corrections and train models, and so on).
-
-### Output directory
-After training your model you will find in the `./bird1_output` directory:
-- `checkpoints`: corrections, configuration, models and annotations corresponding to a round of training, in a subdirectory named after the iteration number (`1` if it is your first run, `2` if it is the second time you apply corrections and train models, and so on).
-- `models`: 'syn' and 'nsyn' program corresponding to the final version of the syntactic and non syntactic models you have trained
-- `annotations.json`: a JSON file containing all the annotations for the songs, if you want to open it, do that with Python, a Text Editor will crash.
-- `config.json`: a JSON file containing the models' parameters, you can know more about it in the [Config object](#config_object) part.
-- `corrections.json`: a JSON file containing your class merges and sample corrections round after round, it looks like this: <a name="corrections_json"></a>
-```json
-{
-    "0": {
-        "syll": {},
-        "sample": {}
-    },
-    "1": {
-        "syll": {"1-A1": "A1", "1-B": "B","I2~": "DELETE", "L2": "G"},
-        "sample": {"1116": "K2", "1443": "F1", "2001": "F1"}
-    }, 
-    ...
-    "5": {
-        ...
-    }
-}
-```
-- `vocab.json`: a JSON file listing all the syllable categories, it looks like this: <a name="vocab_json"></a>
-```json
-[
-  "A1","B","C",...
-]
-```
-
-## Use the models on an other dataset <a name="annotate"></a>
-
-Now that you have produced 2 neural networks and an ensemble model to correctly annotate bird songs, you can apply them on not annotated data.  
-To do so, we will use the `canapy` simple API, and a little of Python.
-  
-This part can be executed using the Jupyter Notebook: `Tutorial_annotating_with_canapy`, available in the Canapy folder.  
-
-First, in a coding environment, create an Annotator object:  
+To load your dataset into a Corpus object, simply use:
 
 ```python
-from canapy import Annotator
+from canapy import Corpus
 
-annotator = Annotator("./bird1_output/models")
+corpus = Corpus.from_directory(
+  audio_directory="song_dataset/audio/", 
+  annots_directory="song_dataset/annotations/"
+)
 ```
-This object will call every function you need to produce annotations from the dataset, using the models we've trained in the dashboard. Make sure that the reservoirpy version you are using is the same as the one used for the model training, otherwise it won't work.  
 
-In this example, the `./bird1_non_annotated_songs` directory contains only .wav audio files, one per song, ready to be annotated.  
+#### Specify annotation format
 
-The Dataset object may look new to you, but it is in fact already used in the backend of the dashboard. It stores the dataset in the form of a Pandas Dataframe (in this case, only paths to audio files), but can also store annotations, corrections, configuration files, and apply everything to the audio and labels to correct them and extract the features needed by the models to annotate them. For now, we only need them to store the audio files and the configuration file, which is here by default. It also automatically creates the class "SIL", which represents all the non annotated (and thus silent) part of the songs.  
+By default, the annotation format is marron1csv, but you may change
+to any other format provided by crowsetta, using the `annot_format`
+argument. You may also change the expected audio format using the `audio_ext`
+argument, and setting it to `".wav"` or `".npy"` (respectively to
+provide WAV files or Numpy arrays archive files).
 
 ```python
-from canapy import Dataset
-
-dataset = Dataset("./bird1_non_annotated_songs", vocab = annotator.vocab)
+corpus = Corpus.from_directory(
+  audio_directory="song_dataset/audio/", 
+  annots_directory="song_dataset/annotations/",
+  annot_format="aud-seq", # Audacity label track format
+  audio_ext=".wav",  # Search for .wav files in the audio directory
+)
 ```
 
-To run the annotator, simply call (it could last a bit long depending on how many songs you have to annotate):
+#### Load data from a single directory or only audio data
+
+As explained in Prepare your data [TODO: add link], you can also provide
+a link to a single directory containing both annotations and audio, or create
+an audio-only Corpus by omitting the `annots_directory` argument:
 
 ```python
-annotations, vectors = annotator.run(dataset = dataset)
+# Annotated corpus, all data in the
+# same directory
+corpus = Corpus.from_directory(
+  audio_directory="song_dataset/data/",
+  annots_directory="song_dataset/data/" # Same directory !
+)
+
+# Non-annotated corpus (only audio)
+non_annotated_corpus = Corpus.from_directory(
+  audio_directory="song_dataset/audio/",
+)
 ```
 
-That's it! The `annotations` variable now looks like a dictionary:
+#### The `.dataset` attribute
 
-```json
-{
-    "syn": {
-        "000-song-name.wav": ["SIL", "SIL", "A", "A", "A", "B", "C"...],
-        "001-song-name.wav": [...],
-        ...
-    },
-    "nsyn": {
-        ...
-    },
-    "ensemble": {
-        ...
-    }
-}
-```
-
-This dictionary stores all the annotations of the syntactic model, with the audio file name attached. If you want to annotate with the other models (non syntactic and ensemble) you can do it by specifying the parameter model to nsync, ensemble, or all.  
-
-The `vectors` variable looks the same, but stores the raw responses of the models (the output vectors representing the decision of the neural network).   
-
-Notice that the annotations look like they are repeating in time a lot. To export only the sequence of annotations in time, not all annotations for all timesteps, simply set the `to_group` argument to  `True` when calling the annotator:  
+The Corpus object will automatically format your data into crowsetta standard
+annotation format `generic-seq`. This makes data formats interchangeable to some
+extent. You can access a tabular representation of annotations (as a `pandas.DataFrame`)
+from the `dataset` attribute:
 
 ```python
-annotations, _ = annotator.run(to_group=True)
+print(corpus.dataset)
 ```
 
-The annotations will now look like this:
-```json
-{
-    "syn": {
-        "000-song-name.wav": [("SIL", 2), ("A", 3),  ("B", 1)...],
-        "001-song-name.wav": [...],
-        ...
-    },
-    "nsyn": {
-        ...
-    },
-    "ensemble": {
-        ...
-    }
-}
+> [!WARNING]
+> TODO: print output
+
+Output:
+
+```text
+
 ```
 
-The annotations have been grouped. The number that comes along each annotation label is the number of timesteps covered by the annotation, i.e. the duration of the bird phrase, in number of spectral analysis windows. This number can be easily converted in seconds knowing the sampling rate and the time jumps between each analysis windows, but this can of course lead to huge approximations.
+The `notated_path` column keep tracks of the attached audio file.
+The `onset_s`, `offset_s`, and `label` columns respectively store
+annotation segments start, end, and label. All onsets and offsets
+are expressed in seconds since the beginning of audio track.
 
-If you really need to display this time in seconds, simply use:
+The `annotation` and `sequence` columns are special
+attributes of crowsetta `generic-seq` format, which we do not
+directly use in canapy.
+
+If your corpus is not annotated (only audio), the code above
+will return `None`:
 
 ```python
-new_annotations = to_seconds(annotations, dataset.config)
+print(corpus.dataset)
 ```
-Be careful, this function works with the grouped annotations from one model. Hence, you shouldn't give it the annotations produced by `annotator.run(model='all',dataset=dataset,to_group=True).`  
 
-We will explain in the [Config object section](#config_object) how the configuration stored in the dataset works.
+Output:
 
-Finally, you can directly save these annotations in CSV files by using the csv_directory parameter. This parameter take the path where you want to save the new CSV as input. Moreover, this parameter automatically activates the grouping function, you don't have to specify it to get a concise CSV.  
+```text
+None
+```
+
+#### Save data to CSV
+
+Corpus can be saved to disk as CSV files, one per audio file,
+if they have annotations:
 
 ```python
-annotations, _ = annotator.run(dataset=dataset,csv_directory="./tuto_non_annotated_songs_annotated")
+corpus.to_directory("/save_directory")
 ```
 
+### Annotate data
+
+Annotation in canapy is performed by an Annotator.
+There are several Annotator currently available,
+but the simplest one and the most useful is the
+SynAnnotator:
+
+```python
+from canapy.annotator import SynAnnotator
+
+annotator = SynAnnotator()
+```
+
+This object is in charge with training a
+machine learning model able to annotate
+your data, based on some audio and annotations
+stored in a Corpus, and eventually annotate
+a Corpus with unlabelled audio recordings.
+
+#### Train an annotator
+
+After creating an annotated Corpus object,
+you may `.fit` your annotator to your
+dataset:
+
+```python
+annotator.fit(corpus)
+```
+
+This trains the annotator on your dataset.
+You may access the labels learned by the
+annotator from the `.vocab` attribute:
+
+```python
+print(annotator.vocab)
+```
+
+#### Save an annotator to disk
+
+You can save an annotator on your computer using
+the `.to_disk` method:
+
+```python
+annotator.to_disk("save_directory/annotator")
+```
+
+#### Load an annotator from disk
+
+After having saved an annotator on your computer, you
+can load it again using the `.from_disk` method of the
+`Annotator` base class:
+
+```python
+from canapy.annotator import Annotator
+
+annotator = Annotator.from_disk("saved_directory/annotator") 
+```
+
+#### Annotate a Corpus of audio
+
+You may now annotate unlabeled audio the `.predict` method
+of your annotator, generating a new Corpus with freshly
+computed annotations:
+
+```python
+# Load some unlabelled data
+corpus = Corpus.from_directory(audio_directory="song_data/audio")
+
+# Annotate !
+labeled_corpus = annotator.predict(corpus)
+
+print(labeled_corpus.dataset)
+
+# Additionally save your annotated Corpus
+labeled_corpus.to_directory("song_data/new_annotations")
+```
+
+## Change configuration
+
+Canapy configuration is stored in configuration files in TOML format.
+They are human readable, and it is possible to comment them for
+additional clarity.
+
+You can access canapy default configuration from `config.default_config`:
+
+```python
+from config import default_config
+
+print(default_config)
+
+# It's basically a big nested dictionary of values
+print(default_config.transforms.annots.time_precision)
+```
+
+### Change parameters from an existing configuration
+
+The best way to quickly change some parameters, such as the audio sampling
+rate, is to change them directly from the default configuration.
+
+First, import the default configuration, and then change the parameter you wish
+to change:
+
+```python
+from copy import deepcopy
+from config import default_config
+
+# Copy the default configuration
+my_config = deepcopy(default_config)
+
+# Change the audio sampling frequency
+# to 16000Hz
+my_config.transforms.audio.sampling_rate = 16000
+```
+
+The objects in charge with dealing with the configuration throughout
+your annotation pipeline are your Corpus and Annotator. To apply your
+configuration, change your Corpus configuration files:
+
+```python
+corpus = Corpus.from_directory(audio_directory="song_dateset/audio")
+# Apply your configuration
+corpus.config = my_config
+```
+
+And give your configuration as parameter to your Annotator:
+
+```python
+annotator = SynAnnotator(config=my_config)
+```
+
+### Saving a configuration to disk
+
+As configuration files are necessary to your pipelines,
+we recommend to save your configuration as a TOML file
+if you make any change to the default configuration,
+using the `.to_disk` method:
+
+```python
+my_config.to_disk("saved_directory/my_config.toml")
+```
+
+### Create your own configuration file
+
+To create your own configuration file, start from the existing
+default configuration, make some changes, and save it somewhere,
+let's say at `saved_directory/my_config.toml`.
+
+> [!WARNING]
+> Do not change default parameter names! Most of them are required
+> by canapy to work.
+
+You can now load your configuration file directly from your Corpus
+object, using the `config_path` argument:
+
+```python
+corpus = Corpus.from_directory(
+  annots_directory="song_dataset/annots",
+  audio_directory="song_dataset/audio",
+  config_path="saved_directory/my_config.toml")
+```
+
+You may now check that your Corpus `.config` is
+identical to your personal configuration file:
+
+```python
+print(corpus.config)
+```
+
+You can finally inject this configuration file in your
+new Annotators:
+
+```python
+annotator = SynAnnotator(config=corpus.config)
+```
+
+Additionally, configuration files can be loaded directly
+
+### Common use-case: change audio sampling rate
+
+Canapy data processing is sensitive to audio files sampling frequency,
+also called sampling rate. Canapy default sampling rate is 44100Hz,
+but this can be adjusted from the configuration file.
 
 ## The Config object <a name="config_object"></a>
 
-Modifying this object could be useful if you are manipulating other birds than canaries (changing the sampling rate for example) Configuration can be changed by creating a JSON file suffixed  `.config.json`. 
+Modifying this object could be useful if you are manipulating other birds than canaries (changing the sampling rate for example) Configuration can be changed by creating a JSON file suffixed  `.config.json`.
 
 A configuration file looks like this. All the keys are mandatory:
 
@@ -460,8 +606,268 @@ sampling_rate = config.sampling_rate
 sampling_rate = config["sampling_rate"]
 ```
 
+## Run the dashboard <a name="dashboard"></a>
+
+You can now launch the dashboard to train the annotation models and check the quality of the dataset.
+
+To run the dashboard, simply do:
+
+```bash
+canapy ./bird1_dataset ./bird1_output
+```
+
+The dashboard should open in your browser, at localhost:9321. If not, simply reach localhost:9321 in your favorite browser.
+All the data produced by the dashboard (models and checkpoints) will be stored in `./bird1_output`.
+The first dashboard you will see in the one devoted to train the model.
+
+### Dashboard 1: train
+
+Click on the button `start training` to begin the training of the models and then produce the annotations. Metrics should display in the terminal where you started the dashboard.
+At the end of the training sequence, click on "Next step" to display the "eval" dashboard (it can take some time to display, don't worry, click only **once** on the button).
+The first dashboard will train annotation models on the current version of the dataset, and produce their respective versions of the annotations.
+
+Two models are built during the training phase. They both are based on an Echo State Network (ESN), a kind of artificial neural network, and have the same parameters. They are, however, trained on two different tasks:
+
+- the **syn** model (syntactic model) is trained to annotate whole songs. Entire songs and annotations files are presented to the models during training. Thus, the model is trained only on the available data, meaning that imbalance in number between the categories of bird phrases is preserved. The model is also expected to rely on syntactic information to produce its annotations, being trained on the real order of the phrases in the songs.
+- the **nsyn** model (non syntactic model) is trained to annotate only randomly mixed phrases, with an artificially balanced number of phrases samples. This model is expected to rely only on inner characteristics of each type of syllables to annotate the songs, without taking into account their context in the song. Imbalance in number is also *not* preserved, meaning the model has to give the same importance to all categories of syllables.
+
+Finally, a third model, called **ensemble**, combine the outputs of the two previous models with a vote system, to combine the "judgements" of the two models in a new one.
+
+### Dashboard 2: eval
+
+The second dashboard displays the performances of the three models during the *real* annotation task: all three models are fed with the whole songs contained in the hand-annotated dataset, and we will now look at the differences between their annotations and the handmade ones.
+
+This dashboard is divided in two parts:
+
+- the Class merge dashboard
+- the Sample correction dashboard
+You can switch between them with the buttons at the top of the dashboard.
+
+#### Class merge
+
+In the `Class merge` dashboard, you can use the confusion matrices to inspect syllables categories where the models make a lot of mistakes. If the mistake pattern seems stable (high confusion between two classes, and potential agreement between the models), this could be the sign that the confused categories could be merged into one. This happens a lot on handmade annotations, due to obvious spelling mistakes in the annotations labels, or to disagreement in the naming between the human annotators, or to "over-classification" of certain patterns.
+<br/> ![Screenshot Confusionmatrix](images/example_confusion_matrix.png)
+You can use the inspector at the right of the confusion matrices (clicking on the two buttons at the top right of the above screenshot) to display some class samples and see if a merge is coherent. When you have taken your decision, simply write the new name of the class you want to modify in the correction panel at the extreme right of the dashboard (for example, if you want to merge categories A and A1, because they are really close, simply write "A" under "A1" class text input).
+If the class contains few samples and doesn't seem well-founded you can delete it by writing 'DELETE' in the text input under the name of the syllable category. Sometimes, some classes contains very few instances that are not sufficient for the model to recognize them, meaning they will not be usable. In this case making a 'TRASH' class is a good idea.
+<br/> ![Screenshot corrections](images/example_class_corrections.png)
+
+Make sure to click on the `Save corrections` button under the syllable types input text to save your changes.
+
+Moreover, you can find help to make corrections while looking to the metrics indicated under the confusion matrix.
+<br/> ![Screenshot metrics](images/example_metrics.png)
+<br/> For example here the models achieve 97.06% accuracy each which is pretty good. However, you can see classes like C1, L, L2... that scores 0% in precision, recall and f1-score, meaning they may be deleted. If you choose to keep this model it will do a great job detecting the other classes but may lack experience recognizing the phrases labeled as C1, L,L2...
+
+#### Sample correction
+
+You can also inspect the samples about which the models disagree the most in the `Sample correction` dashboard. Here, all the annotations that are confused with another class over at least 2/3 of their time length by the models can be displayed, and manually corrected (the 2/3 time length disagreement parameter can be changed in the configuration file (see section 6.)).
+Again, at the right of the bar plot showing the disagreements' distribution, an inspector allows you to display samples of all the categories of syllables.
+The models aren't always right, as they use prediction you have the last word on which label to attribute to a phrase.
+If the sample correction is empty, don't panic! it only means that the models performs well (maybe too well?) on the dataset. It is often the case with little datasets, where the models overfit the misrepresented categories of syllables. In any way, you should first focus on merging whole categories of syllables before correcting single samples.
+
+Make sure to click on the `Save all` button on the right of the distribution figure to save your changes.
+
+### Next step
+
+You have two choices then:
+
+- click the `Next step` button. This will redirect you to the 'train' dashboard. Indeed, after you have applied corrections on the dataset, you should retrain the models to see the increase in performance, and to check if by changing the data distribution new disagreements do not appear. You should do 3-4 iterations of training-evaluating to be sure that you have fixed all the annotations.
+Below, the comparison of the initial confusion matrix of the syntactic model and its matrix after some corrections:
+<br/> ![Screenshot Confusionmatrix_not_corrected](images/example_confusion_matrix_firsttraining.png) ![Screenshot Confusionmatrix_corrected](images/example_confusion_matrix_after_corrections.png)
+- click the `Export` button. If you are happy with the models performances and the annotations' distribution of the dataset, after some iterations, you can click on this button to be redirected to the 'export' dashboard. This dashboard will simply retrain all the models with all the corrections applied on the dataset, and save them in the output directory, with the correction file, the configuration file, etc.
+
+In any case, a checkpoint of the current state of your analysis will be saved : corrections, configuration, models and annotations will be stored in the `output/checkpoint` directory, in a subdirectory named after the iteration number (`1` if it is your first run, `2` if it is the second time you apply corrections and train models, and so on).
+
+### Output directory
+
+After training your model you will find in the `./bird1_output` directory:
+
+- `checkpoints`: corrections, configuration, models and annotations corresponding to a round of training, in a subdirectory named after the iteration number (`1` if it is your first run, `2` if it is the second time you apply corrections and train models, and so on).
+- `models`: 'syn' and 'nsyn' program corresponding to the final version of the syntactic and non syntactic models you have trained
+- `annotations.json`: a JSON file containing all the annotations for the songs, if you want to open it, do that with Python, a Text Editor will crash.
+- `config.json`: a JSON file containing the models' parameters, you can know more about it in the [Config object](#config_object) part.
+- `corrections.json`: a JSON file containing your class merges and sample corrections round after round, it looks like this: <a name="corrections_json"></a>
+
+```json
+{
+    "0": {
+        "syll": {},
+        "sample": {}
+    },
+    "1": {
+        "syll": {"1-A1": "A1", "1-B": "B","I2~": "DELETE", "L2": "G"},
+        "sample": {"1116": "K2", "1443": "F1", "2001": "F1"}
+    }, 
+    ...
+    "5": {
+        ...
+    }
+}
+```
+
+- `vocab.json`: a JSON file listing all the syllable categories, it looks like this: <a name="vocab_json"></a>
+
+```json
+[
+  "A1","B","C",...
+]
+```
+
+## Use the models on an other dataset <a name="annotate"></a>
+
+Now that you have produced 2 neural networks and an ensemble model to correctly annotate bird songs, you can apply them on not annotated data.  
+To do so, we will use the `canapy` simple API, and a little of Python.
+  
+This part can be executed using the Jupyter Notebook: `Tutorial_annotating_with_canapy`, available in the Canapy folder.  
+
+First, in a coding environment, create an Annotator object:  
+
+```python
+from canapy import Annotator
+
+annotator = Annotator("./bird1_output/models")
+```
+
+This object will call every function you need to produce annotations from the dataset, using the models we've trained in the dashboard. Make sure that the reservoirpy version you are using is the same as the one used for the model training, otherwise it won't work.  
+
+In this example, the `./bird1_non_annotated_songs` directory contains only .wav audio files, one per song, ready to be annotated.  
+
+The Dataset object may look new to you, but it is in fact already used in the backend of the dashboard. It stores the dataset in the form of a Pandas Dataframe (in this case, only paths to audio files), but can also store annotations, corrections, configuration files, and apply everything to the audio and labels to correct them and extract the features needed by the models to annotate them. For now, we only need them to store the audio files and the configuration file, which is here by default. It also automatically creates the class "SIL", which represents all the non annotated (and thus silent) part of the songs.  
+
+```python
+from canapy import Dataset
+
+dataset = Dataset("./bird1_non_annotated_songs", vocab = annotator.vocab)
+```
+
+To run the annotator, simply call (it could last a bit long depending on how many songs you have to annotate):
+
+```python
+annotations, vectors = annotator.run(dataset = dataset)
+```
+
+That's it! The `annotations` variable now looks like a dictionary:
+
+```json
+{
+    "syn": {
+        "000-song-name.wav": ["SIL", "SIL", "A", "A", "A", "B", "C"...],
+        "001-song-name.wav": [...],
+        ...
+    },
+    "nsyn": {
+        ...
+    },
+    "ensemble": {
+        ...
+    }
+}
+```
+
+This dictionary stores all the annotations of the syntactic model, with the audio file name attached. If you want to annotate with the other models (non syntactic and ensemble) you can do it by specifying the parameter model to nsync, ensemble, or all.  
+
+The `vectors` variable looks the same, but stores the raw responses of the models (the output vectors representing the decision of the neural network).
+
+Notice that the annotations look like they are repeating in time a lot. To export only the sequence of annotations in time, not all annotations for all timesteps, simply set the `to_group` argument to  `True` when calling the annotator:  
+
+```python
+annotations, _ = annotator.run(to_group=True)
+```
+
+The annotations will now look like this:
+
+```json
+{
+    "syn": {
+        "000-song-name.wav": [("SIL", 2), ("A", 3),  ("B", 1)...],
+        "001-song-name.wav": [...],
+        ...
+    },
+    "nsyn": {
+        ...
+    },
+    "ensemble": {
+        ...
+    }
+}
+```
+
+The annotations have been grouped. The number that comes along each annotation label is the number of timesteps covered by the annotation, i.e. the duration of the bird phrase, in number of spectral analysis windows. This number can be easily converted in seconds knowing the sampling rate and the time jumps between each analysis windows, but this can of course lead to huge approximations.
+
+If you really need to display this time in seconds, simply use:
+
+```python
+new_annotations = to_seconds(annotations, dataset.config)
+```
+
+Be careful, this function works with the grouped annotations from one model. Hence, you shouldn't give it the annotations produced by `annotator.run(model='all',dataset=dataset,to_group=True).`  
+
+We will explain in the [Config object section](#config_object) how the configuration stored in the dataset works.
+
+Finally, you can directly save these annotations in CSV files by using the csv_directory parameter. This parameter take the path where you want to save the new CSV as input. Moreover, this parameter automatically activates the grouping function, you don't have to specify it to get a concise CSV.  
+
+```python
+annotations, _ = annotator.run(dataset=dataset,csv_directory="./tuto_non_annotated_songs_annotated")
+```
+
 ## Support
 
 If you have any problems with using Canapy, don't hesitate to contact Nathan Trouvain or Albane Arthuis at Inria Mnemosyne team:
-nathan.trouvain@inria.fr
-albane.arthuis@inria.fr
+<nathan.trouvain@inria.fr>
+<albane.arthuis@inria.fr>
+
+> [! WARNING]
+> TODO: this becomes useless with new version of audacity. Maybe remove ?
+
+### Export annotations from Audacity
+
+Audacity is a free and open-source software, with which you can manipulate audio files and annotate your bird songs. Your songs and annotations would have this aspect on the Audacity software:
+<br/> ![Screenshot Audacity](images/example_audacity.png)
+On the first line you can see the spectrogram of the song and on the second line the corresponding annotations track.
+Make sure that your audio files contain only one song per file.
+
+Consider the following project storing some bird songs and annotations in Audacity .aup format:
+
+```
+project
+├── bird1
+│   ├── songs0.aup
+│   ├── songs0_data
+│   ├── songs1.aup
+│   └── songs1_data
+├── bird1_dataset
+```
+
+Your directories don't have to have the same names as above, just make sure to enter the name you gave them in the command line.
+In a terminal running in the `project` directory, run :
+
+```bash
+canapy-audacity-convert -r ./bird1 -o ./bird1_dataset/
+```
+
+This will prompt you to confirm the exportation of the annotations and audio found in the Audacity files.
+This will then produce the following tree:
+
+```
+├── bird1
+│   ├── songs0.aup
+│   ├── songs0_data
+│   ├── songs1.aup
+│   └── songs1_data
+├── bird1_dataset
+    ├── data
+    └── repertoire
+```
+
+The `data` directory stores all annotations tracks in CSV files.
+The `repertoire` provides you extract of phrases based on the annotations:
+
+- png of spectrograms:
+<br/> ![Screenshot spectrogram](images/example_spectrogram_phrase.png)
+- and sound of the phrase (not the entire song).
+annotations in the dataset. You can disable it by removing the `-r` option when calling canapy.audacity.
+
+As stated before, you could also add JSON files such as corrections.json, vocab.json or config.json:
+
+- corrections.json: if you already have some corrections in mind or if you already have a corrections.json file from a previous training (checkpoint or final version) you can put it here. You can check an example for this file here: [corrections.json example](#corrections_json) ;
+- vocab.json: if you already know the precise list of vocabulary of your dataset you can make a JSON file like this. Here is an example: [vocab.json example](#vocab_json) ;
+- config.json: this is the configuration file of the trained model, it contains audio manipulation parameters such as the sampling rate. If you want to modify it please check the [Config object](#config_object) part.
