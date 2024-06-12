@@ -28,139 +28,98 @@ class TrainerDashboard(SubDash):
         self.train_btn = pn.widgets.Button(name="Start training")
         self.train_btn.on_click(self.on_click_train)
 
-        self.syn_indicator = pn.indicators.LoadingSpinner(
-            value=False, width=100, height=100
-        )
-        self.nsyn_indicator = pn.indicators.LoadingSpinner(
-            value=False, width=100, height=100
-        )
-
-        self.syn_status = pn.pane.HTML("<h2>Idle</h2>")
-        self.nsyn_status = pn.pane.HTML("<h2>Idle</h2>")
+        self.cards = {
+            annotator: Card(self,annotator)
+            for annotator in self.controler.annotators
+            if annotator != "ensemble"
+        }
 
         self.layout = pn.Column(
             pn.Row(
-                pn.Column(
-                    pn.pane.HTML(
-                        "Syn training:"), self.syn_indicator, self.syn_status
-                ),
-                pn.Column(
-                    pn.pane.HTML("NSyn training:"),
-                    self.nsyn_indicator,
-                    self.nsyn_status,
-                ),
+            *self.cards.values()
             ),
             self.train_btn,
         )
 
-    def switch_status(self, obj, status, duration=0.0):
-        if status == "training":
-            obj.object = "<h2>Training...</h2>"
-            obj.style = {"color": "blue"}
-        if status == "done":
-            obj.object = f"<h2>Done !</h2> in {round(duration, 2)} sec."
-            obj.style = {"color": "green"}
-
     def on_click_train(self, events):
+
         self.train_btn.disabled = True
 
-        self.switch_status(self.syn_status, "training")
-        self.syn_indicator.value = True
+        for annotator in self.controler.annotators:
 
-        tic = time.time()
-        self.controler.train_syn()
-        toc = time.time()
+            if annotator == "ensemble" :
+                continue
 
-        self.switch_status(self.syn_status, "done", duration=toc - tic)
-        self.syn_indicator.value = False
+            card = self.cards[annotator]
 
-        self.switch_status(self.nsyn_status, "training")
-        self.nsyn_indicator.value = True
+            card.switch_status("training")
 
-        tic = time.time()
-        self.controler.train_nsyn()
-        toc = time.time()
+            tic = time.time()
+            self.controler.train(annotator)
+            toc = time.time()
 
-        self.switch_status(self.nsyn_status, "done", duration=toc - tic)
-        self.nsyn_indicator.value = False
+            card.switch_status("done", duration=toc - tic)
 
         logger.info("Trained!")
 
         self.parent.annotdash.begin()
+class Card(SubDash):
+    def __init__(self,parent,model_name):
+        super(Card, self).__init__(parent)
 
+        self.status = pn.pane.HTML("<h2>Idle</h2>")
 
+        self.indicator = pn.indicators.LoadingSpinner(
+            value=False, width=100, height=100
+        )
+        self.layout = pn.Column(
+            pn.pane.HTML(model_name), self.indicator, self.status
+        )
+
+    def switch_status(self, status, duration=0):
+        if status == "training":
+            self.status.object = "<h2>Training...</h2>"
+            self.status.style = {"color": "blue"}
+            self.indicator.value=True
+
+        if status == "annotation":
+            self.status.object = "<h2>Annotating...</h2>"
+            self.status.style = {"color": "blue"}
+            self.indicator.value=True
+
+        if status == "done":
+            self.status.object = f"<h2>Done !</h2> in {round(duration, 2)} sec."
+            self.status.style = {"color": "green"}
+            self.indicator.value=False
 class AnnotatorDashboard(SubDash):
     def __init__(self, parent):
         super().__init__(parent)
 
-        self.syn_indicator = pn.indicators.LoadingSpinner(
-            value=False, width=100, height=100
-        )
-        self.nsyn_indicator = pn.indicators.LoadingSpinner(
-            value=False, width=100, height=100
-        )
-        self.ens_indicator = pn.indicators.LoadingSpinner(
-            value=False, width=100, height=100
-        )
+        self.cards = {
+            annotator: Card(self, annotator)
+            for annotator in self.controler.annotators
+        }
 
-        self.syn_status = pn.pane.HTML("<h2>Idle</h2>")
-        self.nsyn_status = pn.pane.HTML("<h2>Idle</h2>")
-        self.ens_status = pn.pane.HTML("<h2>Idle</h2>")
-
-        self.layout = pn.Row(
-            pn.Column(
-                pn.pane.HTML(
-                    "Syn annotation:"), self.syn_indicator, self.syn_status
-            ),
-            pn.Column(
-                pn.pane.HTML(
-                    "NSyn annotations:"), self.nsyn_indicator, self.nsyn_status
-            ),
-            pn.Column(
-                pn.pane.HTML("Ensemble annotations:"),
-                self.ens_indicator,
-                self.ens_status,
-            ),
+        self.layout = pn.Column(
+            pn.Row(
+                *self.cards.values()
+            )
         )
-
-    def switch_status(self, obj, status, duration=0.0):
-        if status == "annotating":
-            obj.object = "<h2>Annotating...</h2>"
-            obj.style = {"color": "blue"}
-        if status == "done":
-            obj.object = f"<h2>Done !</h2> in {round(duration, 2)} sec."
-            obj.style = {"color": "green"}
 
     def begin(self):
-        self.switch_status(self.syn_status, "annotating")
-        self.syn_indicator.value = True
 
-        tic = time.time()
-        self.controler.annotate_syn()
-        toc = time.time()
+        for annotator in self.controler.annotators:
 
-        self.switch_status(self.syn_status, "done", duration=toc - tic)
-        self.syn_indicator.value = False
+            card = self.cards[annotator]
 
-        self.switch_status(self.nsyn_status, "annotating")
-        self.nsyn_indicator.value = True
+            card.switch_status("annotation")
 
-        tic = time.time()
-        self.controler.annotate_nsyn()
-        toc = time.time()
+            tic = time.time()
+            self.controler.annotate(annotator,split="train")
+            self.controler.annotate(annotator,split="test")
+            toc = time.time()
 
-        self.switch_status(self.nsyn_status, "done", duration=toc - tic)
-        self.nsyn_indicator.value = False
-
-        self.switch_status(self.ens_status, "annotating")
-        self.ens_indicator.value = True
-
-        tic = time.time()
-        self.controler.annotate_ensemble()
-        toc = time.time()
-
-        self.switch_status(self.ens_status, "done", duration=toc - tic)
-        self.ens_indicator.value = False
+            card.switch_status("done", duration=toc - tic)
 
         logger.info("Annotated!")
 

@@ -4,15 +4,15 @@ version = "0.1.0"
 description = ""
 license = "MIT"
 authors = [
-  "Nathan Trouvain <nathan.trouvain/at/inria.fr>",
-  "Vincent Gardies <>",
-  "Albane Arthuis <>",
+    "Nathan Trouvain <nathan.trouvain/at/inria.fr>",
+    "Vincent Gardies <>",
+    "Albane Arthuis <>"
 ]
 readme = "README.md"
 packages = [
-  { include = "canapy" },
-  { include = "dashboard" },
-  { include = "config" },
+    {include = "canapy"},
+    {include = "dashboard"},
+    {include = "config"}
 ]
 include = ["**/*.config.toml"]
 
@@ -39,15 +39,14 @@ panel = "^1.2.0"
 param = "^1.13.0"
 bokeh = "^3.2.0"
 toml = "^0.10.2"
-click = "*"
 
 [tool.poetry.group.dev.dependencies]
-black = "*"
-pytest = "*"
+black = "^23.3.0"
+pytest = "^7.4.0"
 notebook = "*"
 
 [tool.poetry.scripts]
-canapy = "dashboard.__main__:cli"
+canapy = "dashboard.main:display_dashboard"
 canapy-audacity-convert = "audacity.main:main"
 
 [build-system]

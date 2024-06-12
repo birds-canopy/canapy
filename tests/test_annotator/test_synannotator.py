@@ -4,10 +4,11 @@
 from canapy.annotator.synannotator import SynAnnotator
 
 def test_synannotator(corpus, spec_directory, output_directory):
-    annotator = SynAnnotator(
-        config=corpus.config,
-        spec_directory=spec_directory,
-    )
+    annotator = SynAnnotator(default_config)
+    # annotator = SynAnnotator(
+    #     config=corpus.config,
+    #     spec_directory=spec_directory,
+    # )
 
     annotator.fit(corpus)
 
