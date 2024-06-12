@@ -1,15 +1,28 @@
 # Author: Nathan Trouvain at 05/07/2023 <nathan.trouvain<at>inria.fr>
 # Licence: MIT License
 # Copyright: Nathan Trouvain
+"""
+Postprocess annotations. Mainly used to group predictions
+made at the timeframe level, and convert them to
+onsets, offsets in seconds and single labels per
+annotated segments.
+"""
+
 import numpy as np
 import pandas as pd
 
+from config import default_config
 from ...corpus import Corpus
 from ...timings import frames_to_timed_df
 from ...utils.arrays import to_structured
 
 
 def extract_vocab(corpus, silence_tag):
+    """Get vocabulary (list of classes) from
+    a Corpus, by selecting all unique labels
+    in Corpus annotations.
+    Specify the silence label.
+    """
     vocab = corpus.dataset["label"].unique().tolist()
     if silence_tag not in vocab:
         vocab += [silence_tag]
@@ -17,6 +30,8 @@ def extract_vocab(corpus, silence_tag):
 
 
 def remove_silence(annots_df: pd.DataFrame, silence_tag):
+    """Remove annotations of silences in an annotation
+    dataframe."""
     label_idxs = annots_df["label"] != silence_tag
     return annots_df[label_idxs]
 
@@ -24,6 +39,40 @@ def remove_silence(annots_df: pd.DataFrame, silence_tag):
 def frame_df_to_annots_df(
     frame_df, min_label_duration, min_silence_gap, silence_tag="SIL", lonely_labels=None
 ):
+    """Group annotations made at the timeframe level (one annotation per time bin)
+    to create annotations at the segment level (one annotation per segment with an
+    onset and an offset in seconds).
+
+    Apply correction to avoid creating segments inferiors to `min_label_duration` in
+    length, or silences inferiors to `min_silence_gap` when grouping consecutive
+    segments with the same label.
+
+    Transform:
+
+    AAAAABCBBDAAAA -> A B A
+
+    Parameters
+    ----------
+    frame_df : pandas.DataFrame
+        Dataframe with frame level annotations (one annotation per timebin).
+    min_label_duration : float
+        Minimum admissible duration for a segment. Any segment with a smaller
+        duration will be dropped or grouped with consecutive segments.
+    min_silence_gap : float
+        Minimum admissible duration for a silence between segments with the
+        same label. If to identical segments are too close, will merge them,
+        except if they are in lonely_labels.
+    silence_tag : str, default to "SIL"
+        Label used to tag silent segments.
+    lonely_labels : list of str, optional
+        Define segments labels that must never be merged, even if the rule
+        defined by min_silence_gap is not respected.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Segment level annotations.
+    """
     # Identify all phrases of identical labels
     gemini_groups = (
         frame_df["label"].shift(fill_value=str(np.nan)) != frame_df["label"]
@@ -54,7 +103,7 @@ def frame_df_to_annots_df(
     # -> "A (0, 4), B (4, 7), C (7, 10)"
     def mode(x):
         return max(x.values.tolist(), key=x.values.tolist().count)
-    
+
     df = (
         df.groupby(short_samples)
         .agg(
@@ -134,12 +183,55 @@ def predictions_to_corpus(
     min_silence_gap,
     silence_tag,
     lonely_labels,
-    config=None,
+    config=default_config,
     raw_preds=None,
 ):
+    """Transform timeframe annotations from
+    an annotator into a new Corpus object.
+
+    Will group and filter annotations to do so.
+
+    Parameters
+    ----------
+    notated_paths : list of str
+        Audio filenames.
+    cls_preds : list of np.ndarray
+        List of annotated sequences, as arrays of shape (timeframes, )
+    frame_size : float
+        Duration of one timeframe in seconds.
+    sampling_rate : float
+        Audio sampling rate in Hz.
+    time_precision : float
+        Minimum admissible duration, in seconds. All timestamps
+        will be rounded to the same decimal.
+    min_label_duration : float
+        Minimum admissible duration for a segment. Any segment with a smaller
+        duration will be dropped or grouped with consecutive segments.
+    min_silence_gap : float
+        Minimum admissible duration for a silence between segments with the
+        same label. If to identical segments are too close, will merge them,
+        except if they are in lonely_labels.
+    silence_tag : str, default to "SIL"
+        Label used to tag silent segments.
+    lonely_labels : list of str, optional
+        Define segments labels that must never be merged, even if the rule
+        defined by min_silence_gap is not respected.
+    config : Config, default to default_config
+        A configuration object. If None, use default_config.
+    raw_preds : dict or list of np.ndarray, optional
+        Raw outputs of neural networks. If provided, will be saved in
+        the new Corpus "nn_output" key of its data_resources.
+        Needed for Ensemble.
+
+    Returns
+    -------
+    Corpus
+        A newly created corpus from predictions.
+    """
     frame_dfs = []
     annot_dfs = []
     for y_pred, notated_path in zip(cls_preds, notated_paths):
+        # Convert index to timestamps
         frames = frames_to_timed_df(
             y_pred,
             notated_path=notated_path,
@@ -147,7 +239,7 @@ def predictions_to_corpus(
             sampling_rate=sampling_rate,
             time_precision=time_precision,
         )
-
+        # Group frame labels to form segments.
         annots = frame_df_to_annots_df(
             frames,
             min_label_duration,

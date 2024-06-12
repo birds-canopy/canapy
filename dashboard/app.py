@@ -40,15 +40,19 @@ class CanapyDashboard(pn.viewable.Viewer):
         )
 
         self.controler = Controler(
-            annots_directory=self.annots_directory,
-            audio_directory=self.audio_directory,
             output_directory=self.output_directory,
-            spec_directory=self.spec_directory,
             config_path=self.config_path,
             dashboard=self,
-            annot_format=self.annot_format,
-            audio_ext=self.audio_ext,
             annotators=self.annotators,
+        )
+
+        self.controler.create_corpus(
+            audio_directory=self.audio_directory,
+            annots_directory=self.annots_directory,
+            spec_directory=self.spec_directory,
+            annot_format=self.annot_format,
+            config_path=self.config_path,
+            audio_ext=self.audio_ext,
         )
 
         self.views = {

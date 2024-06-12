@@ -13,6 +13,8 @@ from .commons.postprocess import predictions_to_corpus, extract_vocab
 from ..corpus import Corpus
 from ..timings import seconds_to_audio
 
+from config import default_config
+
 logger = logging.getLogger("canapy")
 
 
@@ -179,7 +181,21 @@ class Ensemble(Annotator):
 
     """
 
-    def __init__(self, config, spec_directory=None, mode="hard_vote"):
+    @classmethod
+    def from_annotators(
+        cls, *annotators, config=default_config, spec_directory=None, mode="hard_vote"
+    ):
+        obj = cls(config=config, spec_directory=spec_directory, mode=mode)
+
+        if len(annotators) == 1:
+            raise ValueError("Can't ensemble on only one annotator.")
+
+        obj._vocab = annotators[0]._vocab
+        obj._trained = True
+
+        return obj
+
+    def __init__(self, config=default_config, spec_directory=None, mode="hard_vote"):
         """
         Initialization method.
 
@@ -261,7 +277,7 @@ class Ensemble(Annotator):
         """
         self._vocab = extract_vocab(
             corpus, silence_tag=self.config.transforms.annots.silence_tag
-            )
+        )
 
         self._trained = True
         return self

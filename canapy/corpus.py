@@ -29,6 +29,7 @@ Example
     >>> # Print the data of a new corpus where there are no 'cri' annotations
 
 """
+
 import logging
 import pathlib
 import shutil
@@ -97,9 +98,9 @@ class Corpus:
     annotations: GenericSeq = attr.field(default=GenericSeq(annots=list()))
     config: Config = attr.field(default=default_config)
     dataset: Optional[pd.DataFrame] = attr.field(default=None)
-    data_resources: Optional[Dict[str, Any]] = attr.field(default=dict())
-    audio_ext: Optional[str] = attr.field(default=".wav")
-    spec_ext: Optional[str] = attr.field(default=".npy")
+    data_resources: Dict[str, Any] = attr.field(factory=dict)
+    audio_ext: str = attr.field(default=".wav")
+    spec_ext: str = attr.field(default=".npy")
 
     def __attrs_post_init__(self):
         """

@@ -8,6 +8,8 @@ Reservoir Computing model training.
 import click
 import panel as pn
 
+from canapy.cli import annotate
+
 from .app import CanapyDashboard
 
 
@@ -30,6 +32,7 @@ def cli():
     "--data-dir",
     "data_directory",
     type=click.Path(exists=True, file_okay=False),
+    default=None,
     help="Directory containing data source with audio files and "
     "annotations files. Replace '-a' and '-s'.",
 )
@@ -38,6 +41,7 @@ def cli():
     "--annots-dir",
     "--annots_directory",
     type=click.Path(exists=True, file_okay=False),
+    default=None,
     help="Annotations directory, containing only annotation files. Use "
     "this option in conjunction with '-s' instead of '-d' "
     "if your annotations and audio files are in "
@@ -48,6 +52,7 @@ def cli():
     "--audio-dir",
     "audio_directory",
     type=click.Path(exists=True, file_okay=False),
+    default=None,
     help="Audio directory, containing only audio files. Use "
     "this option in conjunction with '-a' instead of '-d' "
     "if your annotations and audio files are in "
@@ -57,6 +62,7 @@ def cli():
     "-o",
     "--output-dir",
     "output_directory",
+    required=True,
     type=click.Path(),
     help="Output directory of models and dataset checkpoints.",
 )
@@ -64,6 +70,7 @@ def cli():
     "--spec-dir",
     "spec_directory",
     type=click.Path(),
+    default=None,
     help="Directory where preprocessed audio data will be stored. "
     "By default, preprocessed data will be stored in the same "
     "directory as '--output-directory', in the 'spectrograms/' subdir.",
@@ -72,6 +79,7 @@ def cli():
     "-c",
     "--config-path",
     type=click.Path(exists=True, dir_okay=False, allow_dash=True),
+    default=None,
     help="Path to a configuration file in TOML format. May come from standard "
     "input (using dash).",
 )
@@ -81,7 +89,16 @@ def cli():
     default=9321,
     help="Port use by the Bokeh server. By default, 9321.",
 )
-@click.option("--annot-format", type=str, default="marron1csv")
+@click.option(
+    "--annot-format",
+    type=str,
+    default="marron1csv",
+    help="Annotation format. See crowsetta documentation to "
+    "learn about supported annotation formats. "
+    "(https://crowsetta.readthedocs.io/en/latest/). "
+    "Default is 'marron1csv', canapy own annotation "
+    "format, based on CSV files.",
+)
 @click.option(
     "--audio-ext",
     type=click.Choice([".wav", ".npy"]),
@@ -120,6 +137,10 @@ def display_dashboard(
 
 cli.add_command(display_dashboard)
 
+
+# TODO: Clearly separate canapy CLI from dashboard
+# TODO: Even better: allow to annotate from inside the dashboard
+cli.add_command(annotate)
 
 if __name__ == "__main__":
     cli()

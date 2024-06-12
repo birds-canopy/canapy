@@ -1,6 +1,10 @@
 # Author: Nathan Trouvain at 04/07/2023 <nathan.trouvain<at>inria.fr>
 # Licence: MIT License
 # Copyright: Nathan Trouvain
+"""
+Echo State Network related functions.
+"""
+
 import numpy as np
 import reservoirpy as rpy
 
@@ -12,6 +16,21 @@ from .mfccs import load_mfccs_for_annotation
 
 
 def maximum_a_posteriori(logits, classes=None):
+    """Select the neuron index with maximum prediction probability.
+
+    Parameters
+    ----------
+    logits : np.ndarray
+        Model predictions, array of shape (samples, classes)
+    classes : list of str, optional
+        Class labels.
+
+    Returns
+    -------
+    np.ndarray
+        Array of shape (samples, ) with class predictions
+        (as class labels or class index if classes=None)
+    """
     logits = np.atleast_2d(logits)
 
     predictions = np.argmax(logits, axis=1)
@@ -23,7 +42,26 @@ def maximum_a_posteriori(logits, classes=None):
 
 
 def init_esn_model(model_config, input_dim, audio_features, seed=None):
+    """Initialize an Echo State Network for MFCC frame classification.
 
+    Parameters
+    ----------
+    model_config : Config
+        A Config object holding model parameters.
+    input_dim : int
+        MFCC dimension (number of coefficients)
+    audio_features : list of str
+        Audio features used as input to the model. Must be
+        a list containing "mfcc", "delta", "delta2", or
+        any of their combinations.
+    seed : int, optional
+        Random state seed.
+
+    Returns
+    -------
+    reservoirpy.nodes.ESN
+        A reservoirpy ESN model.
+    """
     rpy.set_seed(seed)
 
     scalings = []
@@ -65,6 +103,28 @@ def predict_with_esn(
     return_raw=False,
     redo_transforms=False,
 ):
+    """Produce annotations with an ESN-based annotator.
+    Annotator must be trained.
+
+    Parameters
+    ----------
+    annotator : Annotator
+        An ESN-based annotator.
+    corpus : Corpus
+        A corpus to annotate.
+    return_raw : bool, default to False
+        If True, returns the model raw outputs
+        (probability scores of each output neurons)
+        along with the annotated segments.
+    redo_transforms : bool, default to False
+        If True, preprocessing is reapplied.
+
+    Returns
+    -------
+    list of str, list of np.ndarray, list of np.ndarray
+        Audio file names, corresponding annotations (sequences of labels),
+        and model raw predictions (if raw_preds=True, else return None)
+    """
     if not annotator.trained:
         raise NotTrainedError(
             "Call .fit on annotated data (Corpus) before calling .predict."

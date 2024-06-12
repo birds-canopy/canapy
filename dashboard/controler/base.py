@@ -3,10 +3,10 @@
 # Copyright: Nathan Trouvain
 import logging
 from pathlib import Path
-from typing import Dict, Optional, List, Mapping
+from typing import Dict, Optional, List
 from collections import defaultdict
 
-import attr
+import attrs
 import joblib
 import pandas as pd
 import panel
@@ -24,6 +24,8 @@ from canapy.utils import as_path
 from canapy.annotator.commons.postprocess import extract_vocab
 from canapy.transforms.commons.training import split_train_test
 from canapy.utils.tempstorage import close_tempfiles
+
+from config import default_config
 
 from .segments import fetch_misclassified_samples
 from .corpusutils import mark_whole_corpus_as_train, query_split
@@ -43,36 +45,25 @@ def _sort_annotators(annotators: List):
     return sorted_annots
 
 
-@attr.define
+@attrs.define
 class Controler:
-    annots_directory: Path = attr.field(converter=as_path)
-    audio_directory: Path = attr.field(converter=as_path)
-    output_directory: Path = attr.field(converter=as_path)
-    spec_directory: Path = attr.field(converter=as_path)
-    config_path: Optional[Path] = attr.field(converter=as_path)
-    dashboard: panel.viewable.Viewer = attr.field()
-    annot_format: str = attr.field(default="marron1csv")
-    audio_ext: str = attr.field(default=".wav")
-    annotators: List[str] = attr.field(default=["syn-esn", "nsyn-esn", "ensemble"])
+    """UI and data control utilities."""
 
-    corpus: Optional[Corpus] = attr.field(default=None)
-    config: Optional[Mapping] = attr.field(default=None)
-    corrector: Optional[Corrector] = attr.field(default=None)
-    _iter: Optional[int] = attr.field(alias="_iter", default=1)
-    _step: Optional[str] = attr.field(alias="_step", default="train")
-    _annotators: Optional[Dict[str, Annotator]] = attr.field(
-        alias="_annotators", default=dict()
-    )
-    _pred_corpora: Optional[Dict[str, Dict]] = attr.field(
-        alias="_pred_corpora", default=dict()
-    )
-    _metrics_store: Optional[Dict[str, Dict]] = attr.field(
-        alias="_metrics_store", default=dict()
-    )
-    _correction_store: Optional[Dict] = attr.field(
-        alias="_correctoin_store", default=dict()
-    )
-    _classes: Optional[List[str]] = attr.field(alias="_classes", default=None)
+    dashboard: panel.viewable.Viewer = attrs.field()
+    output_directory: Path = attrs.field(converter=as_path, default="./")
+    config_path: Optional[Path] = attrs.field(converter=as_path, default=None)
+    annotators: List[str] = attrs.field(default=["syn-esn", "nsyn-esn", "ensemble"])
+
+    corpus: Optional[Corpus] = attrs.field(default=None)
+    corrector: Optional[Corrector] = attrs.field(default=None)
+
+    iter: int = attrs.field(default=1)
+    step: str = attrs.field(default="train")
+    _annotators: Dict[str, Annotator] = attrs.field(alias="_annotators", factory=dict)
+    _pred_corpora: Dict[str, Dict] = attrs.field(alias="_pred_corpora", factory=dict)
+    _metrics_store: Dict[str, Dict] = attrs.field(alias="_metrics_store", factory=dict)
+    _correction_store: Dict = attrs.field(alias="_correctoin_store", factory=dict)
+    classes: Optional[List[str]] = attrs.field(factory=list)
 
     def __attrs_post_init__(self):
         self.corpus = Corpus.from_directory(
@@ -84,12 +75,11 @@ class Controler:
             audio_ext=self.audio_ext,
         )
 
-        self.config = self.corpus.config
         self.corrector = Corrector(
             self.output_directory / "checkpoints", [{"class": dict(), "annot": dict()}]
         )
-        self._iter = 1
-        self._step = "train"
+        self.iter = 1
+        self.step = "train"
 
         self.annotators = _sort_annotators(self.annotators)
 
@@ -100,24 +90,97 @@ class Controler:
         self.corpus = split_train_test(self.corpus, redo=True)
 
     @property
-    def iter(self):
-        return self._iter
-
-    @property
-    def step(self):
-        return self._step
-
-    @property
     def metrics(self):
+        """Metrics store, containing prediction metrics per dataset split (train/test)
+        annotator model.
+        """
         return {k: v for k, v in self._metrics_store.items() if k in ["train", "test"]}
 
     @property
     def misclassified_segments(self):
+        """Segments of audio where annotators poorly agree."""
         return self._metrics_store["misclass"]
 
     @property
-    def classes(self):
-        return self._classes
+    def audio_directory(self):
+        if self.corpus is not None:
+            return self.corpus.audio_directory
+        return None
+
+    @property
+    def annots_directory(self):
+        if self.corpus is not None:
+            return self.corpus.annots_directory
+        return None
+
+    @property
+    def spec_directory(self):
+        if self.corpus is not None:
+            return self.corpus.spec_directory
+        return None
+
+    @property
+    def config(self):
+        if self.corpus is not None:
+            return self.corpus.config
+        return default_config
+
+    @property
+    def annot_format(self):
+        if self.corpus is not None:
+            return self.corpus.annot_format
+        return "marron1csv"
+
+    @property
+    def audio_ext(self):
+        if self.corpus is not None:
+            return self.corpus.audio_ext
+        return ".wav"
+
+    def create_corpus(
+        self,
+        audio_directory,
+        annots_directory=None,
+        spec_directory=None,
+        config_path=None,
+        annot_format="marron1csv",
+        audio_ext=".wav",
+    ):
+        """Create a new Corpus.
+
+        Parameters
+        ----------
+        audio_directory : str, optional
+            Path of the directory that contains the audio tracks.
+        spec_directory : str, optional
+            Path of the directory that contains the spectrogram files. If None,
+            will create a spectrogram directory in `audio_directory`.
+        annots_directory : str, optional
+            Path of the directory that contains hand-made annotations.
+        config_path : str, optional
+            Path of the directory that contains the configuration.
+            By default, `default_config` (from config.py or config.toml) will be applied.
+        annot_format : str, default="marron1csv"
+            The format of the annotation data.
+        time_precision : float, default=0.001
+            The time precision.
+        audio_ext : str, default=".wav"
+            The extension for the audio files in the `audio_directory`.
+        """
+        self.corpus = Corpus.from_directory(
+            audio_directory=audio_directory,
+            annots_directory=annots_directory,
+            spec_directory=spec_directory,
+            config_path=config_path,
+            annot_format=annot_format,
+            audio_ext=audio_ext,
+        )
+
+        self.config_path = config_path
+
+    def load_config(self, config_path): ...
+
+    def update_config(self): ...
 
     def initialize_models(self):
         for name in self.annotators:
@@ -177,7 +240,7 @@ class Controler:
 
         self.corpus = split_train_test(self.corpus, redo=True)
 
-        self._iter += 1
+        self.iter += 1
         logger.info(f"Current training iteration : {self.iter}")
 
     def checkpoint(self):
@@ -221,19 +284,19 @@ class Controler:
 
     def next_step(self, export=False):
         if self.step == "train":
-            self._step = "eval"
+            self.step = "eval"
             self.get_metrics()
             logger.info('Setting current dashboard to "eval".')
 
         elif self.step == "eval" and not export:
-            self._step = "train"
+            self.step = "train"
             self.checkpoint()
             self.apply_corrections()
             self.next_iter()
             logger.info("Setting current dashboard to 'train'.")
 
         elif export:
-            self._step = "export"
+            self.step = "export"
             self.checkpoint()
             self.apply_corrections()
             self.next_iter()
@@ -250,7 +313,7 @@ class Controler:
             corpus = mark_whole_corpus_as_train(self.corpus)
             logger.info(f"Training Annotator '{annotator_name}'.")
             annotator.fit(corpus)
-            logger.info(f"Done!")
+            logger.info("Done!")
         else:
             annotator.fit(self.corpus)
 
@@ -278,30 +341,6 @@ class Controler:
         )
 
         self._pred_corpora[split][annotator_name] = pred_corpus
-
-    def train_syn(self):
-        self.train("syn-esn")
-
-    def train_syn_export(self):
-        self.train("syn-esn", export=True, save=True)
-
-    def train_nsyn(self):
-        self.train("nsyn-esn")
-
-    def train_nsyn_export(self):
-        self.train("nsyn-esn", export=True, save=True)
-
-    def annotate_syn(self):
-        self.annotate("syn-esn", split="train")
-        self.annotate("syn-esn", split="test")
-
-    def annotate_nsyn(self):
-        self.annotate("nsyn-esn", split="train")
-        self.annotate("nsyn-esn", split="test")
-
-    def annotate_ensemble(self):
-        self.annotate("ensemble", split="train")
-        self.annotate("ensemble", split="test")
 
     def get_metrics(self):
         bad_ones = []

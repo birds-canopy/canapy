@@ -1,5 +1,8 @@
-# <complete>
-# <verify>
+# TODO <complete>
+# <verify>: check
+# Status: non valid
+# TODO: check again
+# TODO: Use pytest conventions and test suite
 
 
 from canapy.corpus import Corpus
@@ -8,6 +11,7 @@ from canapy.corpus import Corpus
 def print_config(config=None):
     if config is None:
         from canapy.config import default_config
+
         print(default_config)
     print(config)
 
@@ -16,7 +20,7 @@ def load_corpus(verif_print=False):
     my_corpus_audio_and_anot = Corpus.from_directory(
         audio_directory="/home/vincent/Documents/data_canary/audio",
         annots_directory="/home/vincent/Documents/data_canary/annotations",
-        )
+    )
     my_corpus_audio = Corpus.from_directory(
         audio_directory="/home/vincent/Documents/data_canary/express",
     )
@@ -27,15 +31,15 @@ def load_corpus(verif_print=False):
     return my_corpus_audio_and_anot, my_corpus_audio
 
 
-
+# TODO: refactor
 def load_annotators(verif_print=False):
-
     from canapy.annotator import Annotator
 
-    my_annotator_from_disk = Annotator.from_disk("/home/vincent/Documents/Travail/Stage_L3/canapy-master_github/data_alizee/rouge_6_data_and_model/rouge6_model/models/syn")
+    my_annotator_from_disk = Annotator.from_disk(
+        "/home/vincent/Documents/Travail/Stage_L3/canapy-master_github/data_alizee/rouge_6_data_and_model/rouge6_model/models/syn"
+    )
 
-    #print(my_annotator_from_disk.config)
-
+    # print(my_annotator_from_disk.config)
 
 
 def test_corpus_query(corpus, verif_print=False):
@@ -57,22 +61,26 @@ def test_corpus_query(corpus, verif_print=False):
         print(corpus_long_phrase.dataset.to_string()[:1000])
 
 
-
 def create_annotators(corpus, verif_print=False):
-
     from config import default_config
 
     from canapy.annotator.synannotator import SynAnnotator
 
-    my_syn_annotator = SynAnnotator(default_config, "/home/vincent/Documents/data_canary/spec")
+    my_syn_annotator = SynAnnotator(
+        default_config, "/home/vincent/Documents/data_canary/spec"
+    )
 
     from canapy.annotator.nsynannotator import NSynAnnotator
 
-    my_nsyn_annotator = NSynAnnotator(default_config, "/home/vincent/Documents/data_canary/spec")
+    my_nsyn_annotator = NSynAnnotator(
+        default_config, "/home/vincent/Documents/data_canary/spec"
+    )
 
     from canapy.annotator.ensemble import Ensemble
 
-    my_ensemble_annotator = Ensemble(default_config, "/home/vincent/Documents/data_canary/spec")
+    my_ensemble_annotator = Ensemble(
+        default_config, "/home/vincent/Documents/data_canary/spec"
+    )
 
     if verif_print:
         print(type(my_syn_annotator))
@@ -82,8 +90,13 @@ def create_annotators(corpus, verif_print=False):
     return my_syn_annotator, my_nsyn_annotator, my_ensemble_annotator
 
 
-def train_annotators(corpus, my_syn_annotator, my_nsyn_annotator, my_ensemble_annotator, verif_print=False):
-
+def train_annotators(
+    corpus,
+    my_syn_annotator,
+    my_nsyn_annotator,
+    my_ensemble_annotator,
+    verif_print=False,
+):
     trained_syn = my_syn_annotator.fit(corpus)
 
     trained_nsyn = my_nsyn_annotator.fit(corpus)
@@ -98,8 +111,9 @@ def train_annotators(corpus, my_syn_annotator, my_nsyn_annotator, my_ensemble_an
     return trained_syn, trained_nsyn, trained_ensemble
 
 
-def predict_annotators(corpus, trained_syn, trained_nsyn, trained_ensemble, verif_print=False):
-
+def predict_annotators(
+    corpus, trained_syn, trained_nsyn, trained_ensemble, verif_print=False
+):
     # Prediction of syntactic annotator
     corpus_syn_predict = trained_syn.predict(corpus)
 
@@ -109,7 +123,9 @@ def predict_annotators(corpus, trained_syn, trained_nsyn, trained_ensemble, veri
     # Prediction of ensemble annotator
     corpus_syn_predict_raw = trained_syn.predict(corpus, return_raw=True)
     corpus_nsyn_predict_raw = trained_nsyn.predict(corpus, return_raw=True)
-    corpus_ensemble_predict = trained_ensemble.predict([corpus_syn_predict_raw, corpus_nsyn_predict_raw])
+    corpus_ensemble_predict = trained_ensemble.predict(
+        [corpus_syn_predict_raw, corpus_nsyn_predict_raw]
+    )
 
     if verif_print:
         print(corpus_syn_predict.dataset)
@@ -118,9 +134,13 @@ def predict_annotators(corpus, trained_syn, trained_nsyn, trained_ensemble, veri
 
     return corpus_syn_predict, corpus_nsyn_predict, corpus_ensemble_predict
 
-def metrics(g_corpus, p_corpus, print_verif=False):
 
-    from canapy.metrics import sklearn_classification_report, sklearn_confusion_matrix, segment_error_rate
+def metrics(g_corpus, p_corpus, print_verif=False):
+    from canapy.metrics import (
+        sklearn_classification_report,
+        sklearn_confusion_matrix,
+        segment_error_rate,
+    )
 
     r1 = sklearn_classification_report(g_corpus, p_corpus)
     r2 = sklearn_confusion_matrix(g_corpus, p_corpus)
@@ -133,7 +153,6 @@ def metrics(g_corpus, p_corpus, print_verif=False):
 
 
 def jupyter():
-
     from canapy.corpus import Corpus
     from canapy.annotator import get_annotator
     from config import default_config
@@ -142,11 +161,14 @@ def jupyter():
     nsyn_annotator = get_annotator("nsyn-esn")(default_config, "../../tuto/spec")
     ensemble_annotator = get_annotator("ensemble")(default_config, "../../tuto/spec")
 
+    corpus_annotated_songs = Corpus.from_directory(
+        audio_directory="../../tuto/annotated_songs",
+        annots_directory="../../tuto/annotated_songs",
+    )
 
-    corpus_annotated_songs = Corpus.from_directory(audio_directory="../../tuto/annotated_songs", annots_directory="../../tuto/annotated_songs")
-
-    corpus_non_annotated_songs = Corpus.from_directory(audio_directory="../../tuto/non_annotated_songs")
-
+    corpus_non_annotated_songs = Corpus.from_directory(
+        audio_directory="../../tuto/non_annotated_songs"
+    )
 
     syn_annotator.fit(corpus_annotated_songs)
     nsyn_annotator.fit(corpus_annotated_songs)
@@ -156,10 +178,16 @@ def jupyter():
     corpus_syn_predict = syn_annotator.predict(corpus_non_annotated_songs)
     corpus_nsyn_predict = nsyn_annotator.predict(corpus_non_annotated_songs)
 
-    corpus_syn_predict_raw = syn_annotator.predict(corpus_non_annotated_songs, return_raw=True)
-    corpus_nsyn_predict_raw = nsyn_annotator.predict(corpus_non_annotated_songs, return_raw=True)
+    corpus_syn_predict_raw = syn_annotator.predict(
+        corpus_non_annotated_songs, return_raw=True
+    )
+    corpus_nsyn_predict_raw = nsyn_annotator.predict(
+        corpus_non_annotated_songs, return_raw=True
+    )
 
-    corpus_ensemble_predict = ensemble_annotator.predict([corpus_syn_predict_raw, corpus_nsyn_predict_raw])
+    corpus_ensemble_predict = ensemble_annotator.predict(
+        [corpus_syn_predict_raw, corpus_nsyn_predict_raw]
+    )
 
 
 def dashboard():
@@ -167,7 +195,15 @@ def dashboard():
 
     from dashboard.app import CanapyDashboard
 
-    args = {'data_directory':'./tuto/annotated_songs', 'output_directory':'./tuto/results', 'config_path':'./config/template/default.config.toml', 'port':9321, 'annot_format':'marron1csv', 'audio_ext':'.wav', 'annotators':['syn-esn', 'nsyn-esn']}
+    args = {
+        "data_directory": "./tuto/annotated_songs",
+        "output_directory": "./tuto/results",
+        "config_path": "./config/template/default.config.toml",
+        "port": 9321,
+        "annot_format": "marron1csv",
+        "audio_ext": ".wav",
+        "annotators": ["syn-esn", "nsyn-esn"],
+    }
 
     pn.extension()
     dashboard = CanapyDashboard(**vars(args))
@@ -175,38 +211,27 @@ def dashboard():
 
 
 if __name__ == "__main__":
+    # print_config()
 
-    #print_config()
+    # load_annotators()
 
-    #load_annotators()
+    # my_corpus, my_corpus_audio = load_corpus()
 
-    #my_corpus, my_corpus_audio = load_corpus()
+    # test_corpus_query(my_corpus)
 
-    #test_corpus_query(my_corpus)
+    # syn, nsyn, ensemble = create_annotators(my_corpus)
 
-    #syn, nsyn, ensemble = create_annotators(my_corpus)
+    # trained_syn, trained_nsyn, trained_ensemble = train_annotators(my_corpus, syn, nsyn, ensemble)
 
-    #trained_syn, trained_nsyn, trained_ensemble = train_annotators(my_corpus, syn, nsyn, ensemble)
+    # c1, c2, c3 = predict_annotators(my_corpus, trained_syn, trained_nsyn, trained_ensemble, verif_print=True)
 
-    #c1, c2, c3 = predict_annotators(my_corpus, trained_syn, trained_nsyn, trained_ensemble, verif_print=True)
+    # print("\n\n\n\n\n\n\n SYN")
+    # metrics(my_corpus, c1, print_verif=True)
+    # print("\n\n\n\n\n\n\n NSYN")
+    # metrics(my_corpus, c2, print_verif=True)
+    # print("\n\n\n\n\n\n\n ENSEMBLE")
+    # metrics(my_corpus, c3, print_verif=True)
 
-    #print("\n\n\n\n\n\n\n SYN")
-    #metrics(my_corpus, c1, print_verif=True)
-    #print("\n\n\n\n\n\n\n NSYN")
-    #metrics(my_corpus, c2, print_verif=True)
-    #print("\n\n\n\n\n\n\n ENSEMBLE")
-    #metrics(my_corpus, c3, print_verif=True)
-
-    #jupyter()
+    # jupyter()
 
     dashboard()
-
-
-
-
-
-
-
-
-
-

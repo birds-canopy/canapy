@@ -1,6 +1,10 @@
 # Author: Nathan Trouvain at 05/07/2023 <nathan.trouvain<at>inria.fr>
 # Licence: MIT License
 # Copyright: Nathan Trouvain
+"""
+Transform MFCC data and labels to train ESN models.
+"""
+
 import logging
 
 import numpy as np
@@ -13,6 +17,27 @@ logger = logging.getLogger("canapy")
 
 
 def load_mfccs_and_repeat_labels(corpus, purpose="training"):
+    """Load precomputed MFCC and repeat labels along time axis
+    to get a suitable training/testing dataset for a recurrent neural
+    network.
+
+    Parameters
+    ----------
+    corpus : Corpus
+        An annotated corpus of vocalizations. Must contain MFCC data
+        in data_resources.
+    purpose : ["training", "eval"], default to "training"
+        Purpose of dataset. If "training", will check that
+        Corpus has annotations, and load the "train" split
+        of the Corpus. Else, the test split will be loaded.
+
+    Returns
+    -------
+    list of np.ndarray, list of np.ndarray, list of int, list of int
+        MFCCs as list of arrays of shape (timeframes, mfcc), one-hot
+        encoded labels as list of arrays of shape (timeframes, classes),
+        sequence id and annotation id as defined by crowsetta.
+    """
     if purpose == "training":
         split = "train"
 
@@ -108,6 +133,20 @@ def load_mfccs_and_repeat_labels(corpus, purpose="training"):
 
 
 def load_mfccs_for_annotation(corpus):
+    """Load MFCC for audio-only Corpus annotation.
+
+    Parameters
+    ----------
+    corpus : Corpus
+        Corpus to annotate. Must have been preprocessed and
+        contain MFCC data in data_resources.
+
+    Returns
+    -------
+    list of str, list of np.ndarray
+        List of audio filename and corresponding list of MFCC as arrays
+        of shape (timeframes, mfcc).
+    """
     if "syn_mfcc" not in corpus.data_resources:
         raise MissingData(
             "'syn_mfcc' were never computed or can't be found in Corpus. "

@@ -1,0 +1,689 @@
+#
+<center>
+Canapy
+</center>
+<center>
+<strong>Automatic audio annotation tools for animal
+vocalizations</strong>
+</center>
+<h1 id="tutorial">Tutorial</h1>
+<p>In this tutorial we will demonstrate step by step the training of a
+predictive model based on few annotated songs. After following this
+tutorial, you will be able to:</p>
+<ul>
+<li>get corresponding CSV from an Audacity file composed of waves and
+their annotations,</li>
+<li>build a model based,</li>
+<li>make annotations with this model on non annotated data.</li>
+</ul>
+<p><strong>Summary:</strong></p>
+<ul>
+<li><a href="#installation">1. Installation</a></li>
+<li><a href="#prepare_data">2. Prepare the data</a></li>
+<li><a href="#dashboard">3. Run the dashboard</a></li>
+<li><a href="#annotate">4. Use the models on another dataset</a></li>
+<li><a href="#config_object">5. The Config object</a></li>
+</ul>
+<h2 id="installation">Installation <a name="installation"></a></h2>
+<p>Canapy dashboard and tools can be installed using pip on the
+following repository:</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="at">-e</span> git+https://gitlab.inria.fr/ntrouvai/canapy.git</span></code></pre></div>
+<p>or by installing a local copy:</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="at">-e</span> <span class="op">&lt;</span>path to canapy directory containing pyproject.toml<span class="op">&gt;</span></span></code></pre></div>
+<p>(this might take a while, consider downloading the zipped repository
+and installing it locally instead if you don’t have a good
+connection.)</p>
+<h2 id="prepare-your-dataset">Prepare your dataset
+<a name="prepare_data"></a></h2>
+<p>Canapy uses supervised machine learning tools to create automatic
+annotators, and thus requires some hand-made annotations to bootstrap
+the annotation pipeline. Using our proposed method, we recommend to
+ideally have between 30 minutes and 1 hour of annotated sounds to train
+an automatic annotator. This may of course vary depending on the nature
+of the annotated vocalizations. Canapy was primarily designed to
+annotate bird songs, in particular domestic canary songs.</p>
+<p>Two sources of data are required to train an annotator: annotations
+and audio.</p>
+<h3 id="annotations">Annotations</h3>
+<p>Annotations are typically segments of audio labeled using a custom
+code representing different vocal units, like phonemes, syllables or
+words in human speech. In their most essential form, they are defined
+using the triplet (onset, offset, label), representing an annotated
+segment, delineated in time.</p>
+<p>For the time being, canapy only deals with non-overlapping annotation
+segments, and can thus only work on a single track of annotations.</p>
+<h4 id="the-default-annotation-format-marron1csv">The default annotation
+format: marron1csv</h4>
+<p>This format is inspired by the M1-spring dataset, a dataset of more
+than 400 hand-labeled songs of one domestic canary. It’s a simple,
+straightforward format, that is best expressed in a comma-separated
+values spreadsheet (.csv file).</p>
+<p>Four named columns of data are needed to define an annotation:</p>
+<ul>
+<li><code>wave</code>: the name of the audio track being annotated.</li>
+<li><code>start</code>: the beginning of the annotation on the audio
+track, in seconds</li>
+<li><code>end</code>: the end of the annotation on the audio track, in
+seconds</li>
+<li><code>syll</code>: the annotation label</li>
+</ul>
+<blockquote>
+<p>[!WARNING] TODO change screenshot</p>
+</blockquote>
+<p>An example .csv file may look like this: <br/> <img
+src="images/example_csv.png" alt="Screenshot CSV" /></p>
+<h4 id="use-another-format">Use another format</h4>
+<p>Audio annotations come in many different formats these days. You may
+have used Audacity, Raven, or Praat to annotate your data by hand.</p>
+<p>By default, canapy uses its own annotation format, called marron1csv,
+to process annotation data. To allow using a different format, canapy
+was built on top of crowsetta, an audio annotation formats managing
+tool, which can handle many different annotation format coming from many
+different annotation software. We recommend diving into crowsetta
+documentation to learn more about annotation formats.</p>
+<h3 id="audio">Audio</h3>
+<p>Audio recordings handled by canapy can have any sampling frequency.
+They must be mono audio recordings. If stereo audio are provided, they
+will be converted to mono.</p>
+<p>Canapy currently works with two audio data formats: WAV files (.wav)
+and Numpy arrays (.npy).</p>
+<h3 id="training-dataset-format">Training dataset format</h3>
+<p>When creating new automatic annotators for your data, you should
+provide some hand-labeled audios in order to train canapy to annotate
+this data.</p>
+<p>Because canapy will try to split your dataset in two parts (one for
+training and one to test its capabilities), you should provide several
+audio and annotation files. Canapy will consider each audio file as one
+sequence of vocalizations, and will never cut this sequence when
+training or annotating. When dealing with songbirds for instance, one
+file should ideally contain a single song sequence.</p>
+<p>Your dataset should therefore looks something like this:</p>
+<pre class="text"><code>├── song_dataset
+    └── annotations
+        ├── song1.csv
+        ├── song2.csv
+        ...
+        └── songN.csv
+    ├── audio
+        ├── song1.wav
+        ├── song2.wav
+        ...
+        └── songN.wav</code></pre>
+<p>Here, .csv files in the annotations/ folder contain annotations in
+marron1csv format (depending on your annotation format you may have
+different file extension) and .wav files in the audio/ folder are your
+audio recordings in WAV format.</p>
+<p>You can also provide audio recording and annotation files all mixed
+in a single directory:</p>
+<pre class="text"><code>├── song_dataset
+    └── data
+        ├── song1.csv
+        ├── song1.wav
+        ├── song2.csv
+        ├── song2.wav
+        ...
+        ├── songN.csv
+        └── songN.wav</code></pre>
+<p>Pay attention to how your audio files are named. Audio filenames will
+be used by annotation tools to link annotations with their corresponding
+audio. For instance, using the marron1csv annotation format, all values
+in the <code>wave</code> column in the .csv files must match one of the
+audio filenames.</p>
+<h3 id="non-annotated-dataset-format">Non-annotated dataset format</h3>
+<p>Once training has been performed, your dataset may consist only of
+audio files. As no dataset split is required for annotating files, your
+dataset may be one single file, or several smaller files. We do not
+recommend using too long files however. Depending on your computer,
+using very long recordings may be suboptimal, or even crash the
+annotator.</p>
+<h2 id="run-the-dashboard">Run the dashboard
+<a name="dashboard"></a></h2>
+<p>You can now launch the dashboard to train the annotation models and
+check the quality of the dataset.</p>
+<p>To run the dashboard, simply do:</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">canapy</span> ./bird1_dataset ./bird1_output</span></code></pre></div>
+<p>The dashboard should open in your browser, at localhost:9321. If not,
+simply reach localhost:9321 in your favorite browser. All the data
+produced by the dashboard (models and checkpoints) will be stored in
+<code>./bird1_output</code>. The first dashboard you will see in the one
+devoted to train the model.</p>
+<h3 id="dashboard-1-train">Dashboard 1: train</h3>
+<p>Click on the button <code>start training</code> to begin the training
+of the models and then produce the annotations. Metrics should display
+in the terminal where you started the dashboard. At the end of the
+training sequence, click on “Next step” to display the “eval” dashboard
+(it can take some time to display, don’t worry, click only
+<strong>once</strong> on the button). The first dashboard will train
+annotation models on the current version of the dataset, and produce
+their respective versions of the annotations.</p>
+<p>Two models are built during the training phase. They both are based
+on an Echo State Network (ESN), a kind of artificial neural network, and
+have the same parameters. They are, however, trained on two different
+tasks:</p>
+<ul>
+<li>the <strong>syn</strong> model (syntactic model) is trained to
+annotate whole songs. Entire songs and annotations files are presented
+to the models during training. Thus, the model is trained only on the
+available data, meaning that imbalance in number between the categories
+of bird phrases is preserved. The model is also expected to rely on
+syntactic information to produce its annotations, being trained on the
+real order of the phrases in the songs.</li>
+<li>the <strong>nsyn</strong> model (non syntactic model) is trained to
+annotate only randomly mixed phrases, with an artificially balanced
+number of phrases samples. This model is expected to rely only on inner
+characteristics of each type of syllables to annotate the songs, without
+taking into account their context in the song. Imbalance in number is
+also <em>not</em> preserved, meaning the model has to give the same
+importance to all categories of syllables.</li>
+</ul>
+<p>Finally, a third model, called <strong>ensemble</strong>, combine the
+outputs of the two previous models with a vote system, to combine the
+“judgements” of the two models in a new one.</p>
+<h3 id="dashboard-2-eval">Dashboard 2: eval</h3>
+<p>The second dashboard displays the performances of the three models
+during the <em>real</em> annotation task: all three models are fed with
+the whole songs contained in the hand-annotated dataset, and we will now
+look at the differences between their annotations and the handmade
+ones.</p>
+<p>This dashboard is divided in two parts:</p>
+<ul>
+<li>the Class merge dashboard</li>
+<li>the Sample correction dashboard You can switch between them with the
+buttons at the top of the dashboard.</li>
+</ul>
+<h4 id="class-merge">Class merge</h4>
+<p>In the <code>Class merge</code> dashboard, you can use the confusion
+matrices to inspect syllables categories where the models make a lot of
+mistakes. If the mistake pattern seems stable (high confusion between
+two classes, and potential agreement between the models), this could be
+the sign that the confused categories could be merged into one. This
+happens a lot on handmade annotations, due to obvious spelling mistakes
+in the annotations labels, or to disagreement in the naming between the
+human annotators, or to “over-classification” of certain patterns. <br/>
+<img src="images/example_confusion_matrix.png"
+alt="Screenshot Confusionmatrix" /> You can use the inspector at the
+right of the confusion matrices (clicking on the two buttons at the top
+right of the above screenshot) to display some class samples and see if
+a merge is coherent. When you have taken your decision, simply write the
+new name of the class you want to modify in the correction panel at the
+extreme right of the dashboard (for example, if you want to merge
+categories A and A1, because they are really close, simply write “A”
+under “A1” class text input). If the class contains few samples and
+doesn’t seem well-founded you can delete it by writing ‘DELETE’ in the
+text input under the name of the syllable category. Sometimes, some
+classes contains very few instances that are not sufficient for the
+model to recognize them, meaning they will not be usable. In this case
+making a ‘TRASH’ class is a good idea. <br/> <img
+src="images/example_class_corrections.png"
+alt="Screenshot corrections" /></p>
+<p>Make sure to click on the <code>Save corrections</code> button under
+the syllable types input text to save your changes.</p>
+<p>Moreover, you can find help to make corrections while looking to the
+metrics indicated under the confusion matrix. <br/> <img
+src="images/example_metrics.png" alt="Screenshot metrics" /> <br/> For
+example here the models achieve 97.06% accuracy each which is pretty
+good. However, you can see classes like C1, L, L2… that scores 0% in
+precision, recall and f1-score, meaning they may be deleted. If you
+choose to keep this model it will do a great job detecting the other
+classes but may lack experience recognizing the phrases labeled as C1,
+L,L2…</p>
+<h4 id="sample-correction">Sample correction</h4>
+<p>You can also inspect the samples about which the models disagree the
+most in the <code>Sample correction</code> dashboard. Here, all the
+annotations that are confused with another class over at least 2/3 of
+their time length by the models can be displayed, and manually corrected
+(the 2/3 time length disagreement parameter can be changed in the
+configuration file (see section 6.)). Again, at the right of the bar
+plot showing the disagreements’ distribution, an inspector allows you to
+display samples of all the categories of syllables. The models aren’t
+always right, as they use prediction you have the last word on which
+label to attribute to a phrase. If the sample correction is empty, don’t
+panic! it only means that the models performs well (maybe too well?) on
+the dataset. It is often the case with little datasets, where the models
+overfit the misrepresented categories of syllables. In any way, you
+should first focus on merging whole categories of syllables before
+correcting single samples.</p>
+<p>Make sure to click on the <code>Save all</code> button on the right
+of the distribution figure to save your changes.</p>
+<h3 id="next-step">Next step</h3>
+<p>You have two choices then:</p>
+<ul>
+<li>click the <code>Next step</code> button. This will redirect you to
+the ‘train’ dashboard. Indeed, after you have applied corrections on the
+dataset, you should retrain the models to see the increase in
+performance, and to check if by changing the data distribution new
+disagreements do not appear. You should do 3-4 iterations of
+training-evaluating to be sure that you have fixed all the annotations.
+Below, the comparison of the initial confusion matrix of the syntactic
+model and its matrix after some corrections: <br/> <img
+src="images/example_confusion_matrix_firsttraining.png"
+alt="Screenshot Confusionmatrix_not_corrected" /> <img
+src="images/example_confusion_matrix_after_corrections.png"
+alt="Screenshot Confusionmatrix_corrected" /></li>
+<li>click the <code>Export</code> button. If you are happy with the
+models performances and the annotations’ distribution of the dataset,
+after some iterations, you can click on this button to be redirected to
+the ‘export’ dashboard. This dashboard will simply retrain all the
+models with all the corrections applied on the dataset, and save them in
+the output directory, with the correction file, the configuration file,
+etc.</li>
+</ul>
+<p>In any case, a checkpoint of the current state of your analysis will
+be saved : corrections, configuration, models and annotations will be
+stored in the <code>output/checkpoint</code> directory, in a
+subdirectory named after the iteration number (<code>1</code> if it is
+your first run, <code>2</code> if it is the second time you apply
+corrections and train models, and so on).</p>
+<h3 id="output-directory">Output directory</h3>
+<p>After training your model you will find in the
+<code>./bird1_output</code> directory:</p>
+<ul>
+<li><code>checkpoints</code>: corrections, configuration, models and
+annotations corresponding to a round of training, in a subdirectory
+named after the iteration number (<code>1</code> if it is your first
+run, <code>2</code> if it is the second time you apply corrections and
+train models, and so on).</li>
+<li><code>models</code>: ‘syn’ and ‘nsyn’ program corresponding to the
+final version of the syntactic and non syntactic models you have
+trained</li>
+<li><code>annotations.json</code>: a JSON file containing all the
+annotations for the songs, if you want to open it, do that with Python,
+a Text Editor will crash.</li>
+<li><code>config.json</code>: a JSON file containing the models’
+parameters, you can know more about it in the <a
+href="#config_object">Config object</a> part.</li>
+<li><code>corrections.json</code>: a JSON file containing your class
+merges and sample corrections round after round, it looks like this:
+<a name="corrections_json"></a></li>
+</ul>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;0&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;syll&quot;</span><span class="fu">:</span> <span class="fu">{},</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;sample&quot;</span><span class="fu">:</span> <span class="fu">{}</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">},</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;1&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;syll&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;1-A1&quot;</span><span class="fu">:</span> <span class="st">&quot;A1&quot;</span><span class="fu">,</span> <span class="dt">&quot;1-B&quot;</span><span class="fu">:</span> <span class="st">&quot;B&quot;</span><span class="fu">,</span><span class="dt">&quot;I2~&quot;</span><span class="fu">:</span> <span class="st">&quot;DELETE&quot;</span><span class="fu">,</span> <span class="dt">&quot;L2&quot;</span><span class="fu">:</span> <span class="st">&quot;G&quot;</span><span class="fu">},</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;sample&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;1116&quot;</span><span class="fu">:</span> <span class="st">&quot;K2&quot;</span><span class="fu">,</span> <span class="dt">&quot;1443&quot;</span><span class="fu">:</span> <span class="st">&quot;F1&quot;</span><span class="fu">,</span> <span class="dt">&quot;2001&quot;</span><span class="fu">:</span> <span class="st">&quot;F1&quot;</span><span class="fu">}</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">},</span> </span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>    <span class="er">...</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;5&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>        <span class="er">...</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<ul>
+<li><code>vocab.json</code>: a JSON file listing all the syllable
+categories, it looks like this: <a name="vocab_json"></a></li>
+</ul>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ot">[</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;A1&quot;</span><span class="ot">,</span><span class="st">&quot;B&quot;</span><span class="ot">,</span><span class="st">&quot;C&quot;</span><span class="ot">,</span><span class="er">...</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="ot">]</span></span></code></pre></div>
+<h2 id="use-the-models-on-an-other-dataset">Use the models on an other
+dataset <a name="annotate"></a></h2>
+<p>Now that you have produced 2 neural networks and an ensemble model to
+correctly annotate bird songs, you can apply them on not annotated
+data.<br />
+To do so, we will use the <code>canapy</code> simple API, and a little
+of Python.</p>
+<p>This part can be executed using the Jupyter Notebook:
+<code>Tutorial_annotating_with_canapy</code>, available in the Canapy
+folder.</p>
+<p>First, in a coding environment, create an Annotator object:</p>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> canapy <span class="im">import</span> Annotator</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>annotator <span class="op">=</span> Annotator(<span class="st">&quot;./bird1_output/models&quot;</span>)</span></code></pre></div>
+<p>This object will call every function you need to produce annotations
+from the dataset, using the models we’ve trained in the dashboard. Make
+sure that the reservoirpy version you are using is the same as the one
+used for the model training, otherwise it won’t work.</p>
+<p>In this example, the <code>./bird1_non_annotated_songs</code>
+directory contains only .wav audio files, one per song, ready to be
+annotated.</p>
+<p>The Dataset object may look new to you, but it is in fact already
+used in the backend of the dashboard. It stores the dataset in the form
+of a Pandas Dataframe (in this case, only paths to audio files), but can
+also store annotations, corrections, configuration files, and apply
+everything to the audio and labels to correct them and extract the
+features needed by the models to annotate them. For now, we only need
+them to store the audio files and the configuration file, which is here
+by default. It also automatically creates the class “SIL”, which
+represents all the non annotated (and thus silent) part of the
+songs.</p>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> canapy <span class="im">import</span> Dataset</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> Dataset(<span class="st">&quot;./bird1_non_annotated_songs&quot;</span>, vocab <span class="op">=</span> annotator.vocab)</span></code></pre></div>
+<p>To run the annotator, simply call (it could last a bit long depending
+on how many songs you have to annotate):</p>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>annotations, vectors <span class="op">=</span> annotator.run(dataset <span class="op">=</span> dataset)</span></code></pre></div>
+<p>That’s it! The <code>annotations</code> variable now looks like a
+dictionary:</p>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;syn&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;000-song-name.wav&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;SIL&quot;</span><span class="ot">,</span> <span class="st">&quot;SIL&quot;</span><span class="ot">,</span> <span class="st">&quot;A&quot;</span><span class="ot">,</span> <span class="st">&quot;A&quot;</span><span class="ot">,</span> <span class="st">&quot;A&quot;</span><span class="ot">,</span> <span class="st">&quot;B&quot;</span><span class="ot">,</span> <span class="st">&quot;C&quot;</span><span class="er">...</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;001-song-name.wav&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="er">...</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>        <span class="er">...</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">},</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;nsyn&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>        <span class="er">...</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">},</span></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;ensemble&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>        <span class="er">...</span></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p>This dictionary stores all the annotations of the syntactic model,
+with the audio file name attached. If you want to annotate with the
+other models (non syntactic and ensemble) you can do it by specifying
+the parameter model to nsync, ensemble, or all.</p>
+<p>The <code>vectors</code> variable looks the same, but stores the raw
+responses of the models (the output vectors representing the decision of
+the neural network).</p>
+<p>Notice that the annotations look like they are repeating in time a
+lot. To export only the sequence of annotations in time, not all
+annotations for all timesteps, simply set the <code>to_group</code>
+argument to <code>True</code> when calling the annotator:</p>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>annotations, _ <span class="op">=</span> annotator.run(to_group<span class="op">=</span><span class="va">True</span>)</span></code></pre></div>
+<p>The annotations will now look like this:</p>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;syn&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;000-song-name.wav&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="er">(</span><span class="st">&quot;SIL&quot;</span><span class="ot">,</span> <span class="dv">2</span><span class="er">)</span><span class="ot">,</span> <span class="er">(</span><span class="st">&quot;A&quot;</span><span class="ot">,</span> <span class="dv">3</span><span class="er">)</span><span class="ot">,</span>  <span class="er">(</span><span class="st">&quot;B&quot;</span><span class="ot">,</span> <span class="dv">1</span><span class="er">)...</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;001-song-name.wav&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="er">...</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>        <span class="er">...</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">},</span></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;nsyn&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>        <span class="er">...</span></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">},</span></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;ensemble&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>        <span class="er">...</span></span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p>The annotations have been grouped. The number that comes along each
+annotation label is the number of timesteps covered by the annotation,
+i.e. the duration of the bird phrase, in number of spectral analysis
+windows. This number can be easily converted in seconds knowing the
+sampling rate and the time jumps between each analysis windows, but this
+can of course lead to huge approximations.</p>
+<p>If you really need to display this time in seconds, simply use:</p>
+<div class="sourceCode" id="cb14"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>new_annotations <span class="op">=</span> to_seconds(annotations, dataset.config)</span></code></pre></div>
+<p>Be careful, this function works with the grouped annotations from one
+model. Hence, you shouldn’t give it the annotations produced by
+<code>annotator.run(model='all',dataset=dataset,to_group=True).</code></p>
+<p>We will explain in the <a href="#config_object">Config object
+section</a> how the configuration stored in the dataset works.</p>
+<p>Finally, you can directly save these annotations in CSV files by
+using the csv_directory parameter. This parameter take the path where
+you want to save the new CSV as input. Moreover, this parameter
+automatically activates the grouping function, you don’t have to specify
+it to get a concise CSV.</p>
+<div class="sourceCode" id="cb15"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>annotations, _ <span class="op">=</span> annotator.run(dataset<span class="op">=</span>dataset,csv_directory<span class="op">=</span><span class="st">&quot;./tuto_non_annotated_songs_annotated&quot;</span>)</span></code></pre></div>
+<h2 id="the-config-object">The Config object
+<a name="config_object"></a></h2>
+<p>Modifying this object could be useful if you are manipulating other
+birds than canaries (changing the sampling rate for example)
+Configuration can be changed by creating a JSON file suffixed
+<code>.config.json</code>.</p>
+<p>A configuration file looks like this. All the keys are mandatory:</p>
+<div class="sourceCode" id="cb16"><pre
+class="sourceCode toml"><code class="sourceCode toml"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[misc]</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="dt">seed</span><span class="op">=</span><span class="dv">42</span></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="kw">[transforms.annots]</span></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a><span class="dt">time_precision</span><span class="op">=</span><span class="fl">0.001</span> <span class="co"># seconds</span></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a><span class="dt">min_label_duration</span><span class="op">=</span><span class="fl">0.02</span> <span class="co"># seconds</span></span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a><span class="dt">lonely_labels</span><span class="op">=[</span><span class="st">&quot;cri&quot;</span><span class="op">,</span> <span class="st">&quot;TRASH&quot;</span><span class="op">]</span></span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a><span class="dt">min_silence_gap</span><span class="op">=</span><span class="fl">0.001</span> <span class="co"># seconds</span></span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a><span class="dt">silence_tag</span><span class="op">=</span><span class="st">&quot;SIL&quot;</span></span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a><span class="kw">[transforms.audio]</span></span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a><span class="dt">audio_features</span><span class="op">=[</span><span class="st">&quot;mfcc&quot;</span><span class="op">,</span> <span class="st">&quot;delta&quot;</span><span class="op">,</span> <span class="st">&quot;delta2&quot;</span><span class="op">]</span></span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a><span class="dt">sampling_rate</span><span class="op">=</span><span class="dv">44100</span> <span class="co"># Hz</span></span>
+<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a><span class="dt">n_mfcc</span><span class="op">=</span><span class="dv">13</span></span>
+<span id="cb16-15"><a href="#cb16-15" aria-hidden="true" tabindex="-1"></a><span class="dt">hop_length</span><span class="op">=</span><span class="fl">0.01</span> <span class="co"># seconds</span></span>
+<span id="cb16-16"><a href="#cb16-16" aria-hidden="true" tabindex="-1"></a><span class="dt">win_length</span><span class="op">=</span><span class="fl">0.02</span> <span class="co"># seconds</span></span>
+<span id="cb16-17"><a href="#cb16-17" aria-hidden="true" tabindex="-1"></a><span class="dt">n_fft</span><span class="op">=</span><span class="dv">2048</span> <span class="co"># audio frames</span></span>
+<span id="cb16-18"><a href="#cb16-18" aria-hidden="true" tabindex="-1"></a><span class="dt">fmin</span><span class="op">=</span><span class="dv">500</span> <span class="co"># Hz</span></span>
+<span id="cb16-19"><a href="#cb16-19" aria-hidden="true" tabindex="-1"></a><span class="dt">fmax</span><span class="op">=</span><span class="dv">8000</span> <span class="co"># Hz</span></span>
+<span id="cb16-20"><a href="#cb16-20" aria-hidden="true" tabindex="-1"></a><span class="dt">lifter</span><span class="op">=</span><span class="dv">40</span></span>
+<span id="cb16-21"><a href="#cb16-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-22"><a href="#cb16-22" aria-hidden="true" tabindex="-1"></a><span class="kw">[transforms.audio.delta]</span></span>
+<span id="cb16-23"><a href="#cb16-23" aria-hidden="true" tabindex="-1"></a><span class="dt">padding</span><span class="op">=</span><span class="st">&quot;wrap&quot;</span></span>
+<span id="cb16-24"><a href="#cb16-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-25"><a href="#cb16-25" aria-hidden="true" tabindex="-1"></a><span class="kw">[transforms.audio.delta2]</span></span>
+<span id="cb16-26"><a href="#cb16-26" aria-hidden="true" tabindex="-1"></a><span class="dt">padding</span><span class="op">=</span><span class="st">&quot;wrap&quot;</span></span>
+<span id="cb16-27"><a href="#cb16-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-28"><a href="#cb16-28" aria-hidden="true" tabindex="-1"></a><span class="kw">[transforms.training]</span></span>
+<span id="cb16-29"><a href="#cb16-29" aria-hidden="true" tabindex="-1"></a><span class="dt">max_sequences</span><span class="op">=</span><span class="dv">-1</span></span>
+<span id="cb16-30"><a href="#cb16-30" aria-hidden="true" tabindex="-1"></a><span class="dt">test_ratio</span><span class="op">=</span><span class="fl">0.2</span></span>
+<span id="cb16-31"><a href="#cb16-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-32"><a href="#cb16-32" aria-hidden="true" tabindex="-1"></a><span class="kw">[transforms.training.balance]</span></span>
+<span id="cb16-33"><a href="#cb16-33" aria-hidden="true" tabindex="-1"></a><span class="dt">min_class_total_duration</span><span class="op">=</span><span class="dv">2</span>  <span class="co">#30 # seconds</span></span>
+<span id="cb16-34"><a href="#cb16-34" aria-hidden="true" tabindex="-1"></a><span class="dt">min_silence_duration</span><span class="op">=</span><span class="fl">0.2</span> <span class="co"># seconds</span></span>
+<span id="cb16-35"><a href="#cb16-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-36"><a href="#cb16-36" aria-hidden="true" tabindex="-1"></a><span class="kw">[transforms.training.balance.data_augmentation]</span></span>
+<span id="cb16-37"><a href="#cb16-37" aria-hidden="true" tabindex="-1"></a><span class="dt">noise_std</span><span class="op">=</span><span class="fl">0.01</span></span>
+<span id="cb16-38"><a href="#cb16-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-39"><a href="#cb16-39" aria-hidden="true" tabindex="-1"></a><span class="kw">[model.syn]</span></span>
+<span id="cb16-40"><a href="#cb16-40" aria-hidden="true" tabindex="-1"></a><span class="dt">units</span><span class="op">=</span><span class="dv">1000</span></span>
+<span id="cb16-41"><a href="#cb16-41" aria-hidden="true" tabindex="-1"></a><span class="dt">sr</span><span class="op">=</span><span class="fl">0.4</span></span>
+<span id="cb16-42"><a href="#cb16-42" aria-hidden="true" tabindex="-1"></a><span class="dt">leak</span><span class="op">=</span><span class="fl">0.1</span></span>
+<span id="cb16-43"><a href="#cb16-43" aria-hidden="true" tabindex="-1"></a><span class="dt">iss</span><span class="op">=</span><span class="fl">0.0005</span></span>
+<span id="cb16-44"><a href="#cb16-44" aria-hidden="true" tabindex="-1"></a><span class="dt">isd</span><span class="op">=</span><span class="fl">0.02</span></span>
+<span id="cb16-45"><a href="#cb16-45" aria-hidden="true" tabindex="-1"></a><span class="dt">isd2</span><span class="op">=</span><span class="fl">0.002</span></span>
+<span id="cb16-46"><a href="#cb16-46" aria-hidden="true" tabindex="-1"></a><span class="dt">ridge</span><span class="op">=</span><span class="fl">1e-8</span></span>
+<span id="cb16-47"><a href="#cb16-47" aria-hidden="true" tabindex="-1"></a><span class="dt">backend</span><span class="op">=</span><span class="st">&quot;multiprocessing&quot;</span></span>
+<span id="cb16-48"><a href="#cb16-48" aria-hidden="true" tabindex="-1"></a><span class="dt">workers</span><span class="op">=</span><span class="dv">-1</span></span>
+<span id="cb16-49"><a href="#cb16-49" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-50"><a href="#cb16-50" aria-hidden="true" tabindex="-1"></a><span class="kw">[model.nsyn]</span></span>
+<span id="cb16-51"><a href="#cb16-51" aria-hidden="true" tabindex="-1"></a><span class="dt">units</span><span class="op">=</span><span class="dv">1000</span></span>
+<span id="cb16-52"><a href="#cb16-52" aria-hidden="true" tabindex="-1"></a><span class="dt">sr</span><span class="op">=</span><span class="fl">0.4</span></span>
+<span id="cb16-53"><a href="#cb16-53" aria-hidden="true" tabindex="-1"></a><span class="dt">leak</span><span class="op">=</span><span class="fl">0.1</span></span>
+<span id="cb16-54"><a href="#cb16-54" aria-hidden="true" tabindex="-1"></a><span class="dt">iss</span><span class="op">=</span><span class="fl">0.0005</span></span>
+<span id="cb16-55"><a href="#cb16-55" aria-hidden="true" tabindex="-1"></a><span class="dt">isd</span><span class="op">=</span><span class="fl">0.02</span></span>
+<span id="cb16-56"><a href="#cb16-56" aria-hidden="true" tabindex="-1"></a><span class="dt">isd2</span><span class="op">=</span><span class="fl">0.002</span></span>
+<span id="cb16-57"><a href="#cb16-57" aria-hidden="true" tabindex="-1"></a><span class="dt">ridge</span><span class="op">=</span><span class="fl">1e-8</span></span>
+<span id="cb16-58"><a href="#cb16-58" aria-hidden="true" tabindex="-1"></a><span class="dt">backend</span><span class="op">=</span><span class="st">&quot;multiprocessing&quot;</span></span>
+<span id="cb16-59"><a href="#cb16-59" aria-hidden="true" tabindex="-1"></a><span class="dt">workers</span><span class="op">=</span><span class="dv">-1</span></span>
+<span id="cb16-60"><a href="#cb16-60" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-61"><a href="#cb16-61" aria-hidden="true" tabindex="-1"></a><span class="kw">[correction]</span></span>
+<span id="cb16-62"><a href="#cb16-62" aria-hidden="true" tabindex="-1"></a><span class="dt">min_segment_proportion_agreement</span><span class="op">=</span><span class="fl">0.66</span></span></code></pre></div>
+<h2 id="configuration-parameters">Configuration Parameters</h2>
+<h3 id="misc">[misc]</h3>
+<ul>
+<li><strong>seed = 42</strong>: Defines the seed for random number
+generators to ensure reproducible results.</li>
+</ul>
+<h3 id="transforms.annots">[transforms.annots]</h3>
+<ul>
+<li><strong>time_precision = 0.001</strong>: Time accuracy of
+annotations, in seconds.</li>
+<li><strong>min_label_duration = 0.02</strong>: Minimum duration of a
+label, in seconds. Labels shorter than this value will be ignored or
+merged.</li>
+<li><strong>lonely_labels = [‘cri’, ‘TRASH’]</strong>: List of labels
+considered ‘isolated’ and which may require special treatment.</li>
+<li><strong>min_silence_gap = 0.001</strong>: Minimum silence interval,
+in seconds, to separate two audio segments.</li>
+<li><strong>silence_tag = ‘SIL’</strong>: Tag used to mark silence
+segments.</li>
+</ul>
+<h3 id="transforms.audio">[transforms.audio]</h3>
+<ul>
+<li><strong>audio_features = [‘mfcc’, ‘delta’, ‘delta2’]</strong>: List
+of audio features to be extracted, in this case the mel-frequency
+cepstral coefficients (MFCC) and their first and second
+derivatives.</li>
+<li><strong>sampling_rate = 44100</strong>: Audio sampling rate, in
+Hertz.</li>
+<li><strong>n_mfcc = 13</strong>: Number of MFCC coefficients to
+extract.</li>
+<li><strong>hop_length = 0.01</strong>: Jump interval between analysis
+windows, in seconds.</li>
+<li><strong>win_length = 0.02</strong>: Length of analysis window, in
+seconds.</li>
+<li><strong>n_fft = 2048</strong>: Number of points for the Fast Fourier
+Transform (FFT), used to calculate the spectrogram.</li>
+<li><strong>fmin = 500</strong>: Minimum frequency to be considered when
+extracting characteristics, in Hertz.</li>
+<li><strong>fmax = 8000</strong>: Maximum frequency to be considered
+when extracting characteristics, in Hertz.</li>
+<li><strong>lifter = 40</strong>: Parameter for lifting cepstral
+coefficients, often used to accentuate the high-frequency
+characteristics of MFCCs.</li>
+</ul>
+<h3 id="transforms.audio.delta">[transforms.audio.delta]</h3>
+<ul>
+<li><strong>padding = ‘wrap’</strong>: Padding method for first
+derivatives (delta), here using circular padding.</li>
+</ul>
+<h3 id="transforms.audio.delta2">[transforms.audio.delta2]</h3>
+<ul>
+<li><strong>padding = ‘wrap’</strong>: Padding method for second
+derivatives (delta2), here using circular padding.</li>
+</ul>
+<h3 id="transforms.training">[transforms.training]</h3>
+<ul>
+<li><strong>max_sequences = -1</strong>: Maximum number of sequences for
+training. -1 can mean that there is no limit.</li>
+<li><strong>test_ratio = 0.2</strong>: Proportion of data used for the
+test, in this case 20%.</li>
+</ul>
+<h3 id="transforms.training.balance">[transforms.training.balance]</h3>
+<ul>
+<li><strong>min_class_total_duration = 2</strong>: Minimum total
+duration for each class when balancing data, in seconds.</li>
+<li><strong>min_silence_duration = 0.2</strong>: Minimum duration of
+silence segments to consider when balancing data, in seconds.</li>
+</ul>
+<h3
+id="transforms.training.balance.data_augmentation">[transforms.training.balance.data_augmentation]</h3>
+<ul>
+<li><strong>noise_std = 0.01</strong>: Standard deviation of noise added
+for data augmentation, here to simulate white Gaussian noise.</li>
+</ul>
+<h3 id="model.syn">[model.syn]</h3>
+<ul>
+<li><strong>units = 1000</strong>: Number of units in the recursive syn
+model.</li>
+<li><strong>sr = 0.4</strong>: Sampling rate syn.</li>
+<li><strong>leak = 0.1</strong>: Leakage parameter for recurrent
+units.</li>
+<li><strong>iss = 0.0005</strong>: Parameter for input scaling syn.</li>
+<li><strong>isd = 0.02</strong>: Parameter for syn density.</li>
+<li><strong>isd2 = 0.002</strong>: Second syn density parameter.</li>
+<li><strong>ridge = 1e-8</strong>: Ridge regularisation parameter.</li>
+<li><strong>backend = ‘multiprocessing’</strong>: Backend used for
+parallel calculation.</li>
+<li><strong>workers = -1</strong>: Number of workers for the
+multiprocessing backend. -1 means using all available CPUs.</li>
+</ul>
+<h3 id="model.nsyn">[model.nsyn]</h3>
+<p>The same parameters as for [model.syn], applied to another recurrent
+model (nsyn).</p>
+<h3 id="correction">[correction]</h3>
+<ul>
+<li><strong>min_segment_proportion_agreement=0.66</strong>: Minimum
+proportion of agreement to consider a segment as valid when correcting
+annotations.</li>
+</ul>
+<p>You can create your own configuration file by adding it in the
+directory where the dataset is loaded. For example, a good dataset
+directory structure would be:</p>
+<pre><code>└── dataset
+    ├── audio+labels
+    └── myconfig.config.json</code></pre>
+<p>Where the <code>audio+labels</code> directory could be the output of
+the Audacity converter, or just some audio files. If you call a Dataset
+object at the root of the <code>dataset</code> directory, the
+configuration file will be automatically loaded.</p>
+<p>In a program, you can then access the configuration through the
+<code>config</code> attribute of a Dataset object. All the keys of this
+<code>config</code> can be accessed like regular attributes or like dict
+keys:</p>
+<div class="sourceCode" id="cb18"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>config <span class="op">=</span> dataset.config</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>sampling_rate <span class="op">=</span> config.sampling_rate</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>sampling_rate <span class="op">=</span> config[<span class="st">&quot;sampling_rate&quot;</span>]</span></code></pre></div>
+<h2 id="support">Support</h2>
+<p>If you have any problems with using Canapy, don’t hesitate to contact
+Nathan Trouvain or Albane Arthuis at Inria Mnemosyne team: <a
+href="mailto:nathan.trouvain@inria.fr"
+class="email">nathan.trouvain@inria.fr</a> <a
+href="mailto:albane.arthuis@inria.fr"
+class="email">albane.arthuis@inria.fr</a></p>
+<blockquote>
+<p>[! WARNING] TODO: this becomes useless with new version of audacity.
+Maybe remove ?</p>
+</blockquote>
+<h3 id="export-annotations-from-audacity">Export annotations from
+Audacity</h3>
+<p>Audacity is a free and open-source software, with which you can
+manipulate audio files and annotate your bird songs. Your songs and
+annotations would have this aspect on the Audacity software: <br/> <img
+src="images/example_audacity.png" alt="Screenshot Audacity" /> On the
+first line you can see the spectrogram of the song and on the second
+line the corresponding annotations track. Make sure that your audio
+files contain only one song per file.</p>
+<p>Consider the following project storing some bird songs and
+annotations in Audacity .aup format:</p>
+<pre><code>project
+├── bird1
+│   ├── songs0.aup
+│   ├── songs0_data
+│   ├── songs1.aup
+│   └── songs1_data
+├── bird1_dataset</code></pre>
+<p>Your directories don’t have to have the same names as above, just
+make sure to enter the name you gave them in the command line. In a
+terminal running in the <code>project</code> directory, run :</p>
+<div class="sourceCode" id="cb20"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="ex">canapy-audacity-convert</span> <span class="at">-r</span> ./bird1 <span class="at">-o</span> ./bird1_dataset/</span></code></pre></div>
+<p>This will prompt you to confirm the exportation of the annotations
+and audio found in the Audacity files. This will then produce the
+following tree:</p>
+<pre><code>├── bird1
+│   ├── songs0.aup
+│   ├── songs0_data
+│   ├── songs1.aup
+│   └── songs1_data
+├── bird1_dataset
+    ├── data
+    └── repertoire</code></pre>
+<p>The <code>data</code> directory stores all annotations tracks in CSV
+files. The <code>repertoire</code> provides you extract of phrases based
+on the annotations:</p>
+<ul>
+<li>png of spectrograms: <br/> <img
+src="images/example_spectrogram_phrase.png"
+alt="Screenshot spectrogram" /></li>
+<li>and sound of the phrase (not the entire song). annotations in the
+dataset. You can disable it by removing the <code>-r</code> option when
+calling canapy.audacity.</li>
+</ul>
+<p>As stated before, you could also add JSON files such as
+corrections.json, vocab.json or config.json:</p>
+<ul>
+<li>corrections.json: if you already have some corrections in mind or if
+you already have a corrections.json file from a previous training
+(checkpoint or final version) you can put it here. You can check an
+example for this file here: <a href="#corrections_json">corrections.json
+example</a> ;</li>
+<li>vocab.json: if you already know the precise list of vocabulary of
+your dataset you can make a JSON file like this. Here is an example: <a
+href="#vocab_json">vocab.json example</a> ;</li>
+<li>config.json: this is the configuration file of the trained model, it
+contains audio manipulation parameters such as the sampling rate. If you
+want to modify it please check the <a href="#config_object">Config
+object</a> part.</li>
+</ul>
