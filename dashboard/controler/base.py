@@ -150,13 +150,13 @@ class Controler:
             logger.critical(e)
 
         try:
-            (self.output_directory / "spectro").mkdir(parents=True, exist_ok=True)
+            (self.output_directory / "spectrograms").mkdir(parents=True, exist_ok=True)
 
             logger.info(
                 f"All results will be stored in {self.output_directory}. "
                 f"Audio transformations (spectrograms, MFCC...) will be "
                 f"stored in "
-                f"{self.output_directory / 'spectro'}."
+                f"{self.output_directory / 'spectrograms'}."
             )
         except OSError as e:
             logger.critical(e)
