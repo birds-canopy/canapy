@@ -5,10 +5,9 @@
 **Summary:**
 
 - [1. Installation](#installation)
-- [2. Prepare the data](#prepare_data)
-- [3. Run the dashboard](#dashboard)
-- [4. Use the models on another dataset](#annotate)
-- [5. The Config object](#config_object)
+- [2. Prepare your dataset](#prepare_data)
+- [3. Run canapy dashboard](#dashboard)
+- [4. Using canapy Python library](#annotate)
 
 ## Installation <a name="installation"></a>
 
@@ -231,25 +230,25 @@ After training your model you will find in the `output/` directory:
 - `checkpoints`: corrections, configuration, models and annotations corresponding to a round of training, in a subdirectory named after the iteration number (`1` if it is your first run, `2` if it is the second time you apply corrections and train models, and so on).
 - `models`: 'syn' and 'nsyn' program corresponding to the final version of the syntactic and non syntactic models you have trained
 
-## Using canapy Python library
+## Using canapy Python library<a name="installation"></a>
 
 Canapy is primarily a Python tool to build simple and fast automatic
 audio annotation pipelines, using a simple yet efficient machine learning
 technique: Reservoir Computing.
 
-An annotation pipeline can be defined using two objects: the Corpus and the
+An annotation pipeline can be defined using two objects: the `Corpus` and the
 Annotator.
 
-### Dealing with data: the Corpus object
+### Dealing with data: the `Corpus` object
 
-The Corpus object is a representation of your dataset within canapy.
+The `Corpus` object is a representation of your dataset within canapy.
 It holds reference to audio data, is in charge with loading and
 formatting your annotations (when needed), and may also store some
 other things like preprocessed data - spectrograms, for instance.
 
-#### Create a Corpus object
+#### Create a `Corpus` object
 
-To load your dataset into a Corpus object, simply use:
+To load your dataset into a `Corpus` object, simply use:
 
 ```python
 from canapy import Corpus
@@ -279,9 +278,9 @@ corpus = Corpus.from_directory(
 
 #### Load data from a single directory or only audio data
 
-As explained in Prepare your data [TODO: add link], you can also provide
+As explained in [Prepare your data](#prepare-your-dataset), you can also provide
 a link to a single directory containing both annotations and audio, or create
-an audio-only Corpus by omitting the `annots_directory` argument:
+an audio-only `Corpus` by omitting the `annots_directory` argument:
 
 ```python
 # Annotated corpus, all data in the
@@ -299,7 +298,7 @@ non_annotated_corpus = Corpus.from_directory(
 
 #### The `.dataset` attribute
 
-The Corpus object will automatically format your data into crowsetta standard
+The `Corpus` object will automatically format your data into crowsetta standard
 annotation format `generic-seq`. This makes data formats interchangeable to some
 extent. You can access a tabular representation of annotations (as a `pandas.DataFrame`)
 from the `dataset` attribute:
@@ -308,12 +307,14 @@ from the `dataset` attribute:
 print(corpus.dataset)
 ```
 
-> [!WARNING]
-> TODO: print output
-
 Output:
 
-```text
+```
+    notated_path   onset_s    offset_s    label    annotation   sequence
+0      song1.wav      1.20        1.42        A             0          0
+1      song1.wav      1.55        2.12        B             0          0
+2      song1.wav      2.41        2.79        C             0          0
+3      song1.wav      2.89        3.45        A             0          0
 
 ```
 
@@ -341,7 +342,7 @@ None
 
 #### Save data to CSV
 
-Corpus can be saved to disk as CSV files, one per audio file,
+`Corpus` can be saved to disk as CSV files, one per audio file,
 if they have annotations:
 
 ```python
@@ -364,12 +365,12 @@ annotator = SynAnnotator()
 This object is in charge with training a
 machine learning model able to annotate
 your data, based on some audio and annotations
-stored in a Corpus, and eventually annotate
-a Corpus with unlabelled audio recordings.
+stored in a `Corpus`, and eventually annotate
+a `Corpus` with unlabelled audio recordings.
 
 #### Train an annotator
 
-After creating an annotated Corpus object,
+After creating an annotated `Corpus` object,
 you may `.fit` your annotator to your
 dataset:
 
@@ -406,10 +407,10 @@ from canapy.annotator import Annotator
 annotator = Annotator.from_disk("saved_directory/annotator") 
 ```
 
-#### Annotate a Corpus of audio
+#### Annotate a `Corpus` of audio
 
 You may now annotate unlabeled audio the `.predict` method
-of your annotator, generating a new Corpus with freshly
+of your annotator, generating a new `Corpus` with freshly
 computed annotations:
 
 ```python
@@ -421,7 +422,7 @@ labeled_corpus = annotator.predict(corpus)
 
 print(labeled_corpus.dataset)
 
-# Additionally save your annotated Corpus
+# Additionally save your annotated `Corpus`
 labeled_corpus.to_directory("song_data/new_annotations")
 ```
 
@@ -463,8 +464,8 @@ my_config.transforms.audio.sampling_rate = 16000
 ```
 
 The objects in charge with dealing with the configuration throughout
-your annotation pipeline are your Corpus and Annotator. To apply your
-configuration, change your Corpus configuration files:
+your annotation pipeline are your `Corpus` and Annotator. To apply your
+configuration, change your `Corpus` configuration files:
 
 ```python
 corpus = Corpus.from_directory(audio_directory="song_dateset/audio")
@@ -499,7 +500,7 @@ let's say at `saved_directory/my_config.toml`.
 > Do not change default parameter names! Most of them are required
 > by canapy to work.
 
-You can now load your configuration file directly from your Corpus
+You can now load your configuration file directly from your `Corpus`
 object, using the `config_path` argument:
 
 ```python
@@ -509,7 +510,7 @@ corpus = Corpus.from_directory(
   config_path="saved_directory/my_config.toml")
 ```
 
-You may now check that your Corpus `.config` is
+You may now check that your `Corpus` `.config` is
 identical to your personal configuration file:
 
 ```python
@@ -523,17 +524,11 @@ new Annotators:
 annotator = SynAnnotator(config=corpus.config)
 ```
 
-Additionally, configuration files can be loaded directly
+You may also change the dashboard configuration 
+by providing this file as argument using the `--config_path`
+parameter.
 
-### Common use-case: change audio sampling rate
-
-Canapy data processing is sensitive to audio files sampling frequency,
-also called sampling rate. Canapy default sampling rate is 44100Hz,
-but this can be adjusted from the configuration file.
-
-## The Config object <a name="config_object"></a>
-
-Modifying this object could be useful if you are manipulating other birds than canaries (changing the sampling rate for example) Configuration can be changed by creating a JSON file suffixed  `.config.json`.
+### Configuration details
 
 A configuration file looks like this. All the keys are mandatory:
 
@@ -653,11 +648,11 @@ min_segment_proportion_agreement=0.66
 ### [model.syn]
 
 - **units = 1000**: Number of units in the recursive syn model.
-- **sr = 0.4**: Sampling rate syn.
+- **sr = 0.4**: Spectral radius of recurrent weight matrix.
 - **leak = 0.1**: Leakage parameter for recurrent units.
-- **iss = 0.0005**: Parameter for input scaling syn.
-- **isd = 0.02**: Parameter for syn density.
-- **isd2 = 0.002**: Second syn density parameter.
+- **iss = 0.0005**: Parameter for MFCC input scaling.
+- **isd = 0.02**: Parameter for MFCC derivatives input scaling.
+- **isd2 = 0.002**: Parameter for MFCC second derivatives input scaling.
 - **ridge = 1e-8**: Ridge regularisation parameter.
 - **backend = ‘multiprocessing’**: Backend used for parallel calculation.
 - **workers = -1**: Number of workers for the multiprocessing backend. -1 means using all available CPUs.
@@ -670,183 +665,8 @@ The same parameters as for [model.syn], applied to another recurrent model (nsyn
 
 - **min_segment_proportion_agreement=0.66**: Minimum proportion of agreement to consider a segment as valid when correcting annotations.
 
-You can create your own configuration file by adding it in the directory where the dataset is loaded. For example, a good dataset directory structure would be:
-
-```
-└── dataset
-    ├── audio+labels
-    └── myconfig.config.json
-```
-
-Where the  `audio+labels` directory could be the output of the Audacity converter, or just some audio files. If you call a Dataset object at the root of the `dataset` directory, the configuration file will be automatically loaded.
-
-In a program, you can then access the configuration through the `config` attribute of a Dataset object. All the keys of this `config` can be accessed like regular attributes or like dict keys:
-
-```python
-config = dataset.config
-
-sampling_rate = config.sampling_rate
-sampling_rate = config["sampling_rate"]
-```
-
-
-
-## Use the models on an other dataset <a name="annotate"></a>
-
-Now that you have produced 2 neural networks and an ensemble model to correctly annotate bird songs, you can apply them on not annotated data.  
-To do so, we will use the `canapy` simple API, and a little of Python.
-  
-This part can be executed using the Jupyter Notebook: `Tutorial_annotating_with_canapy`, available in the Canapy folder.  
-
-First, in a coding environment, create an Annotator object:  
-
-```python
-from canapy import Annotator
-
-annotator = Annotator("./bird1_output/models")
-```
-
-This object will call every function you need to produce annotations from the dataset, using the models we've trained in the dashboard. Make sure that the reservoirpy version you are using is the same as the one used for the model training, otherwise it won't work.  
-
-In this example, the `./bird1_non_annotated_songs` directory contains only .wav audio files, one per song, ready to be annotated.  
-
-The Dataset object may look new to you, but it is in fact already used in the backend of the dashboard. It stores the dataset in the form of a Pandas Dataframe (in this case, only paths to audio files), but can also store annotations, corrections, configuration files, and apply everything to the audio and labels to correct them and extract the features needed by the models to annotate them. For now, we only need them to store the audio files and the configuration file, which is here by default. It also automatically creates the class "SIL", which represents all the non annotated (and thus silent) part of the songs.  
-
-```python
-from canapy import Dataset
-
-dataset = Dataset("./bird1_non_annotated_songs", vocab = annotator.vocab)
-```
-
-To run the annotator, simply call (it could last a bit long depending on how many songs you have to annotate):
-
-```python
-annotations, vectors = annotator.run(dataset = dataset)
-```
-
-That's it! The `annotations` variable now looks like a dictionary:
-
-```json
-{
-    "syn": {
-        "000-song-name.wav": ["SIL", "SIL", "A", "A", "A", "B", "C"...],
-        "001-song-name.wav": [...],
-        ...
-    },
-    "nsyn": {
-        ...
-    },
-    "ensemble": {
-        ...
-    }
-}
-```
-
-This dictionary stores all the annotations of the syntactic model, with the audio file name attached. If you want to annotate with the other models (non syntactic and ensemble) you can do it by specifying the parameter model to nsync, ensemble, or all.  
-
-The `vectors` variable looks the same, but stores the raw responses of the models (the output vectors representing the decision of the neural network).
-
-Notice that the annotations look like they are repeating in time a lot. To export only the sequence of annotations in time, not all annotations for all timesteps, simply set the `to_group` argument to  `True` when calling the annotator:  
-
-```python
-annotations, _ = annotator.run(to_group=True)
-```
-
-The annotations will now look like this:
-
-```json
-{
-    "syn": {
-        "000-song-name.wav": [("SIL", 2), ("A", 3),  ("B", 1)...],
-        "001-song-name.wav": [...],
-        ...
-    },
-    "nsyn": {
-        ...
-    },
-    "ensemble": {
-        ...
-    }
-}
-```
-
-The annotations have been grouped. The number that comes along each annotation label is the number of timesteps covered by the annotation, i.e. the duration of the bird phrase, in number of spectral analysis windows. This number can be easily converted in seconds knowing the sampling rate and the time jumps between each analysis windows, but this can of course lead to huge approximations.
-
-If you really need to display this time in seconds, simply use:
-
-```python
-new_annotations = to_seconds(annotations, dataset.config)
-```
-
-Be careful, this function works with the grouped annotations from one model. Hence, you shouldn't give it the annotations produced by `annotator.run(model='all',dataset=dataset,to_group=True).`  
-
-We will explain in the [Config object section](#config_object) how the configuration stored in the dataset works.
-
-Finally, you can directly save these annotations in CSV files by using the csv_directory parameter. This parameter take the path where you want to save the new CSV as input. Moreover, this parameter automatically activates the grouping function, you don't have to specify it to get a concise CSV.  
-
-```python
-annotations, _ = annotator.run(dataset=dataset,csv_directory="./tuto_non_annotated_songs_annotated")
-```
-
 ## Support
 
 If you have any problems with using Canapy, don't hesitate to contact Nathan Trouvain or Albane Arthuis at Inria Mnemosyne team:
 <nathan.trouvain@inria.fr>
-<albane.arthuis@inria.fr>
-
-> [! WARNING]
-> TODO: this becomes useless with new version of audacity. Maybe remove ?
-
-### Export annotations from Audacity
-
-Audacity is a free and open-source software, with which you can manipulate audio files and annotate your bird songs. Your songs and annotations would have this aspect on the Audacity software:
-<br/> ![Screenshot Audacity](images/example_audacity.png)
-On the first line you can see the spectrogram of the song and on the second line the corresponding annotations track.
-Make sure that your audio files contain only one song per file.
-
-Consider the following project storing some bird songs and annotations in Audacity .aup format:
-
-```
-project
-├── bird1
-│   ├── songs0.aup
-│   ├── songs0_data
-│   ├── songs1.aup
-│   └── songs1_data
-├── bird1_dataset
-```
-
-Your directories don't have to have the same names as above, just make sure to enter the name you gave them in the command line.
-In a terminal running in the `project` directory, run :
-
-```bash
-canapy-audacity-convert -r ./bird1 -o ./bird1_dataset/
-```
-
-This will prompt you to confirm the exportation of the annotations and audio found in the Audacity files.
-This will then produce the following tree:
-
-```
-├── bird1
-│   ├── songs0.aup
-│   ├── songs0_data
-│   ├── songs1.aup
-│   └── songs1_data
-├── bird1_dataset
-    ├── data
-    └── repertoire
-```
-
-The `data` directory stores all annotations tracks in CSV files.
-The `repertoire` provides you extract of phrases based on the annotations:
-
-- png of spectrograms:
-<br/> ![Screenshot spectrogram](images/example_spectrogram_phrase.png)
-- and sound of the phrase (not the entire song).
-annotations in the dataset. You can disable it by removing the `-r` option when calling canapy.audacity.
-
-As stated before, you could also add JSON files such as corrections.json, vocab.json or config.json:
-
-- corrections.json: if you already have some corrections in mind or if you already have a corrections.json file from a previous training (checkpoint or final version) you can put it here. You can check an example for this file here: [corrections.json example](#corrections_json) ;
-- vocab.json: if you already know the precise list of vocabulary of your dataset you can make a JSON file like this. Here is an example: [vocab.json example](#vocab_json) ;
-- config.json: this is the configuration file of the trained model, it contains audio manipulation parameters such as the sampling rate. If you want to modify it please check the [Config object](#config_object) part.
+<xavier.hinaut@inria.fr>
