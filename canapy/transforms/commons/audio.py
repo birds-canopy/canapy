@@ -51,7 +51,7 @@ def ls_spec_dir(spec_directory, spec_ext):
 
     if len(no_audio_file) > 0:
         logger.warning(
-            f"Found {len(no_audio_file)} spectro or feature files with no "
+            f"Found {len(no_audio_file)} spectrograms or feature files with no "
             f"corresponding audio file. If this is not the expected "
             f"behavior and you are providing spectrograms or features as "
             f"Numpy archive arrays with two fields: 'notated_path' "
@@ -148,7 +148,7 @@ def compute_mfcc(corpus, *, output_directory, resource_name, redo=False, **kwarg
 
     elif len(audio_paths) == 0:
         audio_ext = corpus.audio_ext
-        audio_dir = corpus.audio_dir
+        audio_dir = corpus.audio_directory
 
         raise AudioNotFound(
             f"No spectrograms provided, and no audio data file with extension '{audio_ext}' "

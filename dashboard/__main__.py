@@ -36,7 +36,7 @@ def cli():
 @click.option(
     "-a",
     "--annots-dir",
-    "--annots_directory",
+    "annots_directory",
     type=click.Path(exists=True, file_okay=False),
     help="Annotations directory, containing only annotation files. Use "
     "this option in conjunction with '-s' instead of '-d' "
@@ -98,7 +98,7 @@ def cli():
     help="Select which annotator to run within canapy.",
 )
 def display_dashboard(
-    data_directory, annots_directory, audio_directory, *args, **kwargs
+    data_directory=None, annots_directory=None, audio_directory=None, *args, **kwargs
 ):
     if data_directory is None and (annots_directory is None or audio_directory is None):
         raise NotADirectoryError("If -d is unset, then -a AND -s must be set!")

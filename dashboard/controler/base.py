@@ -53,7 +53,7 @@ class Controler:
     dashboard: panel.viewable.Viewer = attr.field()
     annot_format: str = attr.field(default="marron1csv")
     audio_ext: str = attr.field(default=".wav")
-    annotators: List[str] = attr.field(default=["syn-esn", "nsyn-esn", "ensemble"])
+    annotators: List[str] = attr.field(default=["syn-esn", "nsyn-esn", "ensemble"], converter=list)
 
     corpus: Optional[Corpus] = attr.field(default=None)
     config: Optional[Mapping] = attr.field(default=None)
