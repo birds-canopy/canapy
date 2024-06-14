@@ -82,9 +82,9 @@ Audacity, Raven, or Praat to annotate your data by hand.
 
 By default, canapy uses its own annotation format, called marron1csv, to process
 annotation data. To allow using a different format, canapy was built on top of
-crowsetta, an audio annotation formats managing tool, which can handle many
+[crowsetta](https://github.com/vocalpy/crowsetta), an audio annotation formats managing tool, which can handle many
 different annotation format coming from many different annotation software.
-We recommend diving into crowsetta documentation to learn more about annotation
+We recommend diving into [crowsetta documentation](https://crowsetta.readthedocs.io/en/latest/index.html) to learn more about annotation
 formats.
 
 ### Audio
