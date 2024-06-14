@@ -11,17 +11,28 @@
 
 ## Installation <a name="installation"></a>
 
-Canapy dashboard and tools can be installed using pip on the following repository:
+Canapy dashboard and tools can be installed using _pip_ (python installation package). You can install canapy using one of these two options:
 
+If you do not have _pip_ you can [found info here](https://pip.pypa.io/en/stable/installation/) to install it.
+
+**1st option to install canapy (local copy)**
 ```bash
-pip install -e git+ssh://github.com/birds-canopy/canapy.git
+git clone git@github.com:birds-canopy/canapy.git
+pip install -e canapy/.
 ```
 
-or by installing a local copy:
-
+or replace the second command line by this one if you want to install from another path (where you cloned the canapy repository):
 ```bash
 pip install -e <path to canapy directory containing pyproject.toml>
 ```
+
+**2nd option to install canapy**
+
+```bash
+pip install -e git+https://github.com/birds-canopy/canapy.git#egg=canapy-reborn
+```
+
+
 
 ## Prepare your dataset <a name="prepare_data"></a>
 
