@@ -39,7 +39,8 @@ pip install -e git+https://github.com/birds-canopy/canapy.git#egg=canapy-reborn
 Canapy uses supervised machine learning tools to create automatic annotators,
 and thus requires some hand-made annotations to bootstrap the annotation pipeline.
 Using our proposed method, we recommend to ideally have between 30 minutes and 1
-hour of annotated sounds to train an automatic annotator. This may of course vary
+hour of annotated sounds to train an automatic annotator - but from our experiments
+on canary data with 10 min of songs you can already obtain nice results! This may of course vary
 depending on the nature of the annotated vocalizations. Canapy was primarily
 designed to annotate bird songs, in particular domestic canary songs.
 
