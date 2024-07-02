@@ -10,6 +10,8 @@ import panel as pn
 
 from .app import CanapyDashboard
 
+# from .dashboardtest import DashboardTest
+
 
 _annotators = ["syn-esn", "nsyn-esn", "ensemble"]
 
@@ -17,8 +19,8 @@ _annotators = ["syn-esn", "nsyn-esn", "ensemble"]
 @click.group(
     name="canapy",
     help="Python tool for birdsong "
-    "vocalization dataset correction and "
-    "Reservoir Computing annotation models training.",
+         "vocalization dataset correction and "
+         "Reservoir Computing annotate models training.",
 )
 def cli():
     pass
@@ -31,17 +33,17 @@ def cli():
     "data_directory",
     type=click.Path(exists=True, file_okay=False),
     help="Directory containing data source with audio files and "
-    "annotations files. Replace '-a' and '-s'.",
+         "annotations files. Replace '-a' and '-s'.",
 )
 @click.option(
     "-a",
     "--annots-dir",
     "annots_directory",
     type=click.Path(exists=True, file_okay=False),
-    help="Annotations directory, containing only annotation files. Use "
-    "this option in conjunction with '-s' instead of '-d' "
-    "if your annotations and audio files are in "
-    "separate directories.",
+    help="Annotations directory, containing only annotate files. Use "
+         "this option in conjunction with '-s' instead of '-d' "
+         "if your annotations and audio files are in "
+         "separate directories.",
 )
 @click.option(
     "-s",
@@ -49,9 +51,9 @@ def cli():
     "audio_directory",
     type=click.Path(exists=True, file_okay=False),
     help="Audio directory, containing only audio files. Use "
-    "this option in conjunction with '-a' instead of '-d' "
-    "if your annotations and audio files are in "
-    "separate directories.",
+         "this option in conjunction with '-a' instead of '-d' "
+         "if your annotations and audio files are in "
+         "separate directories.",
 )
 @click.option(
     "-o",
@@ -65,15 +67,15 @@ def cli():
     "spec_directory",
     type=click.Path(),
     help="Directory where preprocessed audio data will be stored. "
-    "By default, preprocessed data will be stored in the same "
-    "directory as '--output-directory', in the 'spectrograms/' subdir.",
+         "By default, preprocessed data will be stored in the same "
+         "directory as '--output-directory', in the 'spectrograms/' subdir.",
 )
 @click.option(
     "-c",
     "--config-path",
     type=click.Path(exists=True, dir_okay=False, allow_dash=True),
     help="Path to a configuration file in TOML format. May come from standard "
-    "input (using dash).",
+         "input (using dash).",
 )
 @click.option(
     "-p",
@@ -87,8 +89,8 @@ def cli():
     type=click.Choice([".wav", ".npy"]),
     default=".wav",
     help="Audio data format. Either 'wav' for WAV audio files or 'npy' "
-    "for Numpy .npy files storing arrays. If 'npy', sampling rate "
-    "should be explicitely specified.",
+         "for Numpy .npy files storing arrays. If 'npy', sampling rate "
+         "should be explicitely specified.",
 )
 @click.option(
     "--annotators",
@@ -98,13 +100,13 @@ def cli():
     help="Select which annotator to run within canapy.",
 )
 def display_dashboard(
-    data_directory=None, annots_directory=None, audio_directory=None, *args, **kwargs
+        data_directory=None, annots_directory=None, audio_directory=None, *args, **kwargs
 ):
     if data_directory is None and (annots_directory is None or audio_directory is None):
         raise NotADirectoryError("If -d is unset, then -a AND -s must be set!")
 
     if data_directory is not None and (
-        annots_directory is not None or audio_directory is not None
+            annots_directory is not None or audio_directory is not None
     ):
         raise ValueError("If -d is set, then -a AND -s must not be used.")
 
@@ -114,12 +116,12 @@ def display_dashboard(
 
     pn.extension()
     dashboard = CanapyDashboard(audio_directory, annots_directory, *args, **kwargs)
+    # dashboard = DashboardTest()
     dashboard.show()
     return 0
 
 
 cli.add_command(display_dashboard)
-
 
 if __name__ == "__main__":
     cli()

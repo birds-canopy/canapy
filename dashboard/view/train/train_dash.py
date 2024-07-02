@@ -110,7 +110,7 @@ class AnnotatorDashboard(SubDash):
         self.layout = pn.Row(
             pn.Column(
                 pn.pane.HTML(
-                    "Syn annotation:"), self.syn_indicator, self.syn_status
+                    "Syn annotate:"), self.syn_indicator, self.syn_status
             ),
             pn.Column(
                 pn.pane.HTML(

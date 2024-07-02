@@ -72,7 +72,7 @@ def predict_with_esn(
 
     corpus = annotator.transforms(
         corpus,
-        purpose="annotation",
+        purpose="annotate",
         output_directory=corpus.spec_directory,
         redo=redo_transforms,
     )

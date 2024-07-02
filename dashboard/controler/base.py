@@ -59,7 +59,7 @@ class Controler:
     config: Optional[Mapping] = attr.field(default=None)
     corrector: Optional[Corrector] = attr.field(default=None)
     _iter: Optional[int] = attr.field(alias="_iter", default=1)
-    _step: Optional[str] = attr.field(alias="_step", default="train")
+    _step: Optional[str] = attr.field(alias="_step", default="home")
     _annotators: Optional[Dict[str, Annotator]] = attr.field(
         alias="_annotators", default=dict()
     )
@@ -89,7 +89,6 @@ class Controler:
             self.output_directory / "checkpoints", [{"class": dict(), "annot": dict()}]
         )
         self._iter = 1
-        self._step = "train"
 
         self.annotators = _sort_annotators(self.annotators)
 
@@ -219,7 +218,14 @@ class Controler:
             logger.critical("Failed to create export directory for annotations:")
             logger.critical(e)
 
-    def next_step(self, export=False):
+    def next_step(self, export=False, to=None):
+
+        if self.step == "home":
+            self._step = to
+
+        if self.step == "load_annotate":
+            self._step = to
+
         if self.step == "train":
             self._step = "eval"
             self.get_metrics()

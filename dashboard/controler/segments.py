@@ -18,7 +18,7 @@ def fetch_misclassified_samples(
     min_segment_proportion_agreement: float,
     silence_tag: str = "SIL",
 ):
-    # Retrieve all data as framed data (one annotation per timestep)
+    # Retrieve all data as framed data (one annotate per timestep)
     gold_frames = as_frame_comparison(
         gold_corpus, predictions[list(predictions.keys())[0]]
     )
@@ -58,7 +58,12 @@ def fetch_misclassified_samples(
 
             preds = annot_frames.filter(regex="pred_.*")
 
-            # Get: all labels found by models, for every frame of current annotation,
+            #Modif Clem - To avoid to divide by 0 if no preds
+            if len(preds) == 0:
+                continue
+            #Modif Clem
+
+            # Get: all labels found by models, for every frame of current annotate,
             # the counts of unique labels and the accuracy score of these predictions
             # against the annotated frames true value (from gold corpus).
             counts = preds.apply(
@@ -69,6 +74,12 @@ def fetch_misclassified_samples(
                 ),
                 axis="rows",
             ).T
+
+            #Modif Clem
+            if 'score' not in counts:
+                counts['score'] = 0
+            # Modif Clem
+
 
             # If all models achieve less than min_segment_proportion_agreement accuracy,
             # then this segment should be considered as problematic

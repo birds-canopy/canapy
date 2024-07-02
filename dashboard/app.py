@@ -9,10 +9,13 @@ import panel as pn
 from canapy.utils import as_path
 
 from .controler import Controler
+from .view.annotate.annotate_dash import AnnotateDashboard
+from .view.home.home_dash import HomeDashboard
 from .view.train.train_dash import TrainDashboard
 from .view.eval.eval_dash import EvalDashboard
 from .view.export.export_dash import ExportDashboard
 from .view.helpers import Registry
+from .view.upload.upload_dash import UploadDashboard
 
 MAX_SAMPLE_DISPLAY = 10
 
@@ -55,6 +58,9 @@ class CanapyDashboard(pn.viewable.Viewer):
             "train": TrainDashboard,
             "eval": EvalDashboard,
             "export": ExportDashboard,
+            "home": HomeDashboard,
+            "load_annotate": AnnotateDashboard,
+            "load_train": UploadDashboard
         }
         self.subdash = None
         self.current_view = pn.Row(

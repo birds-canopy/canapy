@@ -45,7 +45,7 @@ def test_corpus_query(corpus, verif_print=False):
 
     corpus_first_seconds = corpus["offset_s <= 10"]
     # corpus_first_seconds is a copy of corpus where there is only line that offset_s is smaller than 10
-    # so it contains the annotation that stop before the first 10 seconds
+    # so it contains the annotate that stop before the first 10 seconds
 
     corpus_long_phrase = corpus["offset_s - onset_s > 1"]
     # corpus_long_phrase is a copy of corpus where every phrase of the dataset that last less than a second

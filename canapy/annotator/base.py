@@ -150,7 +150,7 @@ class Annotator(abc.ABC):
             >>> print(f"My annotator is trained : {my_ensemble_annotator.trained()}")
             My annotator is trained : False
             >>> from canapy.corpus import Corpus
-            >>> corpus = Corpus.from_directory(audio_directory="/path/to/audio", annots_directory="/path/to/annotation")
+            >>> corpus = Corpus.from_directory(audio_directory="/path/to/audio", annots_directory="/path/to/annotate")
             >>> my_ensemble_annotator.fit(corpus)
             >>> # We create a corpus from some files and then train the annotator on it
             >>> print(f"My annotator is trained : {my_ensemble_annotator.trained()}")
@@ -201,7 +201,7 @@ class Annotator(abc.ABC):
             >>> my_annotator = SynAnnotator(default_config, "/path/to/spec")
             >>> # A not-syntaxic annotator is used in this example
             >>> from canapy.corpus import Corpus
-            >>> corpus = Corpus.from_directory(audio_directory="/path/to/audio", annots_directory="/path/to/annotation")
+            >>> corpus = Corpus.from_directory(audio_directory="/path/to/audio", annots_directory="/path/to/annotate")
             >>> my_annotator_trained = my_annotator.fit(corpus)
             >>> # The annotator is now trained with the given corpus
             >>> my_annotator_trained == my_annotator
