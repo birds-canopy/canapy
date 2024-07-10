@@ -6,7 +6,7 @@
 """
 Provides the Corpus class for storing canary songs' data.
 
-A corpus can be created from a repository containing audio, annotation, and spectrogram files,
+A corpus can be created from a repository containing audio, annotate, and spectrogram files,
 or from a DataFrame that already contains data about canary songs.
 Annotations from a corpus can be saved to disk using the 'to_directory' method.
 
@@ -63,15 +63,15 @@ class Corpus:
     spec_directory : pathlib.Path | str
         Path of the directory that contains spectrogram files.
     annots_directory : pathlib.Path | str
-        Path of the directory that contains annotation files.
+        Path of the directory that contains annotate files.
     annot_format : str
-        Format of the annotation data. <verify>
+        Format of the annotate data. <verify>
     annotations : GenericSeq (from crowsetta)
         Represents annotations from a generic format, meant to be an abstraction of any sequence-like format.
     config : Config (from config.toml)
         Store every parameter about corpus, transformations and annotators.
     dataset : pd.DataFrame
-        The DataFrame that stores annotation data.
+        The DataFrame that stores annotate data.
     data_resources : dict
         Additional resources about the corpus, such as applied transformations.
     audio_ext : str
@@ -123,12 +123,12 @@ class Corpus:
                     "notated_path",
                     "annot_path",
                     "sequence",
-                    "annotation",
+                    "annotate",
                 ]
             )
         else:
             self.dataset = self.annotations.to_df().sort_values(
-                by=["annotation", "sequence", "onset_s"]
+                by=["annotate", "sequence", "onset_s"]
             )
 
         self.data_resources = dict()
@@ -147,7 +147,7 @@ class Corpus:
             >>> corpus = Corpus(...)
             >>> len(corpus) # number of songs in the corpus
         """
-        return len(self.dataset["annotation"].unique())
+        return len(self.dataset["annotate"].unique())
 
     def __getitem__(self, item):
         """
@@ -172,7 +172,7 @@ class Corpus:
 
             >>> corpus_first_seconds = corpus["offset_s <= 10"]
             >>> # corpus_first_seconds is a copy of corpus where there is only line that offset_s is smaller than 10
-            >>> # so it contains the annotation that stop before the first 10 seconds
+            >>> # so it contains the annotate that stop before the first 10 seconds
 
             >>> corpus_long_phrase = corpus["offset_s - onset_s > 1"]
             >>> # corpus_long_phrase is a copy of corpus where every phrase of the dataset that last less than a second
@@ -212,7 +212,7 @@ class Corpus:
             Path of the directory that contains the configuration.
             By default, `default_config` (from config.py or config.toml) will be applied.
         annot_format : str, default="marron1csv"
-            The format of the annotation data.
+            The format of the annotate data.
         time_precision : float, default=0.001
             The time precision.
         audio_ext : str, default=".wav"
@@ -244,7 +244,7 @@ class Corpus:
             >>> corpus_audio_annotation = Corpus(
             >>>     audio_directory="/home/vincent/Documents/data_canary/mix_audio_annots",
             >>>     annots_directory="/home/vincent/Documents/data_canary/mix_audio_annots"
-            >>> ) # This corpus is made with the audio and annotation files in the 'mix_audio_annots' folder
+            >>> ) # This corpus is made with the audio and annotate files in the 'mix_audio_annots' folder
 
         """
         if audio_directory is None and spec_directory is None:
@@ -272,7 +272,7 @@ class Corpus:
                 "not a directory, or does not exist."
             )
 
-        # Check annotation directory and load annotations if needed
+        # Check annotate directory and load annotations if needed
         if annots_directory is not None:
             annots_dir = Path(annots_directory)
 
@@ -513,8 +513,8 @@ class Corpus:
 
         """
 
-        if "annotation" in df and "sequence" in df:
-            seq_ids = df["annotation"].astype(str) + df["sequence"].astype(str)
+        if "annotate" in df and "sequence" in df:
+            seq_ids = df["annotate"].astype(str) + df["sequence"].astype(str)
         else:
             seq_ids = None
 

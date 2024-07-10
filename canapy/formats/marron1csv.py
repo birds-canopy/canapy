@@ -33,7 +33,7 @@ class Marron1SeqSchema(pandera.SchemaModel):
 @crowsetta.interface.SeqLike.register
 @attr.define
 class Marron1CSV:
-    """Example custom annotation format"""
+    """Example custom annotate format"""
 
     name: ClassVar[str] = "marron1csv"
     ext: ClassVar[str] = ".csv"
@@ -62,7 +62,7 @@ class Marron1CSV:
 
         if len(wave_files) > 1:
             raise DataFormatError(
-                f"An annotation file is referencing more than one audio file, in "
+                f"An annotate file is referencing more than one audio file, in "
                 f"{annot_path}: found {len(wave_files)} audio file refs - "
                 f"{wave_files}"
             )
@@ -83,7 +83,7 @@ class Marron1CSV:
         )
 
     def to_seq(self, round_times: bool = True, decimals: int = 3) -> crowsetta.Sequence:
-        """Convert this annotation to a :class:`crowsetta.Sequence`.
+        """Convert this annotate to a :class:`crowsetta.Sequence`.
 
         Parameters
         ----------
@@ -109,7 +109,7 @@ class Marron1CSV:
         -----
         The ``round_times`` and ``decimals`` arguments are provided
         to reduce differences across platforms
-        due to floating point error, e.g. when loading annotation files
+        due to floating point error, e.g. when loading annotate files
         and then sending them to a csv file,
         the result should be the same on Windows and Linux.
         """
@@ -128,7 +128,7 @@ class Marron1CSV:
     def to_annot(
         self, round_times: bool = True, decimals: int = 3
     ) -> crowsetta.Annotation:
-        """Convert this annotation to a :class:`crowsetta.Annotation`.
+        """Convert this annotate to a :class:`crowsetta.Annotation`.
 
         Parameters
         ----------
@@ -154,7 +154,7 @@ class Marron1CSV:
         -----
         The ``round_times`` and ``decimals`` arguments are provided
         to reduce differences across platforms
-        due to floating point error, e.g. when loading annotation files
+        due to floating point error, e.g. when loading annotate files
         and then sending them to a csv file,
         the result should be the same on Windows and Linux.
         """
@@ -164,7 +164,7 @@ class Marron1CSV:
         )
 
     def to_file(self, annot_path: PathLike) -> None:
-        """Save this 'aud-seq' annotation to a txt file
+        """Save this 'aud-seq' annotate to a txt file
         in the standard/default Audacity LabelTrack format.
 
         Parameters

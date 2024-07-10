@@ -55,7 +55,7 @@ class Transform(abc.ABC):
             )
             corpus = self.transform_training_data(corpus, redo=redo_training)
 
-        elif purpose == "annotation":
+        elif purpose == "annotate":
             corpus = self.transform_annots(corpus, redo=redo_annots)
             corpus = self.transform_audio(
                 corpus, redo=redo_audio, output_directory=output_dir

@@ -15,7 +15,7 @@
 Canapy dashboard and tools can be installed using pip on the following repository:
 
 ```bash
-pip install -e git+https://gitlab.inria.fr/ntrouvai/canapy.git
+pip install -e git+ssh://github.com/birds-canopy/canapy.git
 ```
 
 or by installing a local copy:
@@ -23,8 +23,6 @@ or by installing a local copy:
 ```bash
 pip install -e <path to canapy directory containing pyproject.toml>
 ```
-
-(this might take a while, consider downloading the zipped repository and installing it locally instead if you don't have a good connection.)
 
 ## Prepare your dataset <a name="prepare_data"></a>
 
@@ -147,6 +145,91 @@ files. As no dataset split is required for annotating files, your dataset
 may be one single file, or several smaller files. We do not recommend using
 too long files however. Depending on your computer, using very long recordings
 may be suboptimal, or even crash the annotator.
+
+## Run canapy dashboard <a name="dashboard"></a>
+
+The easiest way to train annotators and check the quality of the dataset if by
+canapy dashboard application.
+
+To run the dashboard and load your dataset at `song_dataset/`, simply do:
+
+```bash
+canapy dash -a song_dataset/annotations -s song_dataset/audio -o output
+```
+
+or, if audio and annotations are placed in the same directory:
+
+```bash
+canapy dash -d song_dataset/data -o output
+```
+
+The dashboard should open in your browser, at localhost:9321. If not, simply reach localhost:9321 in your favorite browser.
+All the data produced by the dashboard (models and checkpoints) will be stored in `output/`.
+The first dashboard you will see in the one devoted to train the model.
+
+### Dashboard 1: train
+
+Click on the button `Start training` to begin the training of the annotators and then produce the annotations. Metrics should display in the terminal where you started the dashboard.
+At the end of the training sequence, click on "Next step" to display the "eval" dashboard (it can take some time to display, don't worry, click only **once** on the button).
+The first dashboard will train annotation models on the current version of the dataset, and produce their respective versions of the annotations.
+
+Two models are built during the training phase. They both are based on an Echo State Network (ESN), a kind of artificial neural network, and have the same parameters. They are, however, trained on two different tasks:
+
+- the **syn** model (syntactic model) is trained to annotate whole songs. Entire songs and annotations files are presented to the models during training. Thus, the model is trained only on the available data, meaning that imbalance in number between the categories of bird phrases is preserved. The model is also expected to rely on syntactic information to produce its annotations, being trained on the real order of the phrases in the songs.
+- the **nsyn** model (non syntactic model) is trained to annotate only randomly mixed phrases, with an artificially balanced number of phrases samples. This model is expected to rely only on inner characteristics of each type of syllables to annotate the songs, without taking into account their context in the song. Imbalance in number is also *not* preserved, meaning the model has to give the same importance to all categories of syllables.
+
+Finally, a third model, called **ensemble**, combine the outputs of the two previous models with a vote system, to combine the "judgements" of the two models in a new one.
+
+### Dashboard 2: eval
+
+The second dashboard displays the performances of the three models during the *real* annotation task: all three models are fed with the whole songs contained in the hand-annotated dataset, and we will now look at the differences between their annotations and the handmade ones.
+
+This dashboard is divided in two parts:
+
+- the Class merge dashboard
+- the Sample correction dashboard
+You can switch between them with the buttons at the top of the dashboard.
+
+#### Class merge
+
+In the `Class merge` dashboard, you can use the confusion matrices to inspect syllables categories where the models make a lot of mistakes. If the mistake pattern seems stable (high confusion between two classes, and potential agreement between the models), this could be the sign that the confused categories could be merged into one. This happens a lot on handmade annotations, due to obvious spelling mistakes in the annotations labels, or to disagreement in the naming between the human annotators, or to "over-classification" of certain patterns.
+<br/> ![Screenshot Confusionmatrix](images/example_confusion_matrix.png)
+You can use the inspector at the right of the confusion matrices (clicking on the two buttons at the top right of the above screenshot) to display some class samples and see if a merge is coherent. When you have taken your decision, simply write the new name of the class you want to modify in the correction panel at the extreme right of the dashboard (for example, if you want to merge categories A and A1, because they are really close, simply write "A" under "A1" class text input).
+If the class contains few samples and doesn't seem well-founded you can delete it by writing 'DELETE' in the text input under the name of the syllable category. Sometimes, some classes contains very few instances that are not sufficient for the model to recognize them, meaning they will not be usable. In this case making a 'TRASH' class is a good idea.
+<br/> ![Screenshot corrections](images/example_class_corrections.png)
+
+Make sure to click on the `Save corrections` button under the syllable types input text to save your changes.
+
+Moreover, you can find help to make corrections while looking to the metrics indicated under the confusion matrix.
+<br/> ![Screenshot metrics](images/example_metrics.png)
+<br/> For example here the models achieve 97.06% accuracy each which is pretty good. However, you can see classes like C1, L, L2... that scores 0% in precision, recall and f1-score, meaning they may be deleted. If you choose to keep this model it will do a great job detecting the other classes but may lack experience recognizing the phrases labeled as C1, L,L2...
+
+#### Sample correction
+
+You can also inspect the samples about which the models disagree the most in the `Sample correction` dashboard. Here, all the annotations that are confused with another class over at least 2/3 of their time length by the models can be displayed, and manually corrected (the 2/3 time length disagreement parameter can be changed in the configuration file (see section 6.)).
+Again, at the right of the bar plot showing the disagreements' distribution, an inspector allows you to display samples of all the categories of syllables.
+The models aren't always right, as they use prediction you have the last word on which label to attribute to a phrase.
+If the sample correction is empty, don't panic! it only means that the models performs well (maybe too well?) on the dataset. It is often the case with little datasets, where the models overfit the misrepresented categories of syllables. In any way, you should first focus on merging whole categories of syllables before correcting single samples.
+
+Make sure to click on the `Save all` button on the right of the distribution figure to save your changes.
+
+### Next step
+
+You have two choices then:
+
+- click the `Next step` button. This will redirect you to the 'train' dashboard. Indeed, after you have applied corrections on the dataset, you should retrain the models to see the increase in performance, and to check if by changing the data distribution new disagreements do not appear. You should do 3-4 iterations of training-evaluating to be sure that you have fixed all the annotations.
+Below, the comparison of the initial confusion matrix of the syntactic model and its matrix after some corrections:
+<br/> ![Screenshot Confusionmatrix_not_corrected](images/example_confusion_matrix_firsttraining.png) ![Screenshot Confusionmatrix_corrected](images/example_confusion_matrix_after_corrections.png)
+- click the `Export` button. If you are happy with the models performances and the annotations' distribution of the dataset, after some iterations, you can click on this button to be redirected to the 'export' dashboard. This dashboard will simply retrain all the models with all the corrections applied on the dataset, and save them in the output directory, with the correction file, the configuration file, etc.
+
+In any case, a checkpoint of the current state of your analysis will be saved : corrections, configuration, models and annotations will be stored in the `output/checkpoint` directory, in a subdirectory named after the iteration number (`1` if it is your first run, `2` if it is the second time you apply corrections and train models, and so on).
+
+### Output directory
+
+After training your model you will find in the `output/` directory:
+
+- `checkpoints`: corrections, configuration, models and annotations corresponding to a round of training, in a subdirectory named after the iteration number (`1` if it is your first run, `2` if it is the second time you apply corrections and train models, and so on).
+- `models`: 'syn' and 'nsyn' program corresponding to the final version of the syntactic and non syntactic models you have trained
 
 ## Using canapy Python library
 
@@ -606,111 +689,7 @@ sampling_rate = config.sampling_rate
 sampling_rate = config["sampling_rate"]
 ```
 
-## Run the dashboard <a name="dashboard"></a>
 
-You can now launch the dashboard to train the annotation models and check the quality of the dataset.
-
-To run the dashboard, simply do:
-
-```bash
-canapy ./bird1_dataset ./bird1_output
-```
-
-The dashboard should open in your browser, at localhost:9321. If not, simply reach localhost:9321 in your favorite browser.
-All the data produced by the dashboard (models and checkpoints) will be stored in `./bird1_output`.
-The first dashboard you will see in the one devoted to train the model.
-
-### Dashboard 1: train
-
-Click on the button `start training` to begin the training of the models and then produce the annotations. Metrics should display in the terminal where you started the dashboard.
-At the end of the training sequence, click on "Next step" to display the "eval" dashboard (it can take some time to display, don't worry, click only **once** on the button).
-The first dashboard will train annotation models on the current version of the dataset, and produce their respective versions of the annotations.
-
-Two models are built during the training phase. They both are based on an Echo State Network (ESN), a kind of artificial neural network, and have the same parameters. They are, however, trained on two different tasks:
-
-- the **syn** model (syntactic model) is trained to annotate whole songs. Entire songs and annotations files are presented to the models during training. Thus, the model is trained only on the available data, meaning that imbalance in number between the categories of bird phrases is preserved. The model is also expected to rely on syntactic information to produce its annotations, being trained on the real order of the phrases in the songs.
-- the **nsyn** model (non syntactic model) is trained to annotate only randomly mixed phrases, with an artificially balanced number of phrases samples. This model is expected to rely only on inner characteristics of each type of syllables to annotate the songs, without taking into account their context in the song. Imbalance in number is also *not* preserved, meaning the model has to give the same importance to all categories of syllables.
-
-Finally, a third model, called **ensemble**, combine the outputs of the two previous models with a vote system, to combine the "judgements" of the two models in a new one.
-
-### Dashboard 2: eval
-
-The second dashboard displays the performances of the three models during the *real* annotation task: all three models are fed with the whole songs contained in the hand-annotated dataset, and we will now look at the differences between their annotations and the handmade ones.
-
-This dashboard is divided in two parts:
-
-- the Class merge dashboard
-- the Sample correction dashboard
-You can switch between them with the buttons at the top of the dashboard.
-
-#### Class merge
-
-In the `Class merge` dashboard, you can use the confusion matrices to inspect syllables categories where the models make a lot of mistakes. If the mistake pattern seems stable (high confusion between two classes, and potential agreement between the models), this could be the sign that the confused categories could be merged into one. This happens a lot on handmade annotations, due to obvious spelling mistakes in the annotations labels, or to disagreement in the naming between the human annotators, or to "over-classification" of certain patterns.
-<br/> ![Screenshot Confusionmatrix](images/example_confusion_matrix.png)
-You can use the inspector at the right of the confusion matrices (clicking on the two buttons at the top right of the above screenshot) to display some class samples and see if a merge is coherent. When you have taken your decision, simply write the new name of the class you want to modify in the correction panel at the extreme right of the dashboard (for example, if you want to merge categories A and A1, because they are really close, simply write "A" under "A1" class text input).
-If the class contains few samples and doesn't seem well-founded you can delete it by writing 'DELETE' in the text input under the name of the syllable category. Sometimes, some classes contains very few instances that are not sufficient for the model to recognize them, meaning they will not be usable. In this case making a 'TRASH' class is a good idea.
-<br/> ![Screenshot corrections](images/example_class_corrections.png)
-
-Make sure to click on the `Save corrections` button under the syllable types input text to save your changes.
-
-Moreover, you can find help to make corrections while looking to the metrics indicated under the confusion matrix.
-<br/> ![Screenshot metrics](images/example_metrics.png)
-<br/> For example here the models achieve 97.06% accuracy each which is pretty good. However, you can see classes like C1, L, L2... that scores 0% in precision, recall and f1-score, meaning they may be deleted. If you choose to keep this model it will do a great job detecting the other classes but may lack experience recognizing the phrases labeled as C1, L,L2...
-
-#### Sample correction
-
-You can also inspect the samples about which the models disagree the most in the `Sample correction` dashboard. Here, all the annotations that are confused with another class over at least 2/3 of their time length by the models can be displayed, and manually corrected (the 2/3 time length disagreement parameter can be changed in the configuration file (see section 6.)).
-Again, at the right of the bar plot showing the disagreements' distribution, an inspector allows you to display samples of all the categories of syllables.
-The models aren't always right, as they use prediction you have the last word on which label to attribute to a phrase.
-If the sample correction is empty, don't panic! it only means that the models performs well (maybe too well?) on the dataset. It is often the case with little datasets, where the models overfit the misrepresented categories of syllables. In any way, you should first focus on merging whole categories of syllables before correcting single samples.
-
-Make sure to click on the `Save all` button on the right of the distribution figure to save your changes.
-
-### Next step
-
-You have two choices then:
-
-- click the `Next step` button. This will redirect you to the 'train' dashboard. Indeed, after you have applied corrections on the dataset, you should retrain the models to see the increase in performance, and to check if by changing the data distribution new disagreements do not appear. You should do 3-4 iterations of training-evaluating to be sure that you have fixed all the annotations.
-Below, the comparison of the initial confusion matrix of the syntactic model and its matrix after some corrections:
-<br/> ![Screenshot Confusionmatrix_not_corrected](images/example_confusion_matrix_firsttraining.png) ![Screenshot Confusionmatrix_corrected](images/example_confusion_matrix_after_corrections.png)
-- click the `Export` button. If you are happy with the models performances and the annotations' distribution of the dataset, after some iterations, you can click on this button to be redirected to the 'export' dashboard. This dashboard will simply retrain all the models with all the corrections applied on the dataset, and save them in the output directory, with the correction file, the configuration file, etc.
-
-In any case, a checkpoint of the current state of your analysis will be saved : corrections, configuration, models and annotations will be stored in the `output/checkpoint` directory, in a subdirectory named after the iteration number (`1` if it is your first run, `2` if it is the second time you apply corrections and train models, and so on).
-
-### Output directory
-
-After training your model you will find in the `./bird1_output` directory:
-
-- `checkpoints`: corrections, configuration, models and annotations corresponding to a round of training, in a subdirectory named after the iteration number (`1` if it is your first run, `2` if it is the second time you apply corrections and train models, and so on).
-- `models`: 'syn' and 'nsyn' program corresponding to the final version of the syntactic and non syntactic models you have trained
-- `annotations.json`: a JSON file containing all the annotations for the songs, if you want to open it, do that with Python, a Text Editor will crash.
-- `config.json`: a JSON file containing the models' parameters, you can know more about it in the [Config object](#config_object) part.
-- `corrections.json`: a JSON file containing your class merges and sample corrections round after round, it looks like this: <a name="corrections_json"></a>
-
-```json
-{
-    "0": {
-        "syll": {},
-        "sample": {}
-    },
-    "1": {
-        "syll": {"1-A1": "A1", "1-B": "B","I2~": "DELETE", "L2": "G"},
-        "sample": {"1116": "K2", "1443": "F1", "2001": "F1"}
-    }, 
-    ...
-    "5": {
-        ...
-    }
-}
-```
-
-- `vocab.json`: a JSON file listing all the syllable categories, it looks like this: <a name="vocab_json"></a>
-
-```json
-[
-  "A1","B","C",...
-]
-```
 
 ## Use the models on an other dataset <a name="annotate"></a>
 

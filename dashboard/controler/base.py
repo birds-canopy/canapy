@@ -47,6 +47,7 @@ def _sort_annotators(annotators: List):
 
 @attrs.define
 class Controler:
+<<<<<<< HEAD
     """UI and data control utilities."""
 
     dashboard: panel.viewable.Viewer = attrs.field()
@@ -64,6 +65,36 @@ class Controler:
     _metrics_store: Dict[str, Dict] = attrs.field(alias="_metrics_store", factory=dict)
     _correction_store: Dict = attrs.field(alias="_correctoin_store", factory=dict)
     classes: Optional[List[str]] = attrs.field(factory=list)
+=======
+    annots_directory: Path = attr.field(converter=as_path)
+    audio_directory: Path = attr.field(converter=as_path)
+    output_directory: Path = attr.field(converter=as_path)
+    spec_directory: Path = attr.field(converter=as_path)
+    config_path: Optional[Path] = attr.field(converter=as_path)
+    dashboard: panel.viewable.Viewer = attr.field()
+    annot_format: str = attr.field(default="marron1csv")
+    audio_ext: str = attr.field(default=".wav")
+    annotators: List[str] = attr.field(default=["syn-esn", "nsyn-esn", "ensemble"], converter=list)
+
+    corpus: Optional[Corpus] = attr.field(default=None)
+    config: Optional[Mapping] = attr.field(default=None)
+    corrector: Optional[Corrector] = attr.field(default=None)
+    _iter: Optional[int] = attr.field(alias="_iter", default=1)
+    _step: Optional[str] = attr.field(alias="_step", default="home")
+    _annotators: Optional[Dict[str, Annotator]] = attr.field(
+        alias="_annotators", default=dict()
+    )
+    _pred_corpora: Optional[Dict[str, Dict]] = attr.field(
+        alias="_pred_corpora", default=dict()
+    )
+    _metrics_store: Optional[Dict[str, Dict]] = attr.field(
+        alias="_metrics_store", default=dict()
+    )
+    _correction_store: Optional[Dict] = attr.field(
+        alias="_correctoin_store", default=dict()
+    )
+    _classes: Optional[List[str]] = attr.field(alias="_classes", default=None)
+>>>>>>> GUI
 
     def __attrs_post_init__(self):
         self.corpus = Corpus.from_directory(
@@ -78,8 +109,12 @@ class Controler:
         self.corrector = Corrector(
             self.output_directory / "checkpoints", [{"class": dict(), "annot": dict()}]
         )
+<<<<<<< HEAD
         self.iter = 1
         self.step = "train"
+=======
+        self._iter = 1
+>>>>>>> GUI
 
         self.annotators = _sort_annotators(self.annotators)
 
@@ -213,13 +248,13 @@ class Controler:
             logger.critical(e)
 
         try:
-            (self.output_directory / "spectro").mkdir(parents=True, exist_ok=True)
+            (self.output_directory / "spectrograms").mkdir(parents=True, exist_ok=True)
 
             logger.info(
                 f"All results will be stored in {self.output_directory}. "
                 f"Audio transformations (spectrograms, MFCC...) will be "
                 f"stored in "
-                f"{self.output_directory / 'spectro'}."
+                f"{self.output_directory / 'spectrograms'}."
             )
         except OSError as e:
             logger.critical(e)
@@ -282,7 +317,14 @@ class Controler:
             logger.critical("Failed to create export directory for annotations:")
             logger.critical(e)
 
-    def next_step(self, export=False):
+    def next_step(self, export=False, to=None):
+
+        if self.step == "home":
+            self._step = to
+
+        if self.step == "load_annotate":
+            self._step = to
+
         if self.step == "train":
             self.step = "eval"
             self.get_metrics()

@@ -9,7 +9,7 @@ from ..utils.exceptions import MissingData
 
 
 def as_frame_comparison(gold_corpus, corpus):
-    """Expand gold_corpus dataframe from annotation format (one row per segment) to
+    """Expand gold_corpus dataframe from annotate format (one row per segment) to
     frame format (one row per annotated frame of data), following frames defined by
     another corpus.
 

@@ -2,16 +2,16 @@
 A simple tool to convert Audacity projects with audio annotations to .wav files and .csv comma-separated dataset.
 The resulting dataset contains five features per annotations:
 
-  - a "wave" column storing the name of the wave file containing the annotation,
+  - a "wave" column storing the name of the wave file containing the annotate,
 
-  - a "syll" column storing the annotation label,
+  - a "syll" column storing the annotate label,
 
-  - a "start" colum storing the start time of the annotation on the track in seconds,
+  - a "start" colum storing the start time of the annotate on the track in seconds,
 
   - a "end" column storing its end time, also in seconds.
 
 Also creates a repertory with mel-spectrogam representations of the annotations, and individual .wav files for
-each annotation.
+each annotate.
 """
 import os
 import json
@@ -274,7 +274,7 @@ def extract_data(files):
 
         # all nodes representing .wav files
         waves = root.findall("{http://audacity.sourceforge.net/xml/}wavetrack")
-        # all nodes representing annotation track
+        # all nodes representing annotate track
         labeltrack = root.findall("{http://audacity.sourceforge.net/xml/}labeltrack")
 
         for wave, labels in zip(waves, labeltrack):

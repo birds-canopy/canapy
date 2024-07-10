@@ -118,7 +118,7 @@ class NSynAnnotator(Annotator):
             >>> # NSynAnnotator and default_config are imported to create a new annotator
             >>> my_annotator = NSynAnnotator(default_config, "/path/to/spec")
             >>> from canapy.corpus import Corpus
-            >>> corpus = Corpus.from_directory(audio_directory="/path/to/audio", annots_directory="/path/to/annotation")
+            >>> corpus = Corpus.from_directory(audio_directory="/path/to/audio", annots_directory="/path/to/annotate")
             >>> # A new corpus is created to train the annotator
             >>> my_annotator_trained = my_annotator.fit(corpus)
             >>> # The annotator is now trained with the given corpus
@@ -212,7 +212,7 @@ class NSynAnnotator(Annotator):
             >>> from canapy.corpus import Corpus
             >>> corpus = Corpus.from_directory(
             ...     audio_directory="/path/to/audio",
-            ...     annots_directory="/path/to/annotation")
+            ...     annots_directory="/path/to/annotate")
             >>> # NSynAnnotator and default_config are imported to create a new annotator
             >>> my_annotator = NSynAnnotator(
             ...     config=corpus.config,
@@ -223,7 +223,7 @@ class NSynAnnotator(Annotator):
             >>> unannotated_corpus = Corpus.from_directory(audio_directory="/path/to/audio")
             >>> # A new corpus iis created with potentially unannotated songs
             >>> annotated_corpus = my_annotator_trained.predict(unannotated_corpus)
-            >>> # 'annotated_corpus' contains the annotation made by the annotator
+            >>> # 'annotated_corpus' contains the annotate made by the annotator
             >>> annotated_corpus.to_disk("/path/to/new/annotations")
             >>> # Those annotations can be stored on the disk using Corpus 'to_disk' method
 

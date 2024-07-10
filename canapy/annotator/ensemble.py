@@ -32,9 +32,9 @@ def _check_prediction_lengths(predictions):
     ValueError
         If the corpora have different numbers of annotations or do not represent annotations for the same corpus.
     ValueError
-        If there is a mismatch in the annotation length in the corpora.
+        If there is a mismatch in the annotate length in the corpora.
     ValueError
-        If there is a mismatch in the annotation vocabulary size.
+        If there is a mismatch in the annotate vocabulary size.
 
     Returns
     -------
@@ -55,7 +55,7 @@ def _check_prediction_lengths(predictions):
             for k in keys
         ]
     ):
-        raise ValueError("Mismatch in annotation length in Corpora. Can't do Ensemble.")
+        raise ValueError("Mismatch in annotate length in Corpora. Can't do Ensemble.")
 
     keys = predictions[0].keys()
     if not all(
@@ -65,7 +65,7 @@ def _check_prediction_lengths(predictions):
         ]
     ):
         raise ValueError(
-            "Mismatch in annotation vocabulary size. Can't do hard vote "
+            "Mismatch in annotate vocabulary size. Can't do hard vote "
             "Ensemble on annotations with different number of classes."
         )
 
@@ -91,7 +91,7 @@ def hard_vote(corpora, classes=None):
     KeyError
         If 'nn_output' is not found in Corpus.data_resources.
     ValueError
-        If there is a mismatch in annotation length or vocabulary size in the corpora.
+        If there is a mismatch in annotate length or vocabulary size in the corpora.
 
     """
     raw_predictions = []
@@ -269,7 +269,7 @@ class Ensemble(Annotator):
             >>> # Ensemble and default_config are imported to create a new annotator
             >>> my_annotator = Ensemble(default_config, "/path/to/spec")
             >>> from canapy.corpus import Corpus
-            >>> corpus = Corpus.from_directory(audio_directory="/path/to/audio", annots_directory="/path/to/annotation")
+            >>> corpus = Corpus.from_directory(audio_directory="/path/to/audio", annots_directory="/path/to/annotate")
             >>> # A new corpus is created to train the annotator
             >>> my_annotator_trained = my_annotator.fit(corpus)
             >>> # The annotator is now trained with the given corpus
@@ -312,7 +312,7 @@ class Ensemble(Annotator):
             >>> # Annotators and default_config are imported to create a new annotator
             >>> my_annotator = ant.ensemble.Ensemble(default_config)
             >>> from canapy.corpus import Corpus
-            >>> corpus = Corpus.from_directory(audio_directory="/path/to/audio", annots_directory="/path/to/annotation")
+            >>> corpus = Corpus.from_directory(audio_directory="/path/to/audio", annots_directory="/path/to/annotate")
             >>> # A new corpus is created to train the annotator
             >>> my_annotator_trained = my_annotator.fit(corpus)
             >>> # The annotator is now trained with the given corpus
@@ -328,7 +328,7 @@ class Ensemble(Annotator):
             >>> annotated_raw_nsyn_corpus =  nsyn_annotator.predict(unannotated_corpus, return_raw=True)
             >>> # Those corpus contains predictions for each annotator and raw output of their model
             >>> annotated_corpus = my_annotator.predict([annotated_raw_syn_corpus, annotated_raw_nsyn_corpus])
-            >>> # 'annotated_corpus' contains the annotation made by the Ensemble annotator
+            >>> # 'annotated_corpus' contains the annotate made by the Ensemble annotator
             >>> annotated_corpus.to_disk("/path/to/new/annotations")
             >>> # Those annotations can be stored on the disk using Corpus 'to_disk' method
 

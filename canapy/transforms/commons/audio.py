@@ -51,7 +51,7 @@ def ls_spec_dir(spec_directory, spec_ext):
 
     if len(no_audio_file) > 0:
         logger.warning(
-            f"Found {len(no_audio_file)} spectro or feature files with no "
+            f"Found {len(no_audio_file)} spectrograms or feature files with no "
             f"corresponding audio file. If this is not the expected "
             f"behavior and you are providing spectrograms or features as "
             f"Numpy archive arrays with two fields: 'notated_path' "
@@ -121,7 +121,7 @@ def compute_mfcc(corpus, *, output_directory, resource_name, redo=False, **kwarg
         if resource_name in corpus.data_resources:
             curr_ressources = corpus.data_resources[resource_name]
             notated_names = curr_ressources["notated_path"].unique()
-            if set(get_filenames(notated_names)) in cep_names:
+            if set(get_filenames(notated_names)) <= cep_names:
                 logger.info("Found previously computed spectrograms. Will use them.")
                 return corpus
             else:
@@ -130,7 +130,7 @@ def compute_mfcc(corpus, *, output_directory, resource_name, redo=False, **kwarg
         # If we have audios, check we have corresponding spectrograms
         if len(audio_paths) > 0:
             audio_names = set(get_filenames(audio_paths))
-            if audio_names in cep_names:
+            if audio_names <= cep_names:
                 resource = cepstrum_df.query("notated_path in @audio_paths")
                 corpus.register_data_resource(resource_name, resource)
                 logger.info(
@@ -148,7 +148,7 @@ def compute_mfcc(corpus, *, output_directory, resource_name, redo=False, **kwarg
 
     elif len(audio_paths) == 0:
         audio_ext = corpus.audio_ext
-        audio_dir = corpus.audio_dir
+        audio_dir = corpus.audio_directory
 
         raise AudioNotFound(
             f"No spectrograms provided, and no audio data file with extension '{audio_ext}' "
