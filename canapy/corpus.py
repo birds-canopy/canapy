@@ -34,7 +34,7 @@ import logging
 import pathlib
 import shutil
 from pathlib import Path
-from typing import Iterable, Optional, Union, Sequence, Dict, Any
+from typing import Iterable, Optional, Union, Sequence, Dict, Any, Mapping
 
 import attr
 import pandas as pd
@@ -123,12 +123,12 @@ class Corpus:
                     "notated_path",
                     "annot_path",
                     "sequence",
-                    "annotate",
+                    "annotation",
                 ]
             )
         else:
             self.dataset = self.annotations.to_df().sort_values(
-                by=["annotate", "sequence", "onset_s"]
+                by=["annotation", "sequence", "onset_s"]
             )
 
         self.data_resources = dict()
@@ -189,7 +189,7 @@ class Corpus:
         audio_directory=None,
         spec_directory=None,
         annots_directory=None,
-        config_path=None,
+        config=None,
         annot_format="marron1csv",
         time_precision=0.001,
         audio_ext=".wav",
@@ -208,9 +208,10 @@ class Corpus:
             will create a spectrogram directory in `audio_directory`.
         annots_directory : str, optional
             Path of the directory that contains hand-made annotations.
-        config_path : str, optional
-            Path of the directory that contains the configuration.
-            By default, `default_config` (from config.py or config.toml) will be applied.
+        config : str or dict-like, optional
+            Path of the directory that contains the configuration, or configuration
+            dictionnary.
+            By default, `config.default_config` will be used.
         annot_format : str, default="marron1csv"
             The format of the annotate data.
         time_precision : float, default=0.001
@@ -325,8 +326,11 @@ class Corpus:
             logger.info(f"Created spectrogram directory at {spec_dir}")
 
         # Load configuration or use default
-        if config_path is not None:
-            config = Config.from_file(config_path)
+        if config is not None:
+            if isinstance(config, (str, Path)):
+                config = Config.from_file(config)
+            elif isinstance(config, Mapping):
+                config = config
         else:
             config = default_config
 
