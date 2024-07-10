@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "canapy-reborn"
+name = "canapy"
 version = "0.1.0"
 description = ""
 license = "MIT"
@@ -14,7 +14,7 @@ packages = [
   { include = "dashboard" },
   { include = "config" },
 ]
-include = ["**/*.config.toml"]
+include = ["**/*.config.toml", "**/assets"]
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.12"
