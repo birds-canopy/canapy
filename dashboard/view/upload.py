@@ -1,104 +1,25 @@
 import logging
 import os
 import time
+import random
+from collections import defaultdict
+from pathlib import Path
 
 import panel as pn
 import crowsetta
 import pandas as pd
-
-from collections import defaultdict
-from pathlib import Path
-from math import pi
-
 import soundfile
-from bokeh.palettes import Category20c
-from bokeh.plotting import figure
-from bokeh.transform import cumsum, factor_cmap
+import matplotlib.pyplot as plt
 
-pn.extension('floatpanel')
+from . import View
+from .settings import SettingsView
 
 logger = logging.getLogger("canapy-dashboard")
 
 
-class SideBar(pn.viewable.Viewer):
-    def __init__(self, parent, title):
-        super().__init__()
-        self.parent = parent
-
-        self.back_btn = pn.widgets.Button(button_type='warning', icon="arrow-back-up", name="Back")
-        self.back_btn.on_click(self.on_click_back)
-
-        self.quit_btn = pn.widgets.Button(name="Quit", button_type="danger", icon="square-rounded-x")
-        self.quit_btn.on_click(self.on_click_stop)
-
-        self.settings_button = pn.widgets.Button(button_type='primary', icon="settings", name="Settings")
-        self.settings_button.on_click(self.on_click_settings)
-
-        self.train_settings = pn.Column(
-            pn.widgets.IntInput(name='Seed', value=42, step=2, start=0, end=1000),
-            pn.widgets.DiscreteSlider(name='Time Precision',
-                                      options=[0.0004, 0.0006, 0.0008, 0.001, 0.0012, 0.0014, 0.0016], value=0.001),
-            pn.widgets.DiscreteSlider(name='Min Label Duration', options=[0.01, 0.02, 0.04, 0.06, 0.08], value=0.02),
-            pn.widgets.TextInput(name='Lonely Labels', value="cri,TRASH"),
-            pn.widgets.DiscreteSlider(name='Min Silence Gap',
-                                      options=[0.0004, 0.0006, 0.0008, 0.001, 0.0012, 0.0014, 0.0016], value=0.001),
-            pn.widgets.TextInput(name='Silence Tag', value="SIL"),
-            pn.widgets.IntInput(name='Sampling Rate', value=44100, step=500),
-            pn.widgets.IntInput(name='N_MFCC', value=13, step=1),
-            pn.widgets.FloatSlider(name='Hop Length', start=0, end=0.1, step=0.005, value=0.01),
-            pn.widgets.FloatSlider(name='Win Length', start=0, end=0.1, step=0.005, value=0.02),
-            pn.widgets.IntInput(name='N_FFT', value=2048, step=100),
-            pn.widgets.IntInput(name='F Min', value=500, step=10),
-            pn.widgets.IntInput(name='F Max', value=8000, step=50),
-            pn.widgets.IntInput(name='Lifter', value=40, step=2),
-            pn.widgets.TextInput(name='Padding', value="wrap"),
-            pn.widgets.TextInput(name='Output Directory', value=os.path.join(os.getcwd(), "bird1_output"))
-        )
-
-        self.settingspanel = pn.layout.FloatPanel(
-            self.train_settings,
-            name='Settings',
-            margin=20,
-            visible=False,
-            config={"headerControls": {"close": "remove", "maximize": "remove"}},
-            height=700
-        )
-
-        self.layout = pn.Column(
-            pn.pane.Markdown(f"## {title}", align='center'),
-            self.settings_button,
-            self.back_btn,
-            self.quit_btn,
-            self.settingspanel,
-            width=150,
-            sizing_mode="stretch_height",
-            styles={"background": "WhiteSmoke"}
-        )
-
-    def on_click_stop(self, events):
-        confirm_script = """
-        <script>
-            if (confirm("Are you sure you want to stop the server and close this tab?")) {
-                window.close();
-            }
-        </script>
-        """
-        self.layout.append(pn.pane.HTML(confirm_script))
-
-    def on_click_back(self, events):
-        print("Back")
-
-    def on_click_settings(self, event):
-        self.settingspanel.visible = not self.settingspanel.visible
-
-    def __panel__(self):
-        return self.layout
-
-
-class ModelCheckboxes(pn.viewable.Viewer):
+class ModelCheckboxes(View):
     def __init__(self, parent):
-        super().__init__()
-        self.parent = parent
+        super().__init__(parent)
 
         self.syn_checkbox = pn.widgets.Checkbox(name='Syntactic Model')
         self.nsyn_checkbox = pn.widgets.Checkbox(name='Non Syntactic Model')
@@ -120,14 +41,10 @@ class ModelCheckboxes(pn.viewable.Viewer):
             self.model_accordion
         )
 
-    def __panel__(self):
-        return self.layout
 
-
-class UploadDashboard(pn.viewable.Viewer):
+class UploadDashboard(View):
     def __init__(self, parent=None):
-        super().__init__()
-        self.parent = parent
+        super().__init__(parent)
 
         pn.config.raw_css.append("""
         .bk-btn-primary,
@@ -146,7 +63,11 @@ class UploadDashboard(pn.viewable.Viewer):
             width=750,
         )
 
-        self.sidebar = SideBar(self, "Upload")
+        self.sidebar.change_title("Upload")
+        
+        self.settings_view = SettingsView(parent=self)
+
+        # self.sidebar = SideBar(self, "Upload")
         self.modelcheckboxes = ModelCheckboxes(self)
 
         self.validate_btn = pn.widgets.Button(name="Validate", button_type="success")
@@ -190,32 +111,37 @@ class UploadDashboard(pn.viewable.Viewer):
         df_example = df.head(5)
         self.dataframe = pn.pane.DataFrame(df_example, height=200)
 
-        self.bokeh_pane = pn.pane.Bokeh(figure(height=390, title="Class Repartition", toolbar_location=None,
-                                               tools="hover", tooltips="@class: @value", x_range=(-0.5, 1.0)),
-                                        theme="dark_minimal", visible=True)
-
-        self.central_layout = pn.Row(
-            pn.Column(
-                title,
-                self.modelcheckboxes,
-                pn.pane.Markdown(f"## Data selection:"),
-                self.notification,
-                self.file_selector,
-                self.validate_btn,
-                self.data_accordion,
-                self.format_accordion
-            ),
-            pn.Column(
-                pn.pane.Markdown(f"## Data head :"), self.dataframe, self.stats, self.bokeh_pane, self.train_btn,
-                margin=(0, 0, 0, 50), align="start"
-            ),
-            margin=(20, 0, 0, 0)
-        )
+         # Barplot Example
+        fig, ax = plt.subplots(figsize=(7, 4))
+        plt.xlabel('Classes')
+        plt.ylabel('Count')
+        plt.title('Class repartition', fontweight='bold')
+        plt.tight_layout()
+        self.barplot_pane = pn.pane.Matplotlib(fig, height=350, disabled=True)
 
         self.layout = pn.Row(
-            self.sidebar,
-            self.central_layout,
-            title="Canapy"
+            pn.Column(
+                        pn.Column(
+                            title,
+                            self.modelcheckboxes,
+                            pn.pane.Markdown(f"## Data selection :"),
+                            self.file_selector,
+                            pn.Row(self.validate_btn, self.notification),
+                            self.data_accordion,
+                            self.format_accordion,
+                            width=1000,
+                            margin=(0, 0, 0, 5),
+                            css_classes=["Settings"]),
+                        pn.Column(
+                                self.settings_view
+                            )
+                    ),
+            pn.Column(
+                pn.pane.Markdown(f"## Data head :"), self.dataframe, self.stats, self.barplot_pane, self.train_btn,
+                css_classes=["Settings"],
+                margin=(0, 0, 0, 20), align="start"
+            ),
+            margin=(20, 0, 0, 20)
         )
 
     def on_click_validate(self, event):
@@ -244,7 +170,7 @@ class UploadDashboard(pn.viewable.Viewer):
 
             for format_name, format_class in formats.items():
                 extensions = getattr(format_class, 'ext', None)
-                if extensions:
+                if extensions is not None:
                     if isinstance(extensions, (list, tuple)):
                         for ext in extensions:
                             format_extensions.append((format_name, ext))
@@ -264,6 +190,7 @@ class UploadDashboard(pn.viewable.Viewer):
                     self.train_btn.disabled = True
                     return
 
+                # TODO: don't restrict this too much!
                 for ext in extensions:
                     if ext == ".csv":
                         annot_folder = folder
@@ -276,10 +203,19 @@ class UploadDashboard(pn.viewable.Viewer):
                 self.notification.visible = True
                 self.train_btn.disabled = True
                 return
+            
+            self.controler.create_corpus(audio_directory=audio_folder,
+                annots_directory=annot_folder,
+                spec_directory="./", # TODO: replace by output directory
+                config=None,  # TODO: get configuration from file if needed
+                annot_format="marron1csv", # TODO: get this from the search above
+                audio_ext=".wav", # TODO: idem
+            )
 
             self.notification.object = "La sélection est validée."
             self.notification.alert_type = 'success'
             self.notification.visible = True
+            # TODO: use controler.corpus.dataset here, not csv_parser
             self.update_data(*self.csv_parser(annot_folder))
             self.bokeh_pane.visible = True
             self.train_btn.disabled = False
@@ -342,45 +278,41 @@ class UploadDashboard(pn.viewable.Viewer):
         total_duration_str = time.strftime("%H:%M:%S", time.gmtime(total_duration))
         total_silence_duration_str = time.strftime("%H:%M:%S", time.gmtime(total_silence_duration))
         data_stats = f"""
-        ## Data stats :
-        ### Nombre de classes : {num_classes_total}
-        ### Labels des classes : {", ".join(sorted(class_labels_total))}
-        ### Durée totale de l'audio : {total_duration_str}
-        ### Durée totale du silence : {total_silence_duration_str}
-        ### Nombre de fichiers audios annotés : {num_annotated_files} 
-        """
+                ## Data stats :
+                ### Number of classes : {num_classes_total}
+                ### Class labels : {", ".join(sorted(class_labels_total))}
+                ### Total audio duration : {total_duration_str}
+                ### Total silence duration : {total_silence_duration_str}
+                ### Number of annotated audio files : {num_annotated_files} 
+                """
+
         self.stats.object = data_stats
 
         self.dataframe.object = csv_head
 
-        data = pd.Series(class_repartition).reset_index(name='value').rename(columns={'index': 'class'})
-        data = data[data['class'] != 'SIL']
-        data['angle'] = data['value'] / data['value'].sum() * 2 * pi
-        data['color'] = (Category20c[20] * ((len(data) // 20) + 1))[:len(data)]
-        data = data.sort_values(by='value', ascending=False)
+        if 'SIL' in class_repartition:
+            del class_repartition['SIL']
 
-        self.p = figure(height=390, title="Class Repartition", toolbar_location=None,
-                        tools="hover", tooltips="@class: @value", x_range=(-0.5, 1.0))
+        sorted_items = sorted(class_repartition.items(), key=lambda item: item[1])
+        classes = [item[0] for item in sorted_items]
+        counts = [item[1] for item in sorted_items]
 
-        self.p.wedge(x=0, y=1, radius=0.4,
-                     start_angle=cumsum('angle', include_zero=True), end_angle=cumsum('angle'),
-                     line_color="white",
-                     fill_color=factor_cmap('class', palette=data['color'], factors=data['class']),
-                     legend_field='class', source=data)
-        self.p.axis.axis_label = None
-        self.p.axis.visible = False
-        self.p.grid.grid_line_color = None
+        colors = ['#' + ''.join(random.choices('0123456789abcdef', k=6)) for _ in range(len(classes))]
 
-        self.bokeh_pane.object = self.p
-        self.bokeh_pane.visible = True
+        plt.figure(figsize=(7, 4))
+        bars = plt.bar(classes, counts, color=colors)
+        plt.xlabel('Classes')
+        plt.ylabel('Count')
+        plt.title('Class repartition', fontweight='bold')
+
+        for bar, count in zip(bars, counts):
+            yval = bar.get_height()
+            plt.text(bar.get_x() + bar.get_width() / 2, yval + 5, f'{count}', ha='center', va='bottom')
+
+        plt.xticks(rotation=90)
+        plt.tight_layout()
+
+        self.barplot_pane.object = plt.gcf()
 
     def on_click_train(self, events):
-        print("Train")
-
-    def __panel__(self):
-        return self.layout
-
-
-if __name__ == '__main__':
-    dashboard = UploadDashboard()
-    pn.serve(dashboard.layout)
+        logger.info("Entering train dashboard.")

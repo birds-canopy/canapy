@@ -8,7 +8,7 @@ import pandas as pd
 
 from canapy.plots import plot_bokeh_confusion_matrix
 
-from ..helpers import SubDash
+from .. import View
 from ..helpers import Registry
 
 pn.extension("tabulator")
@@ -16,7 +16,7 @@ pn.extension("tabulator")
 MAX_SAMPLE_DISPLAY = 10
 
 
-class ClassMergeDashboard(SubDash):
+class ClassMergeDashboard(View):
     def __init__(self, parent):
         super().__init__(parent)
 
@@ -50,7 +50,7 @@ def format_score_df(styler):
     return styler
 
 
-class MetricsView(SubDash):
+class MetricsView(View):
     def __init__(self, parent):
         super().__init__(parent)
 
@@ -83,7 +83,7 @@ class MetricsView(SubDash):
         return pn.Row(tabs, sizing_mode="stretch_both")
 
 
-class RepertoireView(SubDash):
+class RepertoireView(View):
     def __init__(self, parent, num_panel, orientation, num_samples=MAX_SAMPLE_DISPLAY):
         super().__init__(parent)
 
@@ -150,7 +150,7 @@ class RepertoireView(SubDash):
         self.layout[1][1] = self.registry[label].layout
 
 
-class SampleView(SubDash):
+class SampleView(View):
     def __init__(
         self, parent, label=None, orientation="column", num_samples=MAX_SAMPLE_DISPLAY
     ):
@@ -188,7 +188,7 @@ class SampleView(SubDash):
         return layout
 
 
-class CorrectorView(SubDash):
+class CorrectorView(View):
     def __init__(self, parent):
         super().__init__(parent)
 

@@ -8,10 +8,11 @@ import panel as pn
 from canapy.plots import plot_bokeh_label_count
 
 from .classmerge import RepertoireView
-from ..helpers import SubDash, Registry
+from ..helpers import Registry
+from .. import View
 
 
-class SampleCorrectionDashboard(SubDash):
+class SampleCorrectionDashboard(View):
     def __init__(self, parent):
         super().__init__(parent)
 
@@ -87,7 +88,7 @@ class SampleCorrectionDashboard(SubDash):
         self.save_txt = "Saved!"
 
 
-class ClassSelectionView(SubDash):
+class ClassSelectionView(View):
     def __init__(self, label, num_error, parent):
         super().__init__(parent)
 
@@ -122,7 +123,7 @@ class ClassSelectionView(SubDash):
         )
 
 
-class SampleCorrectorView(SubDash):
+class SampleCorrectorView(View):
     def __init__(self, parent, label):
         super().__init__(parent)
 
@@ -157,7 +158,7 @@ class SampleCorrectorView(SubDash):
         return grid
 
 
-class SingleSampleCorrectorView(SubDash):
+class SingleSampleCorrectorView(View):
     def __init__(self, repertoire_entry, spec, parent):
         super().__init__(parent)
 

@@ -3,8 +3,7 @@ from pathlib import Path
 import panel as pn
 import pandas as pd
 
-from ..helpers import SubDash
-from ..helpers import SideBar
+from .. import View, SideBar
 from ..helpers import Registry
 
 from .classmerge import ClassMergeDashboard
@@ -14,7 +13,7 @@ from .samplecorrection import SampleCorrectionDashboard
 MAX_SAMPLE_DISPLAY = 10
 
 
-class EvalDashboard(SubDash):
+class EvalDashboard(View):
     def __init__(self, parent, **kwargs):
         super().__init__(parent, **kwargs)
 

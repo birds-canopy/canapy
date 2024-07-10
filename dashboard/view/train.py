@@ -3,14 +3,12 @@ import time
 
 import panel as pn
 
-from ..helpers import SubDash
-from ..helpers import SideBar
-
+from . import View, SideBar
 
 logger = logging.getLogger("canapy-dashboard")
 
 
-class TrainDashboard(SubDash):
+class TrainDashboard(View):
     def __init__(self, parent):
         super().__init__(parent)
 
@@ -21,7 +19,7 @@ class TrainDashboard(SubDash):
         self.layout = pn.Row(self.sidebar, self.traindash, self.annotdash)
 
 
-class TrainerDashboard(SubDash):
+class TrainerDashboard(View):
     def __init__(self, parent):
         super().__init__(parent)
 
@@ -89,7 +87,7 @@ class TrainerDashboard(SubDash):
         self.parent.annotdash.begin()
 
 
-class AnnotatorDashboard(SubDash):
+class AnnotatorDashboard(View):
     def __init__(self, parent):
         super().__init__(parent)
 

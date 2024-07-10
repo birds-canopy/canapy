@@ -2,11 +2,10 @@ import time
 
 import panel as pn
 
-from ..helpers import SubDash
-from ..helpers import SideBar
+from . import View, SideBar
 
 
-class ExportDashboard(SubDash):
+class ExportDashboard(View):
     def __init__(self, parent):
         super().__init__(parent)
 
