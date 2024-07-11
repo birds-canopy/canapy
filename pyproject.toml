@@ -40,6 +40,7 @@ param = "^1.13.0"
 bokeh = "^3.2.0"
 toml = "^0.10.2"
 click = "*"
+jsonschema= "*"
 
 [tool.poetry.group.dev.dependencies]
 black = "*"

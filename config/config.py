@@ -2,110 +2,139 @@
 # Licence: MIT License
 # Copyright: Nathan Trouvain
 import toml
+import yaml
+import json
+import logging
 import collections.abc
 
+import jsonschema
+
+from pathlib import Path
 from collections import UserDict
 
 
-class Config(UserDict):
+logger = logging.getLogger("config")
 
-    @classmethod
-    def from_file(cls, config_path):
-        with open(config_path, "r") as fp:
-            config = toml.load(fp)
 
-        return cls(**config)
+_FORMATTERS = {
+    "json": json,
+    "yaml": yaml,
+    "toml": toml,
+}
 
-    def to_disk(self, config_path):
-        with open(config_path, "w+") as fp:
-            toml.dump(dict(**self.data), fp)
+
+class _BaseConfig(UserDict):
 
     def __setattr__(self, attr, value):
-        if "data" not in self.__dict__:
-            self.__dict__["data"] = {}
-        self.data[attr] = value
+        if attr == "data":
+            self.__dict__["data"] = value
+            return
+        self[attr] = value
 
     def __getattr__(self, attr):
         if attr in self.data:
+            if isinstance(self.data[attr], _BaseConfig):
+                return type(self.data[attr])(**self.data[attr])
             if isinstance(self.data[attr], collections.abc.Mapping):
-                return Config(**self.data[attr])
+                return type(self)(**self.data[attr])
             return self.data[attr]
         elif attr in self.__dict__:
             return self.__dict__[attr]
         else:
             raise AttributeError(attr)
+        
+    def items(self):
+        for key in self.data.keys():
+            yield key, getattr(self, key)
 
     def __repr__(self):
-        return "Config " + super(Config, self).__repr__()
+        return type(self).__name__ + super(_BaseConfig, self).__repr__()
+ 
 
-# Attempt of compatibility with previous Config objects
+class ConfigSchema(_BaseConfig):
+    
+    def validate(self, config):
+        jsonschema.validate(dict(**self), dict(**config))
 
-# new_names = {"syn.N": "model.syn.units",
-#              "syn.sr": "model.syn.sr",
-#              "syn.leak": "model.syn.leak",
-#              "syn.iss": "model.syn.iss",
-#              "syn.isd": "model.syn.isd",
-#              "syn.isd2": "model.syn.isd2",
-#              "syn.ridge": "model.syn.ridge",
-#
-#              "nsyn.N": "model.nsyn.units",
-#              "nsyn.sr": "model.nsyn.sr",
-#              "nsyn.leak": "model.nsyn.leak",
-#              "nsyn.iss": "model.nsyn.iss",
-#              "nsyn.isd": "model.nsyn.isd",
-#              "nsyn.isd2": "model.nsyn.isd2",
-#              "nsyn.ridge": "model.nsyn.ridge",
-#
-#              "sampling_rate": "transforms.audio.sampling_rate",
-#              "strict_window": "transforms.audio.strict_window",
-#              "n_fft": "transforms.audio.n_fft",
-#              "hop_length": "transforms.audio.hop_length",
-#              "win_length": "transforms.audio.win_length",
-#              "n_mfcc": "transforms.audio.n_mfcc",
-#              "lifter": "transforms.audio.lifter",
-#              "fmin": "transforms.audio.fmin",
-#              "fmax": "transforms.audio.fmax",
-#              "mfcc": "",  # Particular
-#              "delta": "",  # Particular
-#              "delta2": "",  # Particular
-#              "padding": ["transforms.audio.delta.padding",
-#              "transforms.audio.delta2.padding"],
-#              "min_class_duration":
-#              "transforms.training.balance.min_class_total_duration",
-#              "min_silence_duration":
-#              "transforms.training.balance.min_silence_duration",
-#              # "min_analysis_window_per_sample" <no_correspondance>
-#              # "min_correct_timesteps_per_sample" <no_correspondance>
-#              # "min_frame_nb" <no_correspondance>
-#              "keep_separate": "transforms.annots.lonely_label",
-#              "test_ratio": "transforms.training.test_ratio",
-#              "seed": "misc.seed"}
 
-#
-# @classmethod
-# def compat(cls, old_config):
-#
-#     new_config = default_config
-#
-#     def change_attr(old_nm, new_nm):
-#         old_name_list = old_nm.split('.')
-#         new_name_list = new_nm.split('.')
-#         setattr(get_sub_attr(new_config, new_name_list[1::-1]), new_name_list[-1],
-#                 get_sub_attr(old_config, old_name_list[::-1]))
-#
-#     def get_sub_attr(base, attrs):
-#         print(base, attrs)
-#         if len(attrs) > 0:
-#             next_attr = attrs.pop()
-#             return get_sub_attr(base[next_attr], attrs)
-#         return base
-#
-#     for old_name, new_name in cls.new_names.items():
-#         if isinstance(new_name, list):
-#             for _new_name in new_name:
-#                 change_attr(old_name, _new_name)
-#         elif isinstance(new_name, str):
-#             change_attr(old_name, new_name)
-#     new_config.transforms.audio.audio_features = [param for param in ["mfcc",
-#     "delta", "delta2"] if old_config[param]]
-#     return new_config
+    def flatten(self, base_name="", flat_config={}):
+        if base_name == "":
+            base_name = self.title
+
+        if "properties" in self:
+            for name, prop in self.properties.items():
+                next_name = f"{base_name}__{name}"
+                flat_config = prop.flatten(next_name, flat_config)
+        else:
+            flat_config[base_name] = self
+            return flat_config
+        return flat_config
+
+
+class Config(_BaseConfig):
+
+    @classmethod
+    def from_file(cls, config_path):
+        msg = ""
+        try:
+            with open(config_path, "r") as fp:
+                config = yaml.load(fp, yaml.Loader)
+        except Exception as e:
+            msg += "\nYAML:" + str(e)
+            try:
+                with open(config_path, "r") as fp:
+                    config = toml.load(fp)
+            except Exception as e:
+                msg += "\nTOML" + str(e)
+                try:
+                    with open(config_path, "r") as fp:
+                        config = json.load(fp)
+                except Exception as e:
+                    msg += "\nJSON" + str(e)
+                    raise IOError(
+                        f"Unkown configuration file format. "
+                        f"Expected a JSON, YAML or TOML file. "
+                        f"Errors: {e}")
+        
+        return cls(**config)
+
+    def __init__(self, schema=None, **kwargs):
+        super().__init__(**kwargs)
+        self._schema = None
+        if schema is not None:
+            self._schema = ConfigSchema(**schema)
+    
+    def __repr__(self):
+        return "Config" + super(_BaseConfig, self).__repr__()
+
+    @property
+    def schema(self):
+        return self._schema
+
+    def to_disk(self, config_path, format="yaml"):
+
+        data = self.data
+        if self.schema is not None:
+            data["schema"] = self.schema
+        
+        if format not in _FORMATTERS:
+            logger.warn("Unkown format: {format}. Falling back on YAML.")
+            format = "yaml"
+        
+        formatter = _FORMATTERS[format]
+
+        with open(config_path, "w+") as fp:
+            if format == "yaml":
+                yaml.dump(dict(**data), fp, yaml.Dumper)
+            else:
+                formatter.dump(dict(**data), fp)
+
+
+default_config = Config.from_file(Path(__file__).absolute().parent / "store" / "default.config.yml")
+
+
+if __name__ == "__main__":
+
+    # print(default_config.schema)
+    print(default_config.schema.flatten())
+    # print(default_config.schema.flatten())
