@@ -69,7 +69,7 @@ def load_mfccs_and_repeat_labels(corpus, purpose="training"):
 
     mfcc_paths = corpus.data_resources["syn_mfcc"]
 
-    df["seqid"] = df["sequence"].astype(str) + df["annotate"].astype(str)
+    df["seqid"] = df["sequence"].astype(str) + df["annotation"].astype(str)
 
     sampling_rate = corpus.config.transforms.audio.sampling_rate
     hop_length = seconds_to_audio(
@@ -127,7 +127,7 @@ def load_mfccs_and_repeat_labels(corpus, purpose="training"):
         mfccs.append(mfcc.T)
         labels.append(repeated_labels)
         sequences.append(seq_annots["sequence"].unique()[0])
-        annotations.append(seq_annots["annotate"].unique()[0])
+        annotations.append(seq_annots["annotation"].unique()[0])
 
     return annotations, sequences, mfccs, labels
 

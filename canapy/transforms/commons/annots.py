@@ -12,7 +12,7 @@ from ...log import log
 @log(fn_type="corpus transform")
 def sort_annotations(corpus, **kwargs):
     df = corpus.dataset.sort_values(
-        by=["annotate", "sequence", "onset_s"],
+        by=["annotation", "sequence", "onset_s"],
         ascending=True,
         ignore_index=True,
     )
@@ -61,7 +61,7 @@ def merge_labels(corpus, **kwargs):
     df = corpus.dataset
     config = corpus.config.transforms.annots
 
-    groups = ["annotate", "sequence"]
+    groups = ["annotation", "sequence"]
 
     gemini_groups = (
         (df["label"].shift(fill_value=str(np.nan)) != df["label"])
@@ -90,7 +90,7 @@ def merge_labels(corpus, **kwargs):
         df = (
             df.groupby(groups + [gemini_groups], as_index=False)
             .agg(agg_funcs)
-            .sort_values(by=["annotate", "sequence", "onset_s"])
+            .sort_values(by=["annotation", "sequence", "onset_s"])
         )
 
     return corpus.clone_with_df(df)

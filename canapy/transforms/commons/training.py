@@ -40,7 +40,7 @@ def split_train_test(corpus, *, redo=False, **kwargs):
 
     rs = np.random.default_rng(corpus.config.misc.seed)
 
-    df["seqid"] = df["annotate"].astype(str) + df["sequence"].astype(str)
+    df["seqid"] = df["annotation"].astype(str) + df["sequence"].astype(str)
 
     n_sequences = len((df["seqid"]).unique())
 

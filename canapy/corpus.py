@@ -147,7 +147,7 @@ class Corpus:
             >>> corpus = Corpus(...)
             >>> len(corpus) # number of songs in the corpus
         """
-        return len(self.dataset["annotate"].unique())
+        return len(self.dataset["annotation"].unique())
 
     def __getitem__(self, item):
         """
@@ -517,8 +517,8 @@ class Corpus:
 
         """
 
-        if "annotate" in df and "sequence" in df:
-            seq_ids = df["annotate"].astype(str) + df["sequence"].astype(str)
+        if "annotation" in df and "sequence" in df:
+            seq_ids = df["annotation"].astype(str) + df["sequence"].astype(str)
         else:
             seq_ids = None
 
