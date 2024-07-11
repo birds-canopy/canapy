@@ -5,6 +5,7 @@ import random
 from collections import defaultdict
 from pathlib import Path
 
+import numpy as np
 import panel as pn
 import crowsetta
 import pandas as pd
@@ -33,7 +34,7 @@ class ModelCheckboxes(View):
 
         Choose based on whether you prioritize syntactic structure (syn), category balance (nsyn), or a combination of both (ensemble)."""
 
-        self.model_accordion = pn.Accordion(('Which model should I choose ?', model_text), width=1000)
+        self.model_accordion = pn.Accordion(('Which model should I choose ?', model_text), width=900)
 
         self.layout = pn.Column(
             pn.pane.Markdown(f"## Model selection :"),
@@ -55,26 +56,35 @@ class UploadDashboard(View):
             font-size: 18px;
             box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
         }
+        .GreyCard {
+            border-radius: 15px;
+            background-color: #F7F7F7;
+            padding: 10px;
+        }
         """)
 
         title = pn.pane.Markdown(
             "<h1 style='text-align:center; font-size:50px'>Dataset upload</h1>",
             align='center',
-            width=750,
+            width=1000,
+            css_classes=["GreyCard"],
         )
 
         self.sidebar.change_title("Upload")
-        
+
         self.settings_view = SettingsView(parent=self)
 
         # self.sidebar = SideBar(self, "Upload")
         self.modelcheckboxes = ModelCheckboxes(self)
+        self.update_ensemble_checkbox()
+        self.modelcheckboxes.syn_checkbox.param.watch(self.update_ensemble_checkbox, 'value')
+        self.modelcheckboxes.nsyn_checkbox.param.watch(self.update_ensemble_checkbox, 'value')
 
         self.validate_btn = pn.widgets.Button(name="Validate", button_type="success")
         self.validate_btn.on_click(self.on_click_validate)
 
         data_accordion_text = """Select one folder containing both the annotations and the audio files of your dataset. Alternatively, you can select one folder for the annotations and another for the audio files."""
-        self.data_accordion = pn.Accordion(('Which folder(s) to select ?', data_accordion_text), width=1000)
+        self.data_accordion = pn.Accordion(('Which folder(s) to select ?', data_accordion_text), width=900)
 
         annot_formats = crowsetta.formats.FORMATS
         format_names = list(annot_formats.keys())
@@ -85,15 +95,15 @@ class UploadDashboard(View):
         audio_formats = ", ".join(format_names)
 
         format_accordion_text = f"""Annotation formats accepted : \n{annot_formats}\nAudio formats accepted : \n{audio_formats}, NPY"""
-        self.format_accordion = pn.Accordion(('Which formats are accepted ?', format_accordion_text), width=1000)
+        self.format_accordion = pn.Accordion(('Which formats are accepted ?', format_accordion_text), width=900)
 
         self.train_btn = pn.widgets.Button(name="Train", align='start', button_type="success", disabled=True)
         self.train_btn.on_click(self.on_click_train)
 
-        self.notification = pn.pane.Alert(alert_type='warning', visible=False, width=1000)
+        self.notification = pn.pane.Alert(alert_type='warning', visible=False, width=500)
 
         self.file_selector = pn.widgets.FileSelector(directory=os.getcwd(), root_directory="/",
-                                                     name="Select a directory", width=1000)
+                                                     name="Select a directory", width=900)
 
         self.stats = pn.pane.Markdown(f"""
         ## Data stats :
@@ -109,40 +119,61 @@ class UploadDashboard(View):
         }
         df = pd.DataFrame(data)
         df_example = df.head(5)
-        self.dataframe = pn.pane.DataFrame(df_example, height=200)
+        self.dataframe = pn.pane.DataFrame(df_example, index=False, height=200, width=600)
 
-         # Barplot Example
-        fig, ax = plt.subplots(figsize=(7, 4))
-        plt.xlabel('Classes')
-        plt.ylabel('Count')
-        plt.title('Class repartition', fontweight='bold')
+        # Barplot Examples
+        fig1, ax1 = plt.subplots(figsize=(7, 4))
+        ax1.set_xlabel('Classes')
+        ax1.set_ylabel('Count')
+        ax1.set_title('Class repartition', fontweight='bold')
         plt.tight_layout()
-        self.barplot_pane = pn.pane.Matplotlib(fig, height=350, disabled=True)
+        self.count_barplot_pane = pn.pane.Matplotlib(fig1, height=350, disabled=True)
+
+        fig2, ax2 = plt.subplots(figsize=(7, 4))
+        ax2.set_xlabel('Classes')
+        ax2.set_ylabel('Time')
+        ax2.set_title('Class duration', fontweight='bold')
+        plt.tight_layout()
+        self.time_barplot_pane = pn.pane.Matplotlib(fig2, height=350, disabled=True)
+
+        self.data_selection_accordion = pn.Accordion(('Data selection', pn.Column(
+            self.modelcheckboxes,
+            pn.pane.Markdown(f"## Data selection :"),
+            self.file_selector,
+            pn.Row(self.validate_btn, self.notification),
+            self.data_accordion,
+            self.format_accordion,
+        )), width=975, active=[0])
 
         self.layout = pn.Row(
             pn.Column(
-                        pn.Column(
-                            title,
-                            self.modelcheckboxes,
-                            pn.pane.Markdown(f"## Data selection :"),
-                            self.file_selector,
-                            pn.Row(self.validate_btn, self.notification),
-                            self.data_accordion,
-                            self.format_accordion,
-                            width=1000,
-                            margin=(0, 0, 0, 5),
-                            css_classes=["Settings"]),
-                        pn.Column(
-                                self.settings_view
-                            )
-                    ),
+                title,
+                pn.Column(self.data_selection_accordion,
+                          css_classes=["GreyCard"]),
+                pn.Column(self.settings_view,
+                          width=975,
+                          css_classes=["GreyCard"]),
+                width=1000,
+                margin=(0, 0, 0, 5),
+            ),
             pn.Column(
-                pn.pane.Markdown(f"## Data head :"), self.dataframe, self.stats, self.barplot_pane, self.train_btn,
-                css_classes=["Settings"],
+                pn.pane.Markdown(f"## Data head :"), self.dataframe, self.stats, self.count_barplot_pane,
+                self.time_barplot_pane, self.train_btn,
+                css_classes=["GreyCard"],
                 margin=(0, 0, 0, 20), align="start"
             ),
             margin=(20, 0, 0, 20)
         )
+
+    def update_ensemble_checkbox(self, event=None):
+        syn_checked = self.modelcheckboxes.syn_checkbox.value
+        nsyn_checked = self.modelcheckboxes.nsyn_checkbox.value
+
+        if syn_checked and nsyn_checked:
+            self.modelcheckboxes.ensemble_checkbox.disabled = False
+        else:
+            self.modelcheckboxes.ensemble_checkbox.disabled = True
+            self.modelcheckboxes.ensemble_checkbox.value = False
 
     def on_click_validate(self, event):
 
@@ -203,21 +234,22 @@ class UploadDashboard(View):
                 self.notification.visible = True
                 self.train_btn.disabled = True
                 return
-            
-            self.controler.create_corpus(audio_directory=audio_folder,
-                annots_directory=annot_folder,
-                spec_directory="./", # TODO: replace by output directory
-                config=None,  # TODO: get configuration from file if needed
-                annot_format="marron1csv", # TODO: get this from the search above
-                audio_ext=".wav", # TODO: idem
-            )
+
+            # self.controler.create_corpus(audio_directory=audio_folder,
+            # annots_directory=annot_folder,
+            # spec_directory="./",  # TODO: replace by output directory
+            # config=None,  # TODO: get configuration from file if needed
+            # annot_format="marron1csv",  # TODO: get this from the search above
+            # audio_ext=".wav",  # TODO: idem
+            # )
 
             self.notification.object = "La sélection est validée."
             self.notification.alert_type = 'success'
             self.notification.visible = True
             # TODO: use controler.corpus.dataset here, not csv_parser
             self.update_data(*self.csv_parser(annot_folder))
-            self.bokeh_pane.visible = True
+            self.count_barplot_pane.visible = True
+            self.time_barplot_pane.visible = True
             self.train_btn.disabled = False
 
     def get_extensions(self, directories):
@@ -237,6 +269,7 @@ class UploadDashboard(View):
         class_counts = defaultdict(int)
         total_duration = 0
         total_silence_duration = 0
+        class_durations = defaultdict(float)
 
         data_frames = []
 
@@ -246,6 +279,8 @@ class UploadDashboard(View):
                 file_path = os.path.join(selected_folder, filename)
 
                 df = pd.read_csv(file_path)
+                df['start'] = pd.to_numeric(df['start'], errors='coerce')
+                df['end'] = pd.to_numeric(df['end'], errors='coerce')
                 data_frames.append(df)
 
                 unique_classes = df['syll'].unique()
@@ -256,6 +291,10 @@ class UploadDashboard(View):
                 for syll, count in syll_counts.items():
                     class_counts[syll] += count
 
+                for syll in unique_classes:
+                    syll_duration = df[df['syll'] == syll]['end'] - df[df['syll'] == syll]['start']
+                    class_durations[syll] += syll_duration.sum()
+
                 silence_duration = df[df['syll'] == 'SIL']['end'] - df[df['syll'] == 'SIL']['start']
                 total_silence_duration += silence_duration.sum()
 
@@ -263,17 +302,19 @@ class UploadDashboard(View):
                 total_duration += max_end_in_file
 
                 if len(data_frames) == 1:
+                    if 'Unnamed: 0' in df.columns:
+                        df.rename(columns={'Unnamed: 0': 'index'}, inplace=True)
                     csv_head = df.head(10)
 
         class_repartition = dict(class_counts)
         num_classes_total = len(all_classes)
-        class_labels_total = list(all_classes)
+        class_labels_total = [str(label) for label in list(all_classes)]
 
         return (csv_head, class_repartition, num_classes_total, class_labels_total,
-                total_duration, num_annotated_files, total_silence_duration)
+                total_duration, num_annotated_files, total_silence_duration, dict(class_durations))
 
     def update_data(self, csv_head, class_repartition, num_classes_total, class_labels_total, total_duration,
-                    num_annotated_files, total_silence_duration):
+                    num_annotated_files, total_silence_duration, class_durations):
 
         total_duration_str = time.strftime("%H:%M:%S", time.gmtime(total_duration))
         total_silence_duration_str = time.strftime("%H:%M:%S", time.gmtime(total_silence_duration))
@@ -290,6 +331,12 @@ class UploadDashboard(View):
 
         self.dataframe.object = csv_head
 
+        # TODO : Get the silence_tag from the controler
+        # if self.silence_tag.value in class_repartition:
+        #     del class_repartition[self.silence_tag.value]
+        # if self.silence_tag.value in class_durations:
+        #     del class_durations[self.silence_tag.value]
+
         if 'SIL' in class_repartition:
             del class_repartition['SIL']
 
@@ -297,9 +344,9 @@ class UploadDashboard(View):
         classes = [item[0] for item in sorted_items]
         counts = [item[1] for item in sorted_items]
 
-        colors = ['#' + ''.join(random.choices('0123456789abcdef', k=6)) for _ in range(len(classes))]
+        colors = plt.cm.rainbow(np.linspace(0, 1, len(classes)))
 
-        plt.figure(figsize=(7, 4))
+        plt.figure(figsize=(10, 5) if num_classes_total > 35 else (7, 4))
         bars = plt.bar(classes, counts, color=colors)
         plt.xlabel('Classes')
         plt.ylabel('Count')
@@ -312,7 +359,29 @@ class UploadDashboard(View):
         plt.xticks(rotation=90)
         plt.tight_layout()
 
-        self.barplot_pane.object = plt.gcf()
+        self.count_barplot_pane.object = plt.gcf()
+
+        sorted_duration_items = sorted(class_durations.items(), key=lambda item: item[1])
+        duration_classes = [item[0] for item in sorted_duration_items]
+        durations = [item[1] for item in sorted_duration_items]
+
+        colors = plt.cm.rainbow(np.linspace(0, 1, len(duration_classes)))
+
+        plt.figure(figsize=(10, 5) if num_classes_total > 35 else (7, 4))
+
+        duration_bars = plt.bar(duration_classes, durations, color=colors)
+        plt.xlabel('Classes')
+        plt.ylabel('Time')
+        plt.title('Class duration', fontweight='bold')
+
+        for bar, duration in zip(duration_bars, durations):
+            yval = bar.get_height()
+            plt.text(bar.get_x() + bar.get_width() / 2, yval + 5, f'{round(duration)}', ha='center', va='bottom')
+
+        plt.xticks(rotation=90)
+        plt.tight_layout()
+
+        self.time_barplot_pane.object = plt.gcf()
 
     def on_click_train(self, events):
         logger.info("Entering train dashboard.")

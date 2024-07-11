@@ -43,7 +43,6 @@ class SideBar(pn.viewable.Viewer):
 
         self.layout = pn.Column(
             self.title_pane,
-            pn.Spacer(height=100),
             self.quit_btn,
             width=100,
             sizing_mode="stretch_height",

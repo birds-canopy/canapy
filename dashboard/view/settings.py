@@ -17,6 +17,14 @@ class SettingsView(View):
     def __init__(self, parent):
         super().__init__(parent)
 
+        pn.config.raw_css.append("""
+        .GreyCard {
+            border-radius: 15px;
+            background-color: #F7F7F7;
+            padding: 10px;
+        }
+        """)
+
         self.load_settings = pn.widgets.Button(name="Load settings", button_type="primary", margin=(0, 0, 0, 470))
 
         self.reset_settings = pn.widgets.Button(name="Reset", button_type="primary", margin=(0, 0, 0, 25))
@@ -175,7 +183,7 @@ class SettingsView(View):
             self.min_segment_proportion_agreement,
         ]
 
-        self.layout = pn.Column(
+        self.layout = pn.Accordion(('Settings',pn.Column(
             pn.Row(
                 pn.pane.Markdown(f"""## Settings :"""),
                 self.load_settings,
@@ -305,10 +313,10 @@ class SettingsView(View):
             pn.Row(
                 self.save_settings, self.apply_settings, self.notification_settings
             ),
-            css_classes=["Settings"],
-            width=1000,
+            css_classes=["GreyCard"],
+            width=975,
             margin=(20, 0, 0, 5)
-        )
+        )),width=975)
 
     def on_click_reset_settings(self, event):
         for setting in self.settings_widgets:
