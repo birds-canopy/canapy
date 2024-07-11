@@ -5,6 +5,7 @@ import panel as pn
 
 from . import View
 
+pn.extension()
 
 logger = logging.getLogger("canapy-dashboard")
 
