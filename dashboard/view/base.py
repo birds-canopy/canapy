@@ -41,6 +41,13 @@ class SideBar(pn.viewable.Viewer):
         )
         self.quit_btn.on_click(self.on_click_stop)
 
+        self.back_btn = pn.widgets.Button(
+            name="Back",
+            button_type="warning",
+            icon="square-rounded-x",
+        )
+        self.back_btn.on_click(self.on_click_back)
+
         self.layout = pn.Column(
             self.title_pane,
             self.quit_btn,
@@ -57,6 +64,9 @@ class SideBar(pn.viewable.Viewer):
     def change_title(self, title: str):
         """Update sidebar title."""
         self.title_pane.object = f"<h1>{title.capitalize()}</h1>"
+        if title == "Annotate" or title == "Upload":
+            self.layout.append(self.back_btn)
+
 
     def clear_controls(self):
         """Remove all controls from sidebar (except quit button)."""
@@ -67,6 +77,11 @@ class SideBar(pn.viewable.Viewer):
         """Add a list of controls to sidebar (buttons, widgets...)"""
         for control in reversed(controls):
             self.layout.insert(1, control)
+
+    def on_click_back(self, events):
+        """Get to the previous dashboard."""
+        self.controler.next_step(to_step="home")
+
 
     def on_click_stop(self, events):
         """Stop application."""

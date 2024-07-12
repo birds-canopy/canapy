@@ -42,6 +42,7 @@ class Controler:
     # TODO: This (annotator_names) will be represented in your ModelCheckboxes stuff
     # TODO: and eventually modified by them.
     # TODO: For now, let's say syn-esn only is default.
+    # Check self.controler.annotator_names in upload.py
     annotator_names: List[str] = attrs.field(default=["syn-esn"], converter=list)
 
     corpus: Optional[Corpus] = attrs.field(default=None)

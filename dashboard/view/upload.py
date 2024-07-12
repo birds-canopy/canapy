@@ -22,7 +22,7 @@ class ModelCheckboxes(View):
     def __init__(self, parent):
         super().__init__(parent)
 
-        self.syn_checkbox = pn.widgets.Checkbox(name='Syntactic Model')
+        self.syn_checkbox = pn.widgets.Checkbox(name='Syntactic Model', value=True)
         self.nsyn_checkbox = pn.widgets.Checkbox(name='Non Syntactic Model')
         self.ensemble_checkbox = pn.widgets.Checkbox(name='Ensemble Model')
 
@@ -94,6 +94,9 @@ class UploadDashboard(View):
         format_names = list(audio_formats.keys())
         audio_formats = ", ".join(format_names)
 
+        self.audio_format = None
+        self.annot_format = None
+
         format_accordion_text = f"""Annotation formats accepted : \n{annot_formats}\nAudio formats accepted : \n{audio_formats}, NPY"""
         self.format_accordion = pn.Accordion(('Which formats are accepted ?', format_accordion_text), width=900)
 
@@ -149,9 +152,12 @@ class UploadDashboard(View):
             pn.Column(
                 title,
                 pn.Column(self.data_selection_accordion,
+                          margin=(20, 0, 0, 0),
+                          width=1000,
                           css_classes=["GreyCard"]),
                 pn.Column(self.settings_view,
-                          width=975,
+                          width=1000,
+                          margin=(20, 0, 0, 0),
                           css_classes=["GreyCard"]),
                 width=1000,
                 margin=(0, 0, 0, 5),
@@ -221,12 +227,16 @@ class UploadDashboard(View):
                     self.train_btn.disabled = True
                     return
 
-                # TODO: don't restrict this too much!
                 for ext in extensions:
-                    if ext == ".csv":
+                    if ext in [".csv", ".txt", ".xml", ".not", ".mat", ".TextGrid", ".phn", ".PHN", ".wrd", ".WRD"]:
                         annot_folder = folder
-                    if ext == ".wav":
+                        print(annot_folder)
+                        self.annot_format = ext
+                    if ext in [".wav", ".aiff", ".aifc", ".au", ".snd", ".raw", ".paf", ".iff", ".svx", ".nist",
+                               ".sf", ".voc", ".w64", ".mat4", ".mat5", ".pvf", ".xi", ".htk", ".caf", ".sd2", ".flac"]:
                         audio_folder = folder
+                        print(audio_folder)
+                        self.audio_format = ext
 
             if not annot_folder or not audio_folder:
                 self.notification.object = f"Oups! Il manque des données."
@@ -236,17 +246,25 @@ class UploadDashboard(View):
                 return
 
             # self.controler.create_corpus(audio_directory=audio_folder,
-            # annots_directory=annot_folder,
-            # spec_directory="./",  # TODO: replace by output directory
-            # config=None,  # TODO: get configuration from file if needed
-            # annot_format="marron1csv",  # TODO: get this from the search above
-            # audio_ext=".wav",  # TODO: idem
-            # )
+            #                              annots_directory=annot_folder,
+            #                              spec_directory=self.file_selector.value,
+            #                              config=self.settings_view.settings_widgets,  # TODO: get configuration from file if needed
+            #                              annot_format=self.annot_format,
+            #                              audio_ext=self.audio_format,
+            #                              )
+
+            annotator_list = [
+                "syn-esn" if self.modelcheckboxes.syn_checkbox.value else None,
+                "nsyn-esn" if self.modelcheckboxes.nsyn_checkbox.value else None,
+                "ensemble" if self.modelcheckboxes.ensemble_checkbox.value else None
+            ]
+            self.controler.annotator_names = [annotator for annotator in annotator_list if annotator is not None]
 
             self.notification.object = "La sélection est validée."
             self.notification.alert_type = 'success'
             self.notification.visible = True
             # TODO: use controler.corpus.dataset here, not csv_parser
+            # Do you mean to move the csv_parser in the controler as a dataset method ?
             self.update_data(*self.csv_parser(annot_folder))
             self.count_barplot_pane.visible = True
             self.time_barplot_pane.visible = True
@@ -295,7 +313,8 @@ class UploadDashboard(View):
                     syll_duration = df[df['syll'] == syll]['end'] - df[df['syll'] == syll]['start']
                     class_durations[syll] += syll_duration.sum()
 
-                silence_duration = df[df['syll'] == 'SIL']['end'] - df[df['syll'] == 'SIL']['start']
+                silence_duration = df[df['syll'] == self.settings_view.silence_tag.value]['end'] - \
+                                   df[df['syll'] == self.settings_view.silence_tag.value]['start']
                 total_silence_duration += silence_duration.sum()
 
                 max_end_in_file = df['end'].max()
@@ -331,14 +350,10 @@ class UploadDashboard(View):
 
         self.dataframe.object = csv_head
 
-        # TODO : Get the silence_tag from the controler
-        # if self.silence_tag.value in class_repartition:
-        #     del class_repartition[self.silence_tag.value]
-        # if self.silence_tag.value in class_durations:
-        #     del class_durations[self.silence_tag.value]
-
-        if 'SIL' in class_repartition:
-            del class_repartition['SIL']
+        if self.settings_view.silence_tag.value in class_repartition:
+            del class_repartition[self.settings_view.silence_tag.value]
+        if self.settings_view.silence_tag.value in class_durations:
+            del class_durations[self.settings_view.silence_tag.value]
 
         sorted_items = sorted(class_repartition.items(), key=lambda item: item[1])
         classes = [item[0] for item in sorted_items]

@@ -5,7 +5,6 @@ import panel as pn
 
 from . import View
 
-
 pn.extension('floatpanel')
 
 logger = logging.getLogger("canapy-dashboard")
@@ -97,11 +96,17 @@ class SettingsView(View):
                                                  width=255)
         self.tip_sampling_rate = pn.widgets.TooltipIcon(value="Common sampling rates (Hertz) : 44100, 48000, 96000...")
 
+        self.output_directory = pn.widgets.TextInput(name='Output directory', value=os.getcwd() + "\output", width=255)
+        self.tip_output_directory = pn.widgets.TooltipIcon(
+            value="Specify the location where you want to save the trained model(s).")
+
         # Transforms audio
         self.fmin = pn.widgets.IntInput(name='Min. Frequency', value=500, default_value=500, step=10, width=255)
-        self.tip_fmin = pn.widgets.TooltipIcon(value="Minimum frequency to be considered when extracting characteristics, in Hertz.")
+        self.tip_fmin = pn.widgets.TooltipIcon(
+            value="Minimum frequency to be considered when extracting characteristics, in Hertz.")
         self.fmax = pn.widgets.IntInput(name='Max. Frequency', value=8000, default_value=8000, step=50, width=255)
-        self.tip_fmax = pn.widgets.TooltipIcon(value="Maximum frequency to be considered when extracting characteristics, in Hertz.")
+        self.tip_fmax = pn.widgets.TooltipIcon(
+            value="Maximum frequency to be considered when extracting characteristics, in Hertz.")
         self.n_fft = pn.widgets.IntInput(name='N_FFT', value=2048, default_value=2048, step=100, disabled=True)
         self.audio_feature_mfcc = pn.widgets.Checkbox(name='MFCC', value=True, default_value=True, disabled=True)
         self.audio_feature_delta = pn.widgets.Checkbox(name='delta', value=True, default_value=True, disabled=True)
@@ -122,25 +127,32 @@ class SettingsView(View):
 
         self.min_label_duration = pn.widgets.FloatSlider(name='Min Label Duration', start=0, end=0.1, step=0.01,
                                                          value=0.02, default_value=0.02, width=255)
-        self.tip_min_label_duration = pn.widgets.TooltipIcon(value="Minimum duration of a label, in seconds. Labels shorter than this value will be ignored or merged.")
+        self.tip_min_label_duration = pn.widgets.TooltipIcon(
+            value="Minimum duration of a label, in seconds. Labels shorter than this value will be ignored or merged.")
 
         self.lonely_labels = pn.widgets.TextInput(name='Lonely Labels', value="cri,TRASH", default_value="cri,TRASH",
                                                   width=255)
-        self.tip_lonely_labels = pn.widgets.TooltipIcon(value="List of labels considered isolated and which may require special treatment. Separated by ','")
+        self.tip_lonely_labels = pn.widgets.TooltipIcon(
+            value="List of labels considered isolated and which may require special treatment. Separated by ','")
 
-        self.min_silence_gap = pn.widgets.FloatInput(name='Min Silence Gap', start=0, end=0.01, step=0.001, value=0.001, default_value=0.001, width=255)
-        self.tip_min_silence_gap = pn.widgets.TooltipIcon(value="Minimum silence interval, in seconds, to separate two audio segments.")
+        self.min_silence_gap = pn.widgets.FloatInput(name='Min Silence Gap', start=0, end=0.01, step=0.001, value=0.001,
+                                                     default_value=0.001, width=255)
+        self.tip_min_silence_gap = pn.widgets.TooltipIcon(
+            value="Minimum silence interval, in seconds, to separate two audio segments.")
 
         self.silence_tag = pn.widgets.TextInput(name='Silence label', value="SIL", default_value="SIL", width=255)
         self.tip_silence_tag = pn.widgets.TooltipIcon(value="Tag used to mark silence segments.")
 
         # Transforms audio delta and delta2
-        self.delta_padding = pn.widgets.TextInput(name='Delta padding', value="wrap", default_value="wrap", disabled=True)
-        self.delta2_padding = pn.widgets.TextInput(name='Delta 2 padding', value="wrap", default_value="wrap", disabled=True)
+        self.delta_padding = pn.widgets.TextInput(name='Delta padding', value="wrap", default_value="wrap",
+                                                  disabled=True)
+        self.delta2_padding = pn.widgets.TextInput(name='Delta 2 padding', value="wrap", default_value="wrap",
+                                                   disabled=True)
 
         # Transforms training
         self.max_sequences = pn.widgets.IntInput(name='Max sequences', value=-1, default_value=-1, step=50, width=255)
-        self.tip_max_sequences = pn.widgets.TooltipIcon(value="Maximum number of sequences for training. -1 mean that there is no limit.")
+        self.tip_max_sequences = pn.widgets.TooltipIcon(
+            value="Maximum number of sequences for training. -1 mean that there is no limit.")
 
         self.test_ratio = pn.widgets.FloatSlider(name='Test ratio', start=0, end=1, step=0.1, value=0.2,
                                                  default_value=0.2, width=255, disabled=False)
@@ -202,8 +214,8 @@ class SettingsView(View):
         self.min_segment_proportion_agreement = pn.widgets.FloatInput(name='Minimum proportion of agreement', start=0,
                                                                       end=1, step=0.01,
                                                                       value=0.66, default_value=0.66, width=255)
-        self.tip_min_segment_proportion_agreement = pn.widgets.TooltipIcon(value="Minimum proportion of agreement to consider a segment as valid when correcting annotations.")
-
+        self.tip_min_segment_proportion_agreement = pn.widgets.TooltipIcon(
+            value="Minimum proportion of agreement to consider a segment as valid when correcting annotations.")
 
         self.advanced_settings_widgets = [
             self.n_fft, self.audio_feature_mfcc, self.audio_feature_delta, self.audio_feature_delta2,
@@ -217,7 +229,7 @@ class SettingsView(View):
         ]
 
         self.settings_widgets = [
-            self.sampling_rate,
+            self.sampling_rate, self.output_directory,
             self.fmin, self.fmax, self.n_fft,
             self.audio_feature_mfcc, self.audio_feature_delta, self.audio_feature_delta2,
             self.hop_length, self.win_length, self.n_mfcc, self.lifter,
@@ -233,7 +245,7 @@ class SettingsView(View):
             self.min_segment_proportion_agreement,
         ]
 
-        self.layout = pn.Accordion(('Settings',pn.Column(
+        self.layout = pn.Accordion(('Settings', pn.Column(
             pn.Row(
                 pn.pane.Markdown(f"""## Settings :"""),
                 self.load_settings,
@@ -252,10 +264,15 @@ class SettingsView(View):
                         pn.widgets.TooltipIcon(value="Common sampling rates (Hertz) : 44100, 48000, 96000..."),
                     ),
                     pn.Row(
-                    self.fmin,self.tip_fmin
+                        self.fmin, self.tip_fmin
                     ),
                     pn.Row(
-                    self.fmax,self.tip_fmax
+                        self.fmax, self.tip_fmax
+                    ),
+                    pn.pane.Markdown(f"""### Correction :""", align='center'),
+                    pn.Row(
+                        self.min_segment_proportion_agreement,
+                        self.tip_min_segment_proportion_agreement
                     ),
                     sizing_mode="stretch_width"
                 ),
@@ -293,11 +310,8 @@ class SettingsView(View):
                         self.test_ratio,
                         self.tip_test_ratio
                     ),
-                    pn.pane.Markdown(f"""### Correction :""", align='center'),
-                    pn.Row(
-                        self.min_segment_proportion_agreement,
-                        self.tip_min_segment_proportion_agreement
-                    ),
+                    pn.pane.Markdown(f"""### Output directory :""", align='center'),
+                    pn.Row(self.output_directory, self.tip_output_directory),
                     sizing_mode="stretch_width"
                 ),
             ),
@@ -363,10 +377,9 @@ class SettingsView(View):
             pn.Row(
                 self.save_settings, self.apply_settings, self.notification_settings
             ),
-            css_classes=["GreyCard"],
             width=975,
-            margin=(20, 0, 0, 5)
-        )),width=975)
+            margin=(20, 0, 0, 0)
+        )), width=975)
 
     def on_click_reset_settings(self, event):
         for setting in self.settings_widgets:
@@ -385,7 +398,6 @@ class SettingsView(View):
         self.notification_settings.object = "Settings applied !"
         self.notification_settings.visible = True
 
-        
     def switch_action(self, event):
         if event.new:
             for widget in self.advanced_settings_widgets:

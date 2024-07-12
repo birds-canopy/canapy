@@ -1,5 +1,6 @@
 import logging
 import os
+import pickle
 import wave
 import numpy as np
 from pathlib import Path
@@ -126,18 +127,18 @@ class AnnotateDashboard(View):
                                     align="start")
 
         self.data_selection_accordion = pn.Accordion(('Data selection', pn.Column(
-                        pn.Row(
-                            pn.Column(self.audio_btn, align='center'),
-                            pn.Column(self.model_btn, align='center', margin=(0, 0, 0, 100)),
-                            pn.Column(self.annotate_btn, align='center', margin=(0, 0, 0, 100)),
-                            margin=(20, 0, 0, 0),
-                            align='center'
-                        ),
-                        self.notification,
-                        pn.Row(self.audio_selector, align="center"),
-                        self.audio_context,
-                        self.model_selector,
-                        self.valid_model_btn)), width=975, active=[0])
+            pn.Row(
+                pn.Column(self.audio_btn, align='center'),
+                pn.Column(self.model_btn, align='center', margin=(0, 0, 0, 100)),
+                pn.Column(self.annotate_btn, align='center', margin=(0, 0, 0, 100)),
+                margin=(20, 0, 0, 0),
+                align='center'
+            ),
+            self.notification,
+            pn.Row(self.audio_selector, align="center"),
+            self.audio_context,
+            self.model_selector,
+            self.valid_model_btn)), width=975, active=[0])
 
         self.layout = pn.Row(
             pn.Column(
@@ -150,10 +151,10 @@ class AnnotateDashboard(View):
                         css_classes=["GreyCard"],
                     ),
                     pn.Column(
-                    self.data_selection_accordion,
-                    margin=(20, 0, 0, 20),
-                    width=1000,
-                    css_classes=["GreyCard"]),
+                        self.data_selection_accordion,
+                        margin=(20, 0, 0, 20),
+                        width=1000,
+                        css_classes=["GreyCard"]),
                 ),
                 pn.Column(self.settings_view, css_classes=["GreyCard"], margin=(20, 0, 0, 20)),
             ),
@@ -201,7 +202,7 @@ class AnnotateDashboard(View):
                 self.notification.visible = True
 
         self.annotate_btn.disabled = not (
-                    self.audio_btn.button_type == "success" and self.model_btn.button_type == "success")
+                self.audio_btn.button_type == "success" and self.model_btn.button_type == "success")
 
         self.loading_audio.value = False
         self.loading_audio.visible = False
@@ -246,6 +247,11 @@ class AnnotateDashboard(View):
         return int(hours), int(minutes), int(seconds)
 
     def on_click_valid_model(self, event):
+
+        with open(self.model_selector.value, 'rb') as file:
+            data = pickle.load(file)
+        #print(data)
+
         if self.model_selector.filename in ["syn-esn", "nsyn-esn", "ensemble"]:
             self.model_btn.button_type = "success"
             self.notification.visible = False
@@ -257,7 +263,7 @@ class AnnotateDashboard(View):
             self.notification.visible = True
 
         self.annotate_btn.disabled = not (
-                    self.audio_btn.button_type == "success" and self.model_btn.button_type == "success")
+                self.audio_btn.button_type == "success" and self.model_btn.button_type == "success")
 
     def update_stats(self, audio_count, audio_duration, extensions):
         self.audio_stats.object = f"""
