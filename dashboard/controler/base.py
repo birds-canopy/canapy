@@ -2,6 +2,7 @@
 # Licence: MIT License
 # Copyright: Nathan Trouvain
 import logging
+from pathlib import Path
 from typing import Dict, Optional, List
 from collections import defaultdict
 
@@ -22,15 +23,13 @@ from canapy.plots import plot_segment_melspectrogram
 from canapy.annotator.commons.postprocess import extract_vocab
 from canapy.transforms.commons.training import split_train_test
 
-
-from config import default_config
+#from ..view import settings
+from config import default_config, Config
 
 from .segments import fetch_misclassified_samples
 from .corpusutils import mark_whole_corpus_as_train, query_split
 
-
 logger = logging.getLogger("canapy")
-
 
 @attrs.define
 class Controler:
@@ -44,6 +43,8 @@ class Controler:
     # TODO: For now, let's say syn-esn only is default.
     # Check self.controler.annotator_names in upload.py
     annotator_names: List[str] = attrs.field(default=["syn-esn"], converter=list)
+    # classes_names: List[str] = attrs.field(default=[""])
+    # output_directory: str = settings.SettingsView.output_directory
 
     corpus: Optional[Corpus] = attrs.field(default=None)
     corrector: Optional[Corrector] = attrs.field(default=None)
@@ -67,6 +68,9 @@ class Controler:
         alias="_correctoin_store", default=dict()
     )
     _classes: Optional[List[str]] = attrs.field(alias="_classes", default=None)
+
+    config: Config = attrs.field(
+        factory=lambda: Config.from_file(Path(__file__).absolute().parent / "store" / "default.config.yml"))
 
     @property
     def step(self):

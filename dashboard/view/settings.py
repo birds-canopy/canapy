@@ -1,4 +1,6 @@
 import logging
+import os
+import yaml
 
 # import param
 import panel as pn
@@ -64,7 +66,7 @@ class SettingsView(View):
         # schema = self.controler.config.schema
         # settings = settings_factory(schema)
         # self.layout = pn.panel(settings.param, loading_indicator=True)
-        #TODO: create interactions
+        # TODO: create interactions
 
         pn.config.raw_css.append("""
         .GreyCard {
@@ -75,6 +77,21 @@ class SettingsView(View):
         """)
 
         self.load_settings = pn.widgets.Button(name="Load settings", button_type="primary", margin=(0, 0, 0, 470))
+        self.load_settings.on_click(self.on_click_load_settings)
+
+        self.config_selector = pn.widgets.FileInput(accept='.yml', description="default.config.yml", align='center')
+
+        self.load_settings_panel_validate = pn.widgets.Button(name="Validate", button_type="success", align="center")
+        self.load_settings_panel_validate.on_click(self.on_click_validate_load_settings)
+
+        self.load_settings_panel = pn.layout.FloatPanel(
+            pn.Row(self.config_selector, self.load_settings_panel_validate, align='center'),
+            name='Select a config file (.yml)',
+            config={"headerControls": {"close": "remove",
+                                       "maximize": "remove"}},
+            width=425, height=75,
+            contained=False, position='center',
+        )
 
         self.reset_settings = pn.widgets.Button(name="Reset", button_type="primary", margin=(0, 0, 0, 25))
         self.reset_settings.on_click(self.on_click_reset_settings)
@@ -150,9 +167,9 @@ class SettingsView(View):
                                                    disabled=True)
 
         # Transforms training
-        self.max_sequences = pn.widgets.IntInput(name='Max sequences', value=-1, default_value=-1, step=50, width=255)
+        self.max_sequences = pn.widgets.IntInput(name='Max files', value=-1, default_value=-1, step=50, width=255)
         self.tip_max_sequences = pn.widgets.TooltipIcon(
-            value="Maximum number of sequences for training. -1 mean that there is no limit.")
+            value="Maximum number of files for training. -1 mean that there is no limit.")
 
         self.test_ratio = pn.widgets.FloatSlider(name='Test ratio', start=0, end=1, step=0.1, value=0.2,
                                                  default_value=0.2, width=255, disabled=False)
@@ -388,7 +405,21 @@ class SettingsView(View):
             if setting.value == 0 and setting.default_value:
                 setting.value = setting.default_value
 
+    def on_click_load_settings(self, event):
+        self.layout.append(self.load_settings_panel)
+        self.load_settings_panel.visible = True
+
+    def on_click_validate_load_settings(self, event):
+        config = self.config_selector.value
+        #TODO : Transfer the config uploaded to the controler
+        self.layout.remove(self.load_settings_panel)
+
     def on_click_save_settings(self, event):
+        #TODO : Save the config as a .yaml file
+
+        # with open('config.yml', 'w') as file:
+        #     yaml.dump(config, file, default_flow_style=False, allow_unicode=True)
+
         self.notification_settings.visible = False
         self.notification_settings.object = "Settings saved !"
         self.notification_settings.visible = True

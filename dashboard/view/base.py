@@ -6,7 +6,6 @@ from canapy.utils.tempstorage import close_tempfiles
 
 from ..controler import Controler
 
-
 class View(pn.viewable.Viewer):
     """Helper class to quickly define and control Canapy UI elements."""
     def __init__(self, parent: "View", *args, **kwargs):
@@ -30,28 +29,42 @@ class SideBar(pn.viewable.Viewer):
     def __init__(self, app: pn.viewable.Viewable, title: str = "Home"):
         super().__init__()
 
+        pn.config.raw_css.append("""
+        .bk-btn-warning,
+        .bk-btn-danger{
+            font-weight: bold;
+            font-size: 18px;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+        }
+        .GreyCard {
+            border-radius: 15px;
+            background-color: #F7F7F7;
+            padding: 10px;
+        }
+        """)
+
         self._app = app
 
-        self.title_pane = pn.pane.HTML(f"<h1>{title.capitalize()}</h1>")
+        self.title_pane = pn.pane.HTML(f"<h1>{title.capitalize()}</h1>",align='center')
 
         self.quit_btn = pn.widgets.Button(
             name="Quit",
             button_type="danger",
-            icon="square-rounded-x",
+            width=90,align='center'
         )
         self.quit_btn.on_click(self.on_click_stop)
 
         self.back_btn = pn.widgets.Button(
             name="Back",
             button_type="warning",
-            icon="square-rounded-x",
+            width=90,align='center'
         )
         self.back_btn.on_click(self.on_click_back)
 
         self.layout = pn.Column(
             self.title_pane,
             self.quit_btn,
-            width=100,
+            width=150,
             sizing_mode="stretch_height",
             styles={"background": "WhiteSmoke"},
         )
@@ -65,7 +78,7 @@ class SideBar(pn.viewable.Viewer):
         """Update sidebar title."""
         self.title_pane.object = f"<h1>{title.capitalize()}</h1>"
         if title == "Annotate" or title == "Upload":
-            self.layout.append(self.back_btn)
+            self.layout.insert(1, self.back_btn)
 
 
     def clear_controls(self):

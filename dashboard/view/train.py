@@ -12,11 +12,11 @@ class TrainDashboard(View):
     def __init__(self, parent):
         super().__init__(parent)
 
-        self.sidebar = SideBar(self, "train")
+        self.sidebar.change_title("Train")
         self.traindash = TrainerDashboard(self)
         self.annotdash = AnnotatorDashboard(self)
 
-        self.layout = pn.Row(self.sidebar, self.traindash, self.annotdash)
+        self.layout = pn.Row(self.traindash, self.annotdash)
 
 
 class TrainerDashboard(View):

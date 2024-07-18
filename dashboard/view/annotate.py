@@ -3,9 +3,11 @@ import os
 import pickle
 import wave
 import numpy as np
+import librosa
 from pathlib import Path
 
 import panel as pn
+import soundfile
 
 from . import View
 from .settings import SettingsView
@@ -27,6 +29,7 @@ class AnnotateDashboard(View):
             """
             <h1 style="text-align:center; font-size:50px">Annotation</h1>
             """,
+            width=1000,
             align='center',
         )
 
@@ -46,16 +49,16 @@ class AnnotateDashboard(View):
         }
         """)
 
-        self.audio_btn = pn.widgets.Button(button_type='primary', name='Load audio 🎵', width=150, height=75)
+        self.audio_btn = pn.widgets.Button(button_type='primary',button_style='outline', name='Load audio 🎵', width=150, height=75)
         self.audio_btn.on_click(self.on_click_audio)
 
         self.model_btn = pn.widgets.Button(button_type='primary', name='Load model 🤖', width=150, height=75)
         self.model_btn.on_click(self.on_click_model)
 
-        self.annotate_btn = pn.widgets.Button(button_type='primary', name='Annotate', width=150, height=75)
+        self.annotate_btn = pn.widgets.Button(button_type='primary', name='Annotate', disabled=True, width=150, height=75)
         self.annotate_btn.on_click(self.on_click_annotate)
 
-        self.notification = pn.pane.Alert(visible=False, width=1000, margin=(20, 0, 0, 0), align="center")
+        self.notification = pn.pane.Alert(visible=False, width=900, margin=(20, 0, 0, 0), align="center")
 
         data_accordion_text = """Select one folder containing the audio files of your dataset."""
         self.data_accordion = pn.Accordion(('Which folder(s) to select ?', data_accordion_text),
@@ -75,7 +78,7 @@ class AnnotateDashboard(View):
             name='Validate',
             width=150,
             height=50,
-            margin=(20, 0, 0, 0)
+            margin=(20, 0, 20, 30)
         )
         self.valid_audio_btn.on_click(self.on_click_valid_audio)
 
@@ -83,14 +86,15 @@ class AnnotateDashboard(View):
                                                           margin=(15, 0, 0, 20))
 
         self.audio_stats = pn.pane.Markdown(f"""
-        # Audio stats :
+        ## Audio stats :
         ### Number of audio files : ...
         ### Total audio duration : ...
+        ### Sampling rate : ...
         ### File extension : ... 
         """, align="start")
 
         self.model_settings = pn.pane.Markdown(f"""
-        # Model settings :
+        ## Model settings :
         ### Model type : ...
         ### Units : ...
         ### Spectral Radius : ...
@@ -108,7 +112,7 @@ class AnnotateDashboard(View):
             root_directory="/",
             name="Select a model",
             align='center',
-            margin=(20, 0, 0, 0),
+            margin=(50, 0, 0, 0),
             visible=False
         )
 
@@ -118,7 +122,7 @@ class AnnotateDashboard(View):
             width=150,
             height=50,
             align="center",
-            margin=(50, 0, 0, 0),
+            margin=(50, 0, 20, 0),
             visible=False
         )
         self.valid_model_btn.on_click(self.on_click_valid_model)
@@ -138,7 +142,7 @@ class AnnotateDashboard(View):
             pn.Row(self.audio_selector, align="center"),
             self.audio_context,
             self.model_selector,
-            self.valid_model_btn)), width=975, active=[0])
+            self.valid_model_btn,align='center')), width=975, active=[0])
 
         self.layout = pn.Row(
             pn.Column(
@@ -152,6 +156,7 @@ class AnnotateDashboard(View):
                     ),
                     pn.Column(
                         self.data_selection_accordion,
+                        align='center',
                         margin=(20, 0, 0, 20),
                         width=1000,
                         css_classes=["GreyCard"]),
@@ -170,6 +175,8 @@ class AnnotateDashboard(View):
     def on_click_audio(self, event):
         self.model_selector.visible = False
         self.valid_model_btn.visible = False
+        self.model_btn.button_style = 'solid'
+        self.audio_btn.button_style = 'outline'
         self.audio_selector.visible = True
         self.valid_audio_btn.visible = True
         self.audio_context.visible = True
@@ -178,6 +185,8 @@ class AnnotateDashboard(View):
         self.audio_context.visible = False
         self.audio_selector.visible = False
         self.valid_audio_btn.visible = False
+        self.model_btn.button_style = 'outline'
+        self.audio_btn.button_style = 'solid'
         self.model_selector.visible = True
         self.valid_model_btn.visible = True
 
@@ -186,15 +195,21 @@ class AnnotateDashboard(View):
         self.loading_audio.visible = True
         if self.audio_selector is not None:
             selected_folders = self.audio_selector.value
-            extensions_by_folder, audio_count, audio_duration = self.get_extensions(selected_folders)
+            extensions_by_folder, audio_count, audio_duration, sample_rates = self.get_extensions(selected_folders)
             hours, minutes, seconds = self.seconds_to_hms(audio_duration)
             audio_duration = f"{hours:02}:{minutes:02}:{seconds:02}"
             extensions = [ext for folder, ext in extensions_by_folder.items()]
-            print(extensions)
+
+            if len(set(sample_rates)) != 1:
+                self.audio_btn.button_type = "warning"
+                self.notification.object = "Different sampling rates have been detected"
+                self.notification.alert_type = 'warning'
+                self.notification.visible = True
+
             if extensions == [{'.wav'}] or extensions == [{'.npy'}]:
                 self.audio_btn.button_type = "success"
                 self.notification.visible = False
-                self.update_stats(audio_count, audio_duration, extensions)
+                self.update_stats(audio_count, audio_duration, extensions, sample_rates[0])
             else:
                 self.audio_btn.button_type = "warning"
                 self.notification.object = "Invalid audio folder selected"
@@ -208,37 +223,32 @@ class AnnotateDashboard(View):
         self.loading_audio.visible = False
 
     def get_extensions(self, directories):
+
+        audio_formats = soundfile.available_formats()
+        format_names = list(audio_formats.keys()) + ['NPY']
+        audio_formats = ['.' + fmt.lower() for fmt in format_names]
+        sample_rates = []
         file_counter = 0
         audio_duration = 0
         extensions_by_folder = {}
-        sample_rate = 44100
         for directory in directories:
             extensions = set()
             for file_path in Path(directory).rglob('*'):
                 if file_path.is_file():
                     extensions.add(file_path.suffix)
-                    converted_file_path = str(file_path).replace("\\", "\\\\")
-                    if file_path.suffix == ".wav":
-                        audio_duration += self.get_wav_duration(converted_file_path)
-                        file_counter += 1
-                    elif file_path.suffix == ".npy":
-                        audio_duration += self.get_npy_duration(converted_file_path, sample_rate)
+                    if file_path.suffix in audio_formats:
+                        duration, sr = self.get_audio_duration_and_sr(file_path)
+                        audio_duration += duration
+                        sample_rates.append(sr)
                         file_counter += 1
             extensions_by_folder[directory] = extensions
-        return extensions_by_folder, file_counter, audio_duration
 
-    def get_wav_duration(self, file_path):
-        with wave.open(file_path, 'rb') as wav_file:
-            frames = wav_file.getnframes()
-            rate = wav_file.getframerate()
-            duration = frames / float(rate)
-            return duration
+        return extensions_by_folder, file_counter, audio_duration, sample_rates
 
-    def get_npy_duration(self, file_path, sample_rate):
-        data = np.load(file_path)
-        num_samples = data.shape[0]
-        duration = num_samples / float(sample_rate)
-        return duration
+    def get_audio_duration_and_sr(self, file_path):
+        y, sr = librosa.load(file_path, sr=None)  # Load the audio file with its original sample rate
+        duration = librosa.get_duration(y=y, sr=sr)
+        return duration, sr
 
     def seconds_to_hms(self, seconds):
         hours = seconds // 3600
@@ -248,9 +258,12 @@ class AnnotateDashboard(View):
 
     def on_click_valid_model(self, event):
 
-        with open(self.model_selector.value, 'rb') as file:
+        self.model_selector.save('model.pkl')
+
+        with open('model.pkl', 'rb') as file:
             data = pickle.load(file)
-        #print(data)
+
+        print(data)
 
         if self.model_selector.filename in ["syn-esn", "nsyn-esn", "ensemble"]:
             self.model_btn.button_type = "success"
@@ -265,16 +278,18 @@ class AnnotateDashboard(View):
         self.annotate_btn.disabled = not (
                 self.audio_btn.button_type == "success" and self.model_btn.button_type == "success")
 
-    def update_stats(self, audio_count, audio_duration, extensions):
+    def update_stats(self, audio_count, audio_duration, extensions, sampling_rate):
         self.audio_stats.object = f"""
-        # Audio stats :
+        ## Audio stats :
         ### Number of audio files : {audio_count}
         ### Total audio duration : {audio_duration}
+        ### Sampling rate : {sampling_rate}
         ### File extension : {extensions[0]}    
         """
 
     def on_click_annotate(self, event):
-        print("Annotate")
+        logger.info("Entering export dashboard.")
+        self.controler.next_step(to_step="export")
 
     def __panel__(self):
         return self.layout
