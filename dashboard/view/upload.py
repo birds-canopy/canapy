@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 
 from . import View
 from .settings import SettingsView
+from ..controler import Controler
 
 logger = logging.getLogger("canapy-dashboard")
 
@@ -77,6 +78,7 @@ class UploadDashboard(View):
         self.update_ensemble_checkbox()
         self.modelcheckboxes.syn_checkbox.param.watch(self.update_ensemble_checkbox, 'value')
         self.modelcheckboxes.nsyn_checkbox.param.watch(self.update_ensemble_checkbox, 'value')
+        self.modelcheckboxes.ensemble_checkbox.param.watch(self.update_ensemble_checkbox, 'value')
 
         self.select_format = pn.widgets.Select(name='Annotation format',
                                                options=list(crowsetta.formats.FORMATS.keys()),
@@ -183,12 +185,23 @@ class UploadDashboard(View):
     def update_ensemble_checkbox(self, event=None):
         syn_checked = self.modelcheckboxes.syn_checkbox.value
         nsyn_checked = self.modelcheckboxes.nsyn_checkbox.value
+        ensemble_checked = self.modelcheckboxes.ensemble_checkbox.value
 
         if syn_checked and nsyn_checked:
             self.modelcheckboxes.ensemble_checkbox.disabled = False
         else:
             self.modelcheckboxes.ensemble_checkbox.disabled = True
             self.modelcheckboxes.ensemble_checkbox.value = False
+
+        Controler.annotator_names = []
+        if syn_checked:
+            Controler.annotator_names.append("syn")
+        if nsyn_checked:
+            Controler.annotator_names.append("nsyn")
+        if ensemble_checked:
+            Controler.annotator_names.append("ensemble")
+
+        #TODO:Update controler annotators
 
     def on_click_validate(self, event):
 
