@@ -25,6 +25,9 @@ _FORMATTERS = {
 
 class _BaseConfig(UserDict):
 
+    def __setstate__(self, d):
+        self.__dict__.update(d)
+
     def __setattr__(self, attr, value):
         if attr == "data":
             self.__dict__["data"] = value
@@ -134,7 +137,14 @@ default_config = Config.from_file(Path(__file__).absolute().parent / "store" / "
 
 
 if __name__ == "__main__":
+    import pickle
+    
+    c = pickle.loads(pickle.dumps(default_config))
 
-    # print(default_config.schema)
-    print(default_config.schema.flatten())
-    # print(default_config.schema.flatten())
+    dd = set(default_config.schema.keys())
+    cc = set(c.schema.keys())
+    assert dd == cc
+
+    dd = set(default_config.data.keys())
+    cc = set(c.data.keys())
+    assert dd == cc
