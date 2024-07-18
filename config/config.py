@@ -45,33 +45,34 @@ class _BaseConfig(UserDict):
             return self.__dict__[attr]
         else:
             raise AttributeError(attr)
+
+    def __repr__(self):
+        return type(self).__name__ + super(_BaseConfig, self).__repr__()
         
     def items(self):
         for key in self.data.keys():
             yield key, getattr(self, key)
 
-    def __repr__(self):
-        return type(self).__name__ + super(_BaseConfig, self).__repr__()
+    def solve(self, path: str):
+        """Get items by key paths of the form:
+        value = dict['key1/key2/key3']
+        Useful for nested dictionnaries only.
+        You may escape the '/' chararcter in 
+        a key name using '\/'.
+        """
+        # Colons are a rather safe substitute
+        substitute = path.replace("\/", ":")
+        parts = [p.replace(":", "/") for p in substitute.split("/")]
+        v = self.data
+        for part in parts:
+            v = v[part]
+        return v
  
 
 class ConfigSchema(_BaseConfig):
     
     def validate(self, config):
         jsonschema.validate(dict(**self), dict(**config))
-
-
-    def flatten(self, base_name="", flat_config={}):
-        if base_name == "":
-            base_name = self.title
-
-        if "properties" in self:
-            for name, prop in self.properties.items():
-                next_name = f"{base_name}__{name}"
-                flat_config = prop.flatten(next_name, flat_config)
-        else:
-            flat_config[base_name] = self
-            return flat_config
-        return flat_config
 
 
 class Config(_BaseConfig):
