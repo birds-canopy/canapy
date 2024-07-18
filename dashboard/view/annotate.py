@@ -9,6 +9,7 @@ from pathlib import Path
 import panel as pn
 import soundfile
 
+from canapy.annotator import Annotator
 from . import View
 from .settings import SettingsView
 
@@ -93,19 +94,8 @@ class AnnotateDashboard(View):
         ### File extension : ... 
         """, align="start")
 
-        self.model_settings = pn.pane.Markdown(f"""
-        ## Model settings :
-        ### Model type : ...
-        ### Units : ...
-        ### Spectral Radius : ...
-        ### Leakage : ...
-        ### MFCC input scaling : ...
-        ### MFCC derivatives input scaling : ...
-        ### MFCC second derivatives input scaling : ...
-        ### Ridge regularisation : ...
-        ### Backend : ...
-        ### Workers for the backend : ...
-        """, align="start")
+        self.model_settings1 = pn.pane.Markdown(f"""**...**""", align="start")
+        self.model_settings2 = pn.pane.Markdown("", align="start")
 
         self.model_selector = pn.widgets.FileInput(
             directory=os.getcwd(),
@@ -165,7 +155,8 @@ class AnnotateDashboard(View):
             ),
             pn.Column(
                 self.audio_stats,
-                self.model_settings,
+                pn.pane.Markdown(f'''## Model configuration'''),
+                pn.Row(self.model_settings1,self.model_settings2),
                 align='start', css_classes=["GreyCard"],
                 sizing_mode="stretch_width", margin=(20, 20, 0, 20), height=850
             ),
@@ -209,7 +200,7 @@ class AnnotateDashboard(View):
             if extensions == [{'.wav'}] or extensions == [{'.npy'}]:
                 self.audio_btn.button_type = "success"
                 self.notification.visible = False
-                self.update_stats(audio_count, audio_duration, extensions, sample_rates[0])
+                self.update_audio_stats(audio_count, audio_duration, extensions, sample_rates[0])
             else:
                 self.audio_btn.button_type = "warning"
                 self.notification.object = "Invalid audio folder selected"
@@ -257,13 +248,31 @@ class AnnotateDashboard(View):
         return int(hours), int(minutes), int(seconds)
 
     def on_click_valid_model(self, event):
+        def format_dict_to_md(d, indent=""):
+            result = ""
+            for key, value in d.items():
+                if key == 'data':
+                    result += format_dict_to_md(value, indent)
+                elif isinstance(value, dict):
+                    result += f"{indent}- **{key}**:  \n"
+                    result += format_dict_to_md(value, indent + "    ")
+                else:
+                    result += f"{indent}- **{key}**: {value}  \n"
+            return result
 
         self.model_selector.save('model.pkl')
+        annotator = Annotator.from_disk('model.pkl')
+        config_str = format_dict_to_md(vars(annotator.config))
 
-        with open('model.pkl', 'rb') as file:
-            data = pickle.load(file)
+        #TODO : Read directly the model configuration without saving it
+        #annotator = Annotator.from_disk(self.model_selector.value)
 
-        print(data)
+        index_model = config_str.find('- **model**')
+        config_str_misc_transforms = config_str[:index_model].strip()
+        config_str_model = config_str[index_model:].strip()
+
+        self.model_settings1.object = config_str_misc_transforms
+        self.model_settings2.object = config_str_model
 
         if self.model_selector.filename in ["syn-esn", "nsyn-esn", "ensemble"]:
             self.model_btn.button_type = "success"
@@ -278,7 +287,7 @@ class AnnotateDashboard(View):
         self.annotate_btn.disabled = not (
                 self.audio_btn.button_type == "success" and self.model_btn.button_type == "success")
 
-    def update_stats(self, audio_count, audio_duration, extensions, sampling_rate):
+    def update_audio_stats(self, audio_count, audio_duration, extensions, sampling_rate):
         self.audio_stats.object = f"""
         ## Audio stats :
         ### Number of audio files : {audio_count}

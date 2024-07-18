@@ -12,9 +12,7 @@ import jsonschema
 from pathlib import Path
 from collections import UserDict
 
-
 logger = logging.getLogger("config")
-
 
 _FORMATTERS = {
     "json": json,
@@ -24,6 +22,9 @@ _FORMATTERS = {
 
 
 class _BaseConfig(UserDict):
+
+    def __setstate__(self, d):
+        self.__dict__.update(d)
 
     def __setattr__(self, attr, value):
         if attr == "data":
@@ -42,20 +43,19 @@ class _BaseConfig(UserDict):
             return self.__dict__[attr]
         else:
             raise AttributeError(attr)
-        
+
     def items(self):
         for key in self.data.keys():
             yield key, getattr(self, key)
 
     def __repr__(self):
         return type(self).__name__ + super(_BaseConfig, self).__repr__()
- 
+
 
 class ConfigSchema(_BaseConfig):
-    
+
     def validate(self, config):
         jsonschema.validate(dict(**self), dict(**config))
-
 
     def flatten(self, base_name="", flat_config={}):
         if base_name == "":
@@ -95,7 +95,7 @@ class Config(_BaseConfig):
                         f"Unkown configuration file format. "
                         f"Expected a JSON, YAML or TOML file. "
                         f"Errors: {e}")
-        
+
         return cls(**config)
 
     def __init__(self, schema=None, **kwargs):
@@ -103,7 +103,7 @@ class Config(_BaseConfig):
         self._schema = None
         if schema is not None:
             self._schema = ConfigSchema(**schema)
-    
+
     def __repr__(self):
         return "Config" + super(_BaseConfig, self).__repr__()
 
@@ -116,11 +116,11 @@ class Config(_BaseConfig):
         data = self.data
         if self.schema is not None:
             data["schema"] = self.schema
-        
+
         if format not in _FORMATTERS:
             logger.warn("Unkown format: {format}. Falling back on YAML.")
             format = "yaml"
-        
+
         formatter = _FORMATTERS[format]
 
         with open(config_path, "w+") as fp:
@@ -132,9 +132,15 @@ class Config(_BaseConfig):
 
 default_config = Config.from_file(Path(__file__).absolute().parent / "store" / "default.config.yml")
 
-
 if __name__ == "__main__":
+    import pickle
 
-    # print(default_config.schema)
-    print(default_config.schema.flatten())
-    # print(default_config.schema.flatten())
+    c = pickle.loads(pickle.dumps(default_config))
+
+    dd = set(default_config.schema.keys())
+    cc = set(c.schema.keys())
+    assert dd == cc
+
+    dd = set(default_config.data.keys())
+    cc = set(c.data.keys())
+    assert dd == cc
