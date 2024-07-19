@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 
 from . import View
 from .settings import SettingsView
-from ..controler import Controler
+#from ..controler import Controler
 
 logger = logging.getLogger("canapy-dashboard")
 
@@ -450,5 +450,6 @@ class UploadDashboard(View):
         self.violin_plot_pane.object = plt.gcf()
 
     def on_click_train(self, events):
+        #initialize_models(self)
         logger.info("Entering train dashboard.")
         self.controler.next_step(to_step="train")

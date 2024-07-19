@@ -2,6 +2,7 @@
 # Licence: MIT License
 # Copyright: Nathan Trouvain
 import logging
+import os
 from pathlib import Path
 from typing import Dict, Optional, List
 from collections import defaultdict
@@ -23,7 +24,7 @@ from canapy.plots import plot_segment_melspectrogram
 from canapy.annotator.commons.postprocess import extract_vocab
 from canapy.transforms.commons.training import split_train_test
 
-#from ..view import settings
+from ..view import settings, SettingsView
 from config import default_config, Config
 
 from .segments import fetch_misclassified_samples
@@ -43,6 +44,8 @@ class Controler:
     # TODO: For now, let's say syn-esn only is default.
     # Check self.controler.annotator_names in upload.py
     annotator_names: List[str] = attrs.field(default=["syn-esn"], converter=list)
+    print(os.path)
+    output_directory = "C:/Users/clemd/OneDrive/Bureau/CanapyNathan/syn-esn"
     # classes_names: List[str] = attrs.field(default=[""])
     # output_directory: str = settings.SettingsView.output_directory
 
@@ -69,13 +72,13 @@ class Controler:
     )
     _classes: Optional[List[str]] = attrs.field(alias="_classes", default=None)
 
-    config: Config = attrs.field(
-        factory=lambda: Config.from_file(Path(__file__).absolute().parent / "store" / "default.config.yml"))
+    # _config: Config = attrs.field(
+    #     factory=lambda: Config.from_file(Path(__file__).absolute().parent / "store" / "default.config.yml"))
 
     @property
     def step(self):
         return self._step
-    
+
     @property
     def iter(self):
         return self._iter
@@ -111,6 +114,14 @@ class Controler:
         return None
 
     @property
+    def annotators(self):
+        return self.annotator_names
+
+    @annotators.setter
+    def annotators(self, value):
+        self.annotator_names = value
+
+    @property
     def config(self):
         if self.corpus is not None:
             return self.corpus.config
@@ -127,7 +138,7 @@ class Controler:
         if self.corpus is not None:
             return self.corpus.audio_ext
         return ".wav"
-    
+
     def next_step(self, to_step=None):
 
         if self.step == "train":
@@ -164,13 +175,14 @@ class Controler:
         logger.info(f"Current training iteration : {self.iter}")
 
     def create_corpus(
-        self,
-        audio_directory,
-        annots_directory=None,
-        spec_directory=None,
-        config=None,
-        annot_format="marron1csv",
-        audio_ext=".wav",
+            self,
+            audio_directory,
+            annots_directory=None,
+            spec_directory=None,
+            config=None,
+            annot_format="marron1csv",
+            audio_ext=".wav",
+            #output_directory=SettingsView.output_directory
     ):
         """Create a new Corpus.
 
@@ -201,8 +213,9 @@ class Controler:
             config=config,
             annot_format=annot_format,
             audio_ext=audio_ext,
+            output_directory=output_directory
         )
-        
+
         # TODO: this is only needed in train, maybe move this
         # TODO: somewhere else
         self.corpus = split_train_test(self.corpus)
@@ -231,7 +244,8 @@ class Controler:
                 f" empty. Valid annotators are: {get_annotator_names()}."
             )
 
-    def initialize_output(self, output=None):
+    def initialize_output(self, output_directory):
+        self.output_directory = Path(output_directory)
         try:
             self.output_directory.mkdir(parents=True, exist_ok=True)
         except OSError as e:
@@ -261,10 +275,10 @@ class Controler:
 
     def checkpoint(self):
         try:
-            ckpt_dir = self.output_directory / "model" / str(self.iter)
+            ckpt_dir = Path(self.output_directory) / f"model{self.iter}"
             ckpt_dir.mkdir(parents=True, exist_ok=True)
             for name, model in self._annotators.items():
-                model.to_disk(ckpt_dir / name)
+                model.to_disk(str(ckpt_dir / name))
                 logger.info(f"Annotator checkpoint created at {ckpt_dir / name}.")
         except OSError as e:
             logger.critical("Failed to create checkpoint.")

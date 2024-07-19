@@ -4,7 +4,7 @@ import panel as pn
 
 from canapy.utils.tempstorage import close_tempfiles
 
-from ..controler import Controler
+#from ..controler import Controler
 
 class View(pn.viewable.Viewer):
     """Helper class to quickly define and control Canapy UI elements."""
