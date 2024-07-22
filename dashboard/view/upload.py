@@ -14,7 +14,8 @@ import matplotlib.pyplot as plt
 
 from . import View
 from .settings import SettingsView
-#from ..controler import Controler
+
+# from ..controler import Controler
 
 logger = logging.getLogger("canapy-dashboard")
 
@@ -150,6 +151,12 @@ class UploadDashboard(View):
         plt.tight_layout()
         self.violin_plot_pane = pn.pane.Matplotlib(fig3, height=350, disabled=True)
 
+        self.violin_switch = pn.widgets.Switch(name='Switch', align='center', disabled=True)
+        self.switch_violin_plot = pn.Row(f"""**Total duration**""",
+                                         self.violin_switch,
+                                         f"""**Variance**""", align='center')
+        self.violin_switch.param.watch(self.switch_violin_action, 'value')
+
         self.data_selection_accordion = pn.Accordion(('Data selection', pn.Column(
             self.modelcheckboxes,
             pn.pane.Markdown(f"## Data selection :"),
@@ -175,7 +182,7 @@ class UploadDashboard(View):
             ),
             pn.Column(
                 pn.pane.Markdown(f"## Data head :"), self.dataframe, self.stats, self.count_barplot_pane,
-                self.time_barplot_pane, self.violin_plot_pane, self.train_btn,
+                self.time_barplot_pane, self.violin_plot_pane, self.switch_violin_plot, self.train_btn,
                 css_classes=["GreyCard"],
                 margin=(0, 0, 0, 20), align="start"
             ),
@@ -193,15 +200,15 @@ class UploadDashboard(View):
             self.modelcheckboxes.ensemble_checkbox.disabled = True
             self.modelcheckboxes.ensemble_checkbox.value = False
 
-        Controler.annotator_names = []
-        if syn_checked:
-            Controler.annotator_names.append("syn")
-        if nsyn_checked:
-            Controler.annotator_names.append("nsyn")
-        if ensemble_checked:
-            Controler.annotator_names.append("ensemble")
+        # Controler.annotator_names = []
+        # if syn_checked:
+        #     Controler.annotator_names.append("syn")
+        # if nsyn_checked:
+        #     Controler.annotator_names.append("nsyn")
+        # if ensemble_checked:
+        #     Controler.annotator_names.append("ensemble")
 
-        #TODO:Update controler annotators
+        # TODO:Update controler annotators
 
     def on_click_validate(self, event):
 
@@ -305,7 +312,7 @@ class UploadDashboard(View):
         total_duration = 0
         total_silence_duration = 0
         class_durations = defaultdict(float)
-        class_instance_durations = defaultdict(list)  # Pour stocker les durées des instances par classe
+        self.class_instance_durations = defaultdict(list)
 
         data_frames = []
 
@@ -329,7 +336,7 @@ class UploadDashboard(View):
 
                     # Collecter les durées individuelles des instances
                     instance_durations = df[df['syll'] == syll]['end'] - df[df['syll'] == syll]['start']
-                    class_instance_durations[syll].extend(instance_durations.tolist())
+                    self.class_instance_durations[syll].extend(instance_durations.tolist())
 
                 for syll in unique_classes:
                     syll_duration = df[df['syll'] == syll]['end'] - df[df['syll'] == syll]['start']
@@ -353,18 +360,31 @@ class UploadDashboard(View):
 
         return (csv_head, class_repartition, num_classes_total, class_labels_total,
                 total_duration, num_annotated_files, total_silence_duration,
-                dict(class_durations), dict(class_instance_durations))
+                dict(class_durations), dict(self.class_instance_durations))
 
+    # TODO : Add sort_by_variance for violin plot
     def update_data(self, csv_head, class_repartition, num_classes_total, class_labels_total, total_duration,
                     num_annotated_files, total_silence_duration, class_durations, class_instance_durations):
 
         total_duration_str = time.strftime("%H:%M:%S", time.gmtime(total_duration))
         total_silence_duration_str = time.strftime("%H:%M:%S", time.gmtime(total_silence_duration))
 
+        class_labels_total = ", ".join(sorted(class_labels_total))
+
+        if len(class_labels_total) > 20:
+            mid_index = len(class_labels_total) // 2
+            split_index = class_labels_total.rfind(", ", 0, mid_index) + 1
+            class_labels_total1 = class_labels_total[:split_index].strip()
+            class_labels_total2 = class_labels_total[split_index:].strip()
+        else:
+            class_labels_total1 = class_labels_total
+            class_labels_total2 = ""
+
         data_stats = f"""
                 ## Data stats :
                 ### Number of classes : {num_classes_total}
-                ### Class labels : {", ".join(sorted(class_labels_total))}
+                ### Class labels : {class_labels_total1}
+                ### {class_labels_total2}
                 ### Total audio duration : {total_duration_str}
                 ### Total silence duration : {total_silence_duration_str}
                 ### Number of annotated audio files : {num_annotated_files} 
@@ -382,14 +402,12 @@ class UploadDashboard(View):
         classes = [item[0] for item in sorted_items]
         counts = [item[1] for item in sorted_items]
 
-        # Génération des couleurs
         colors = plt.cm.rainbow(np.linspace(0, 1, len(classes)))
 
-        # Création d'un dictionnaire classe -> couleur
-        class_to_color = {cls: col for cls, col in zip(classes, colors)}
+        self.class_to_color = {cls: col for cls, col in zip(classes, colors)}
 
         plt.figure(figsize=(10, 5) if len(classes) > 35 else (7, 4))
-        bars = plt.bar(classes, counts, color=[class_to_color[cls] for cls in classes])
+        bars = plt.bar(classes, counts, color=[self.class_to_color[cls] for cls in classes])
         plt.xlabel('Classes')
         plt.ylabel('Count')
         plt.title('Class frequency', fontweight='bold')
@@ -401,17 +419,15 @@ class UploadDashboard(View):
         plt.xticks(rotation=90)
         plt.tight_layout()
 
-        # Save the figure in the pane
         self.count_barplot_pane.object = plt.gcf()
 
         sorted_duration_items = sorted(class_durations.items(), key=lambda item: item[1])
-        duration_classes = [item[0] for item in sorted_duration_items]
+        self.duration_classes = [item[0] for item in sorted_duration_items]
         durations = [item[1] for item in sorted_duration_items]
 
-        plt.figure(figsize=(10, 5) if len(duration_classes) > 35 else (7, 4))
+        plt.figure(figsize=(10, 5) if len(self.duration_classes) > 35 else (7, 4))
 
-        # Utilisation des mêmes couleurs pour les mêmes classes
-        duration_bars = plt.bar(duration_classes, durations, color=[class_to_color[cls] for cls in duration_classes])
+        duration_bars = plt.bar(self.duration_classes, durations, color=[self.class_to_color[cls] for cls in self.duration_classes])
         plt.xlabel('Classes')
         plt.ylabel('Total duration (s)')
         plt.title('Class duration', fontweight='bold')
@@ -423,33 +439,55 @@ class UploadDashboard(View):
         plt.xticks(rotation=90)
         plt.tight_layout()
 
-        # Save the figure in the pane
         self.time_barplot_pane.object = plt.gcf()
 
-        # Violin plot pour la durée des classes
-        data = [class_instance_durations[cls] for cls in duration_classes if cls in class_instance_durations]
+        self.update_violin_plot(self.class_instance_durations, self.duration_classes, self.class_to_color, sort_by_variance=False)
+
+        self.violin_switch.disabled = False
+
+    def update_violin_plot(self, class_instance_durations, duration_classes, class_to_color, sort_by_variance):
+
+        if sort_by_variance:
+            variances = {cls: np.var(class_instance_durations[cls]) for cls in duration_classes if
+                         cls in class_instance_durations}
+            sorted_classes = sorted(variances, key=variances.get, reverse=False)
+        else:
+            sorted_classes = duration_classes
+
+        data = [class_instance_durations[cls] for cls in sorted_classes if cls in class_instance_durations]
 
         plt.figure(figsize=(10, 5) if len(duration_classes) > 35 else (7, 4))
         vp = plt.violinplot(data, showmeans=False, showmedians=True)
 
-        # Ajuster les couleurs des violins
-        for i, cls in enumerate(duration_classes):
+        for i, cls in enumerate(sorted_classes):
             if cls in class_instance_durations:
-                for b in vp['bodies'][i::len(duration_classes)]:
+                for b in vp['bodies'][i::len(sorted_classes)]:
                     b.set_facecolor(class_to_color[cls])
                     b.set_edgecolor('black')
                     b.set_alpha(1)
 
-        plt.xticks(np.arange(1, len(duration_classes) + 1), duration_classes, rotation=90)
+        plt.xticks(np.arange(1, len(sorted_classes) + 1), sorted_classes, rotation=90)
         plt.xlabel('Classes')
         plt.ylabel('Duration (s)')
         plt.title('Class duration distribution', fontweight='bold')
         plt.tight_layout()
 
-        # Save the figure in the pane
         self.violin_plot_pane.object = plt.gcf()
+    def switch_violin_action(self, event):
+        if event.new:
+            self.update_violin_plot(
+                class_instance_durations=self.class_instance_durations,
+                duration_classes=self.duration_classes,
+                class_to_color=self.class_to_color,
+                sort_by_variance=True)
+        else :
+            self.update_violin_plot(
+                class_instance_durations=self.class_instance_durations,
+                duration_classes=self.duration_classes,
+                class_to_color=self.class_to_color,
+                sort_by_variance=False)
 
     def on_click_train(self, events):
-        #initialize_models(self)
+        # initialize_models(self)
         logger.info("Entering train dashboard.")
         self.controler.next_step(to_step="train")
