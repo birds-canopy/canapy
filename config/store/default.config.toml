@@ -1,5 +1,5 @@
 [misc]
-seed=42
+seed=1
 
 [transforms.annots]
 time_precision=0.001 # seconds

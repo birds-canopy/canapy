@@ -94,6 +94,8 @@ class Corpus:
     audio_directory: Optional[Union[Path, str]] = attr.field(converter=as_path)
     spec_directory: Optional[Union[Path, str]] = attr.field(converter=as_path)
     annots_directory: Optional[Union[Path, str]] = attr.field(converter=as_path)
+    test_set: Optional[list[int]] = attr.ib(default=None)
+    train_set: Optional[list[int]] = attr.ib(default=None)
     annot_format: str = attr.field(default="marron1csv")
     annotations: GenericSeq = attr.field(default=GenericSeq(annots=list()))
     config: Config = attr.field(default=default_config)
@@ -189,6 +191,8 @@ class Corpus:
         audio_directory=None,
         spec_directory=None,
         annots_directory=None,
+        test_set=None,
+        train_set=None,
         config=None,
         annot_format="marron1csv",
         time_precision=0.001,
@@ -340,6 +344,8 @@ class Corpus:
             annots_directory=annots_dir,
             annot_format=annot_format,
             annotations=annotations,
+            test_set=test_set,
+            train_set=train_set,
             config=config,
             audio_ext=audio_ext,
             spec_ext=spec_ext,

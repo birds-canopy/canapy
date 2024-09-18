@@ -92,8 +92,7 @@ class SynAnnotator(Annotator):
         return init_esn_model(
             self.config.model.syn,
             self.config.transforms.audio.n_mfcc,
-            self.config.transforms.audio.audio_features,
-            self.config.misc.seed,
+            self.config.transforms.audio.audio_features, 1,
         )
 
     def fit(self, corpus):

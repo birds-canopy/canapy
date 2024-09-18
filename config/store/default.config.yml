@@ -11,7 +11,7 @@
 correction:
   min_segment_proportion_agreement: 0.66
 misc:
-  seed: 42
+  seed: 1
 model:
   nsyn:
     backend: multiprocessing
@@ -116,7 +116,7 @@ schema:
         seed:
           type: int
           description: Random state seed, for reproducibility.
-          default: 42
+          default: 1
 
     model:
       type: object
