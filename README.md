@@ -1,6 +1,7 @@
-<center># Canapy</center>
+# Canapy
 
-<center>**Automatic audio annotation tools for animal vocalizations**</center>
+**Automatic audio annotation tools for animal vocalizations**
+--------
 
 **Summary:**
 
