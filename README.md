@@ -1,4 +1,4 @@
-<center>Canapy</center>
+<center># Canapy</center>
 
 <center>**Automatic audio annotation tools for animal vocalizations**</center>
 
