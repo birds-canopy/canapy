@@ -1,0 +1,401 @@
+# Canapy default configuration file.
+#
+# This configuration file defines parameters
+# for ESN based annotation tools. They were
+# optimized for domestic canary songs annotation,
+# but yield good results with other songbirds 
+# species such as Zebra finches.
+#
+# For more information about each parameters,
+# see the 'schema' section below.
+correction:
+  min_segment_proportion_agreement: 0.66
+misc:
+  seed: 42
+model:
+  nsyn:
+    backend: multiprocessing
+    isd: 0.02
+    isd2: 0.002
+    iss: 0.0005
+    leak: 0.1
+    ridge: 1.0e-08
+    sr: 0.4
+    units: 1000
+    workers: -1
+  syn:
+    backend: multiprocessing
+    isd: 0.02
+    isd2: 0.002
+    iss: 0.0005
+    leak: 0.1
+    ridge: 1.0e-08
+    sr: 0.4
+    units: 1000
+    workers: -1
+
+transforms:
+  annots:
+    lonely_labels:
+    - cri
+    - TRASH
+    min_label_duration: 0.02
+    min_silence_gap: 0.001
+    silence_tag: SIL
+    time_precision: 0.001
+  audio:
+    audio_features:
+    - mfcc
+    - delta
+    - delta2
+    delta:
+      padding: wrap
+    delta2:
+      padding: wrap
+    fmax: 8000
+    fmin: 500
+    hop_length: 0.01
+    lifter: 40
+    n_fft: 2048
+    n_mfcc: 13
+    sampling_rate: 44100
+    win_length: 0.02
+  training:
+    balance:
+      data_augmentation:
+        noise_std: 0.01
+      min_class_total_duration: 2
+      min_silence_duration: 0.2
+    max_sequences: -1
+    test_ratio: 0.2
+
+# schema
+# ------
+#
+# Configuration schema for validation.
+#
+# Schemas should follow JSON schema 
+# specifications (see https://json-schema.org/).
+# An additional [META] flag will also be parsed
+# by canapy. It may be used to add tags to certain
+# properties, such as expert=true, which inform
+# canapy dashboard about the importance of
+# certain parameters.
+schema:
+  title: default
+  type: object
+  description: |
+    Canapy default configuration.
+    This configuration file defines parameters
+    for ESN based annotation tools. They were
+    optimized for domestic canary songs annotation,
+    but yield good results with other songbirds 
+    species such as Zebra finches.
+  properties:
+
+    correction:
+      type: object
+      description: |
+        These options affect dashboard correction panel.
+      properties:
+        min_segment_proportion_agreement:
+          description: |
+            Minimum proportion of agreement between all
+            annotation models, over the time course of
+            a single annotation, to consider the
+            annotation correct.
+          default: 0.66
+          type: float
+          minimum: 0.0
+          maximum: 1.0
+    
+    misc:
+      type: object
+      description: Miscellaneous parameters.
+      properties:
+        seed:
+          type: int
+          description: Random state seed, for reproducibility.
+          default: 42
+
+    model:
+      type: object
+      description: Model related parameters. [META] expert = true
+      properties:
+        nsyn:
+          type: object
+          description: Non-syntactic ESN model parameters.
+          properties:
+            backend:
+              type: str
+              description: Distributed computation backend (from joblib).
+              default: multiprocessing
+              enum: ["multiprocessing", "threading", "sequence", "loky"]
+            isd:
+              type: float
+              description: MFCC first derivates scaling.
+              default: 0.02
+              minimum: 0.0
+            isd2: 
+              type: float
+              description: MFCC second derivates scaling.
+              default: 0.002
+              minimum: 0.0
+            iss: 
+              type: float
+              description: MFCC scaling.
+              default: 0.0005
+              minimum: 0.0
+            leak: 
+              type: float
+              description: ESN leak rate.
+              default: 0.1
+              minimum: 0.0
+              maximum: 1.0
+            ridge: 
+              type: float
+              description: Ridge regression regularization parameter.
+              default: 1.0e-08
+              minimum: 0.0
+            sr:
+              type: float
+              description: ESN spectral radius.
+              default: 0.4
+              minimum: 0.0
+            units: 
+              type: int
+              description: ESN size, in number of neurons.
+              multipleOf: 100
+              default: 1000
+              exclusiveMinimum: 0
+            workers:
+              type: int
+              description: |
+                Number of processes/threads to use.
+                -1 means all available.
+              default: -1
+              minimum: -1
+        syn:
+          type: object
+          description: Syntactic ESN model parameters.
+          properties:
+            backend:
+              type: str
+              description: Distributed computation backend (from joblib).
+              default: multiprocessing
+              enum: ["multiprocessing", "threading", "sequence", "loky"]
+            isd: 
+              type: float
+              description: MFCC first derivates scaling.
+              default: 0.02
+              minimum: 0.0
+            isd2: 
+              type: float
+              description: MFCC second derivates scaling.
+              default: 0.002
+              minimum: 0.0
+            iss: 
+              type: float
+              description: MFCC scaling.
+              default: 0.0005
+              minimum: 0.0
+            leak: 
+              type: float
+              description: ESN leak rate.
+              default: 0.1
+              minimum: 0.0
+              maximum: 1.0
+            ridge: 
+              type: float
+              description: Ridge regression regularization parameter.
+              default: 1.0e-08
+              minimum: 0.0
+            sr:
+              type: float
+              description: ESN spectral radius.
+              default: 0.4
+              minimum: 0.0
+            units: 
+              type: int
+              description: ESN size, in number of neurons.
+              multipleOf: 100
+              default: 1000
+              exclusiveMinimum: 0
+            workers:
+              type: int
+              description: |
+                Number of processes/threads to use.
+                -1 means all available.
+              default: -1
+              minimum: -1
+
+  transforms:
+    type: object
+    description: Audio and annotations processing parameters.
+    properties:
+      annots:
+        type: object
+        description: Annotation pre/post processing parameters.
+        properties:
+          lonely_labels:
+            type: array
+            description: |
+              "Lonely labels" are annotations that will not
+              be merged on any circumstances. Merging occurs
+              when too identical annotations are very close
+              from each other in time (how close is defined
+              by the "mean_silence_gap" parameter).
+            items:
+              type: string
+            default: ["cri", "call", "TRASH"]
+            uniqueItems: true
+          min_label_duration: 
+            type: float
+            description: Minimum admissible annotation duration. [META] units=seconds
+            default: 0.02
+            minimum: 0.0
+          min_silence_gap: 
+            type: float
+            description: |
+              Minimum admissible silence gap between annotations.
+              Anything shorter than that will be trimmed off the 
+              sequence, and surrounding labels will cover the gap
+              or merge if they are identical. [META] units=seconds
+            default: 0.001
+            minimum: 0.0
+          silence_tag: 
+            type: str
+            description: Label used to annotated silences.
+            default: SIL
+          time_precision:
+            type: float
+            description: |
+              Minimum time resolution. Annotations onsets
+              and offsets will be rounded up to that amount.
+              Must be a multiple of 10. [META] expert=true, unit=seconds
+            default: 0.001
+            multipleOf: 10
+            exclusiveMinimum: 0.0
+    audio:
+      type: object
+      description: Audio preprocessing parameters.
+      properties:
+        audio_features:
+          type: array
+          description: |
+            Type of features to extract from audio.
+            Possible values are "mfcc" for MFCC,
+            "delta" for MFCC 1st derivatives, and
+            "delta2" for MFCC 2nd derivatives.
+            By default, they will all be extracted. [META] expert=true
+          default:
+            - mfcc
+            - delta
+            - delta2
+          items:
+            type: str
+            enum: ["mfcc", "delta", "delta2"]
+        delta:
+          type: object
+          description: 1st derivatives computation parameters. [META] expert=true
+          properties:
+            padding: 
+              type: str
+              description: Padding mode used for 1st derivatives computation.
+              default: wrap
+              enum: ["interp", "nearest", "mirror", "constant", "wrap"]
+        delta2:
+          type: object
+          description: 2nd derivatives computation parameters. [META] expert=true
+          properties:
+            padding: 
+              type: str
+              description: Padding mode used for 2nd derivatives computation.
+              default: wrap
+              enum: ["interp", "nearest", "mirror", "constant", "wrap"]
+        fmax: 
+          type: int
+          description: Max frequency considered in MFCC computation. [META] units=hertz
+          default: 8000
+          minimum: 0
+        fmin:
+          type: int
+          description: Min frequency considered in MFCC computation. [META] units=hertz
+          default: 500
+          minimum: 0
+        hop_length: 
+          type: float
+          description: FFT strides, in seconds. [META] units=seconds
+          default: 0.01
+          exclusiveMinimum: 0.0
+        lifter: 
+          type: int
+          description: MFCC liftering parameter. [META] expert=true
+          default: 40
+          minimum: 0
+        n_fft:
+          type: int
+          description: Number of FTT bins computed.
+          default: 2048
+          exclusiveMinimum: 0
+        n_mfcc: 
+          type: int
+          description: Number of MFCC coefficients computed.
+          default: 13
+          exclusiveMinimum: 0
+        sampling_rate:
+          type: number
+          description: Audio sampling rate. [META] units=hertz
+          default: 44100
+          exclusiveMinimum: 0
+        win_length:
+          type: float
+          description: FFT window, in seconds. [META] units=seconds
+          default: 0.02
+          exclusiveMinimum: 0.0
+    training:
+      type: object
+      description: Model training parameters.
+      properties:
+        balance:
+          type: object
+          description: Non-syntactic model label balancing parameters. [META] expert=true
+          properties:
+            data_augmentation:
+              type: object
+              description: Data augmentation parameters
+              properties:
+                noise_std: 
+                  type: float
+                  description: Noise level added to augmented samples.
+                  default: 0.01
+                  minimum: 0.0
+            min_class_total_duration: 
+              type: float
+              description: |
+                Minimum total audio duration of each label class
+                for non-syntactic training, in seconds. [META] units=seconds
+              default: 2.0
+              minimum: 0.0
+            min_silence_duration:
+              type: float
+              description: |
+                Silence samples lasting shorter that this will
+                be discarded in the non-syntactic training set. [META] units=seconds
+              default: 0.2
+              minimum: 0.0
+        max_sequences:
+          type: int
+          description: |
+            Maximum number of audio files to use for training.
+            -1 means all of them will be used.
+          default: -1
+          minimum: -1
+        test_ratio:
+          type: float
+          description: |
+            Train/test ratio used to perform training validation.
+            The ratio is applied on the number of audio files.
+          default: 0.2
+          minimum: 0.0
+          maximum: 1.0

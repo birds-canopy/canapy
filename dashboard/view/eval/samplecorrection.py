@@ -1,0 +1,379 @@
+# Author: Nathan Trouvain at 18/07/2023 <nathan.trouvain<at>inria.fr>
+# Licence: MIT License
+# Copyright: Nathan Trouvain
+import pathlib
+
+import panel as pn
+
+from canapy.plots import plot_bokeh_label_count
+
+from .classmerge import RepertoireView
+from ..helpers import SubDash, Registry, SideBar
+
+SAMPLE_CSS = """
+.sample-card {
+    background-color: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 10px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.selector-card {
+    background-color: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 5px;
+    transition: all 0.2s;
+}
+.selector-card:hover {
+    border-color: #3b82f6;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+"""
+
+class SampleCorrectionDashboard(SubDash):
+    def __init__(self, parent):
+        super().__init__(parent)
+
+        pn.config.raw_css.append(SAMPLE_CSS)
+
+        self.registry = Registry()
+        self.registry["sample"] = dict()
+        self.registry["class"] = dict()
+        
+        self.total_corrected = 0
+
+        self.class_selectors = self.build_class_selectors()
+
+        self.save_btn = pn.widgets.Button(
+            name="Save all", 
+            sizing_mode="stretch_width", 
+            button_type="primary",
+            disabled=True 
+        )
+        self.save_btn.on_click(self.on_click_save)
+        self.save_msg = pn.pane.HTML(styles=dict(color="green", background="white"))
+
+        # --- REPERTOIRE: correct display like ClassMerge ---
+        self.repertoire_view = RepertoireView(
+            self, num_panel=1, orientation="column", num_samples=100
+        )
+        self.repertoire_card = pn.Column(
+            self.repertoire_view.layout, 
+            css_classes=['sample-card'],
+            scroll=True,
+            sizing_mode="stretch_both",
+            height=500
+        )
+
+        fig, self.counts = plot_bokeh_label_count(self.controler.misclassified_segments)
+        fig.min_border = 0
+        bokeh_pane = pn.pane.Bokeh(fig, sizing_mode="stretch_width", height=350)
+
+        self.sample_container = pn.Column(
+            pn.pane.Alert("Select a class above to start correcting.", alert_type="light"),
+            sizing_mode="stretch_width",
+            scroll=True,
+            height=500
+        )
+
+        repertoire_height = 350
+
+        self.repertoire_card = pn.Column(
+            pn.Column(
+                self.repertoire_view.layout,
+                css_classes=['scrollable-content'],
+                sizing_mode="stretch_both",
+                scroll=True,
+                height=repertoire_height - 20
+            ),
+            css_classes=['sample-card'],
+            sizing_mode="stretch_width",
+            height=repertoire_height
+        )
+
+        self.layout = pn.Column(
+            pn.Row(
+                bokeh_pane,
+                pn.Spacer(width=20),
+                self.repertoire_card,
+                sizing_mode="stretch_width",
+                width=1800,
+                height=repertoire_height
+            ),
+            pn.Spacer(height=20),
+            pn.Column(
+                pn.pane.Markdown("### 1. Select a class to correct", margin=(10, 0, 10, 0)),
+                pn.Column(
+                    self.class_selectors,
+                    scroll=True,
+                    height=320, 
+                    styles={
+                        "background": "#f8f9fa",
+                        "padding": "15px",
+                        "border-radius": "8px",
+                        "border": "1px solid #dee2e6"
+                    },
+                    sizing_mode="stretch_width"
+                ),
+                pn.pane.Markdown("### 2. Correct samples", margin=(20, 0, 10, 0)),
+                sizing_mode="stretch_width"
+            ),
+            pn.Spacer(height=10),
+            self.sample_container,
+            pn.Spacer(height=15),
+            pn.Column(
+                pn.pane.Markdown("### 3. Save Corrections", margin=(20, 0, 10, 0)),
+                self.save_msg, 
+                self.save_btn, 
+                sizing_mode="stretch_width"
+            ),
+            sizing_mode="stretch_both",
+        )
+
+
+
+
+    @property
+    def save_txt(self):
+        return self.layout[3][1].object
+
+    @save_txt.setter
+    def save_txt(self, value):
+        self.layout[3][1].object = value
+
+    def build_class_selectors(self):
+        grid = pn.FlexBox(
+            justify_content='start',
+            gap=10,
+            align_items='center'
+        )
+        misclass = self.controler.misclassified_segments
+        for lbl in misclass.label.unique():
+            n_error = len(misclass.query("label==@lbl"))
+            display = ClassSelectionView(lbl, n_error, self)
+            self.registry["class"][lbl] = display
+            grid.append(display.layout)
+        return grid
+
+    def get_sample_corrector(self, label):
+        if self.registry["sample"].get(label) is not None:
+            return self.registry["sample"][label].layout
+        else:
+            sample_corrector = SampleCorrectorView(self, label)
+            self.registry["sample"][label] = sample_corrector
+            return sample_corrector.layout
+
+    def highlight_selection(self, active_label):
+        for lbl, view in self.registry["class"].items():
+            if lbl == active_label:
+                view.select_btn.button_type = "primary"
+            else:
+                view.select_btn.button_type = "default"
+
+    def listen_class_selection(self, label):
+        self.highlight_selection(label)
+        
+        sample_corrector_layout = self.get_sample_corrector(label)
+        self.sample_container.objects = [sample_corrector_layout]
+
+        self.sample_container.height = 500
+        self.sample_container.scroll = True
+
+    def listen_correction(self, label, increment):
+        self.registry["class"][label].receive_correction(increment)
+        self.total_corrected += increment
+        self.save_btn.disabled = self.total_corrected == 0
+
+    def check_correction(self, label):
+        return label in self.controler.classes if label != "" else True
+
+    def on_click_save(self, events):
+        new_corrections = {}
+        for sample_corrector in self.registry["sample"].values():
+            new_corrections.update(sample_corrector.corrections)
+        self.controler.upload_corrections(new_corrections, "annot")
+        self.save_txt = "Saved!"
+
+
+
+class ClassSelectionView(SubDash):
+    def __init__(self, label, num_error, parent):
+        super().__init__(parent)
+
+        self.label = label
+        self.num_error = num_error
+        self.num_corrected = 0
+
+        self.select_btn = pn.widgets.Button(
+            name=label, 
+            button_type="default",
+            height=35,
+            sizing_mode="stretch_width"
+        )
+        self.select_btn.on_click(self.on_click_notify_display)
+        
+        self.corrected_msg = pn.pane.Markdown(
+            f"**{self.num_corrected}/{num_error}**",
+            styles={
+                "text-align": "center",
+                "font-size": "11px",
+                "color": "#6b7280"
+            },
+            margin=(5, 0)
+        )
+
+        self.layout = pn.Column(
+            self.select_btn, 
+            self.corrected_msg,
+            width=100,
+            css_classes=['selector-card']
+        )
+
+    def on_click_notify_display(self, events):
+        self.parent.listen_class_selection(self.label)
+
+    def receive_correction(self, increment):
+        self.num_corrected += increment
+        color = "#6b7280"
+        if self.num_corrected == self.num_error:
+            color = "green"
+
+        self.corrected_msg.object = f"**{self.num_corrected}/{self.num_error}**"
+        self.corrected_msg.styles = {
+            "text-align": "center",
+            "font-size": "11px",
+            "color": color
+        }
+
+
+class SampleCorrectorView(SubDash):
+    def __init__(self, parent, label):
+        super().__init__(parent)
+
+        self.misclassified_segments = self.controler.misclassified_segments.query(
+            "label==@label"
+        )
+        self.label = label
+        self.registry = Registry()
+        self.layout = self.build_display()
+
+    @property
+    def corrections(self):
+        return {
+            i: display.correction
+            for i, display in self.registry.items()
+            if display.correction != ""
+        }
+
+    def build_display(self):
+        segments = self.controler.load_repertoire(self.misclassified_segments)
+        grid = pn.FlexBox(justify_content='center', gap=15)
+        
+        for i, (segment, (idx, annots)) in enumerate(zip(
+            segments, self.misclassified_segments.iterrows()
+        )):
+            display_num = i + 1
+            if self.registry.get(idx) is None:
+                display = SingleSampleCorrectorView(annots, segment, self.parent, display_num)
+                self.registry[idx] = display
+            else:
+                display = self.registry[idx]
+            grid.append(display.layout)
+            
+        return pn.Column(grid, sizing_mode="stretch_width")
+
+
+class SingleSampleCorrectorView(SubDash):
+    def __init__(self, repertoire_entry, spec, parent, display_num):
+        super().__init__(parent)
+
+        self.label = repertoire_entry.label
+        self.repertoire_entry = repertoire_entry
+
+        self.predictions = self.repertoire_entry.filter(regex="pred_.*")
+        self.predictions.index = [p.split("_")[1] for p in self.predictions.index]
+
+        self.text_input = pn.widgets.TextInput(placeholder="Correction", width=140)
+        self.corrected = False
+        self.text_input.param.watch(self.on_correction_notify, "value")
+
+        sampling_rate = round(self.controler.config.transforms.audio.sampling_rate)
+
+        self.number_pane = pn.pane.Markdown(
+            f"**#{display_num}**",
+            styles={'font-size': '16px', 'color': '#9ca3af', 'text-align': 'right'},
+            width=40, align='center', margin=(0, 10, 0, 0)
+        )
+
+        self.img = pn.pane.Matplotlib(
+            spec[0],
+            format="png",
+            tight=True,
+            height=80,
+            width=280,
+            sizing_mode="fixed",
+            margin=(0, 10)
+        )
+
+        self.audio_col = pn.Column(
+            pn.pane.Audio(spec[1], sample_rate=sampling_rate, height=35, width=220, sizing_mode="fixed", margin=(0, 0, 10, 0)),
+            pn.pane.Audio(spec[2], sample_rate=sampling_rate, height=35, width=220, sizing_mode="fixed", margin=(0, 0, 10, 0)),
+            width=230,
+            align='center',
+        )
+
+        models_preds = ", ".join([f"{idx}: {p}" for idx, p in self.predictions.items()])
+        notated_file = pathlib.Path(self.repertoire_entry.notated_path).stem
+
+        file_tooltip = pn.widgets.TooltipIcon(
+            value=f"File: {notated_file}\n"
+                  f"Time: {self.repertoire_entry.onset_s:.2f}s - {self.repertoire_entry.offset_s:.2f}s\n"
+                  f"Predictions: {models_preds}",
+            margin=(10, 10, 10, 10),
+            align='center'
+        )
+
+        self.label_status = pn.pane.Markdown("", styles={"font-size": "12px", "color": "orange"})
+
+        input_section = pn.Row(
+             pn.Column(
+                pn.Row(
+                    pn.pane.Markdown(f"**{self.label}**", styles={'font-size': '16px'}, margin=(0, 10, 0, 0)),
+                    self.label_status
+                ),
+                self.text_input,
+                width=150,
+                )
+        )
+
+        self.layout = pn.Row(
+            self.number_pane,
+            file_tooltip,
+            self.img,
+            pn.Spacer(width=20),
+            self.audio_col,
+            pn.Spacer(width=120),
+            input_section,
+            css_classes=['sample-card'],
+            sizing_mode="stretch_width"
+        )
+
+    @property
+    def correction(self):
+        return self.text_input.value
+
+    def on_correction_notify(self, events):
+        validation = self.parent.check_correction(self.text_input.value)
+        if not validation:
+            self.label_status.object = "New class"
+        else:
+            self.label_status.object = ""
+
+        if self.text_input.value == "":
+            self.corrected = False
+            self.parent.listen_correction(self.label, increment=-1)
+        else:
+            if not self.corrected:
+                self.corrected = True
+                self.parent.listen_correction(self.label, increment=1)

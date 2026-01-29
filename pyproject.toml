@@ -1,0 +1,56 @@
+[tool.poetry]
+name = "canapy-reborn"
+version = "0.1.0"
+description = ""
+license = "MIT"
+authors = [
+  "Nathan Trouvain <nathan.trouvain/at/inria.fr>",
+  "Vincent Gardies <>",
+  "Albane Arthuis <>",
+]
+readme = "README.md"
+packages = [
+  { include = "canapy" },
+  { include = "dashboard" },
+  { include = "config" },
+]
+include = ["**/*.config.toml"]
+
+[tool.poetry.dependencies]
+python = ">=3.9,<3.12"
+numba = "^0.57.1"
+librosa = "^0.10.0.post2"
+scikit-learn = "^1.2.2"
+scipy = "^1.7.3"
+numpy = "<=1.25"
+matplotlib = "^3.7.1"
+joblib = "^1.2.0"
+pandas = "^2.0.2"
+crowsetta = "^5.0.1"
+attrs = "^23.1.0"
+pandera = "^0.15.1"
+pyyaml = "^6.0"
+tqdm = "^4.65.0"
+reservoirpy = "^0.3.11"
+setuptools = "^68.0.0"
+jupyter = "^1.0.0"
+levenshtein = "^0.21.1"
+panel = "^1.2.0"
+param = "^1.13.0"
+bokeh = "^3.2.0"
+toml = "^0.10.2"
+click = "*"
+ipykernel = "6.29.4"
+
+[tool.poetry.group.dev.dependencies]
+black = "*"
+pytest = "*"
+notebook = "*"
+
+[tool.poetry.scripts]
+canapy = "dashboard.__main__:cli"
+canapy-audacity-convert = "audacity.main:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
