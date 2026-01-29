@@ -178,6 +178,7 @@ Then in the home page click on the **load data** button. You can load folders wh
 **In Section 2 "Configuration":**
 * If you want to automatically annotate data, specify the folder where your models have been saved in the *Model directory (-c)* field. (**/!\Warning : you should have already trained models. see below**)
 * If you want to specify a folder to save the output of canapy (either models or annotations depending of the pipeline used), specify it in the *Output directory (-o)* field. If you don't specify any folder, an "output" directory will be created by default.
+* Specify the right *Annotation format* and *Audio extension*.
 
 ### Option 2: Specify paths in the terminal
 You can directly specify paths when launching the dashboard, hence you won't have to load data in the dashboard.
