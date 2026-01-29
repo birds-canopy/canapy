@@ -7,8 +7,10 @@
 - [1. Installation](#installation)
 - [2. Prepare your dataset](#prepare_data)
 - [3. Run canapy dashboard](#dashboard)
-- [4. Using canapy Python library](#annotate)
-- [5. Change configuration](#config)
+- [4. Using quick commands](#quick_commands)
+- [5. Using canapy Python library](#library)
+- [6. Change configuration](#config)
+- [7. Support](#support)
 
 ## Installation <a name="installation"></a>
 
@@ -69,7 +71,8 @@ Four named columns of data are needed to define an annotation:
 - `syll`: the annotation label
 
 An example .csv file may look like this:
-<br/> 
+<br/>
+![CSV Example](images/csv_example_placeholder.png)
 
 #### Use another format
 
@@ -103,7 +106,7 @@ of vocalizations, and will never cut this sequence when training or
 annotating. When dealing with songbirds for instance, one file should
 ideally contain a single song sequence.
 
-Your dataset should therefore looks something like this:
+Your dataset should therefore look something like this:
 
 ```text
 ├── song_dataset
@@ -155,10 +158,30 @@ may be suboptimal, or even crash the annotator.
 
 ## Run canapy dashboard <a name="dashboard"></a>
 
-The easiest way to train annotators and check the quality of the dataset if by
-canapy dashboard application.
+The easiest way to train annotators, check the quality of the dataset and automatically annotate a new dataset is by using the canapy dashboard application.
 
-To run the dashboard and load your dataset at `song_dataset/`, simply do:
+### Load data
+To run the dashboard and load your dataset at `song_dataset/`, you have two options:
+
+#### Option 1: Load data in the dashboard
+The dashboard has a **load data** page. Run:
+```bash
+canapy dash
+```
+Then in the home page click on the **load data** button. You can load folders where your dataset is.
+
+**In Section 1 "Source selection":**
+* If audio and annotations are placed in the same folder, select your folder path in the *data directory (-d)* field, with the **combined folders** option selected.
+* If audio and annotations are in different folders, select your folder paths in the *audio directory* and *annotations directory* fields, with the **separate folders** option selected.
+
+**In Section 2 "Configuration":**
+* If you want to automatically annotate data, specify the folder where your models have been saved in the *Model directory (-c)* field. (**/!\Warning : you should have already trained models. see below**)
+* If you want to specify a folder to save the output of canapy (either models or annotations depending of the pipeline used), specify it in the *Output directory (-o)* field. If you don't specify any folder, an "output" directory will be created by default.
+
+### Option 2: Specify paths in the terminal
+You can directly specify paths when launching the dashboard, hence you won't have to load data in the dashboard.
+
+* If you want to **train models** or **edit annotations**, simply run:
 
 ```bash
 canapy dash -a song_dataset/annotations -s song_dataset/audio -o output
@@ -170,82 +193,118 @@ or, if audio and annotations are placed in the same directory:
 canapy dash -d song_dataset/data -o output
 ```
 
+* If you want to **automatically annotate audio files using trained models** run:
+```bash
+canapy dash -s song_dataset/audio -c models_folder -o output
+```
+or
+```bash
+canapy dash -d song_dataset/audio -c models_folder -o output
+```
+
 The dashboard should open in your browser, at localhost:9321. If not, simply reach localhost:9321 in your favorite browser.
-All the data produced by the dashboard (models and checkpoints) will be stored in `output/`.
-The first dashboard you will see in the one devoted to train the model.
+All the data produced by the dashboard (models and checkpoints or annotations) will be stored in `output/`.
 
-### Dashboard 1: train
+The first dashboard you will see is the home page. From there you can **Load data** as described earlier, **Edit dataset** to edit annotations, **Train models** to then use these to automatically annotate unlabeled audio, or **Annotate** using trained models. Let's go through these different pipelines.
 
-Click on the button `Start training` to begin the training of the annotators and then produce the annotations. Metrics should display in the terminal where you started the dashboard.
-At the end of the training sequence, click on "Next step" to display the "eval" dashboard (it can take some time to display, don't worry, click only **once** on the button).
-The first dashboard will train annotation models on the current version of the dataset, and produce their respective versions of the annotations.
+### Pipeline 1: Edit dataset
+Click on the button "Edit Dataset". The **Preprocessing** page will be loaded, with 2 sections.
 
-Two models are built during the training phase. They both are based on an Echo State Network (ESN), a kind of artificial neural network, and have the same parameters. They are, however, trained on two different tasks:
+#### Section 1: Class merge
+In the class merge section, you can listen to annotation classes (*2. audio repertoire*), compare these and merge them if they are too similar.
+To merge classes, in *1. class correction*, specify the new label you want a class to be attributed to and click on the *apply* button.
 
-- the **syn** model (syntactic model) is trained to annotate whole songs. Entire songs and annotations files are presented to the models during training. Thus, the model is trained only on the available data, meaning that imbalance in number between the categories of bird phrases is preserved. The model is also expected to rely on syntactic information to produce its annotations, being trained on the real order of the phrases in the songs.
-- the **nsyn** model (non syntactic model) is trained to annotate only randomly mixed phrases, with an artificially balanced number of phrases samples. This model is expected to rely only on inner characteristics of each type of syllables to annotate the songs, without taking into account their context in the song. Imbalance in number is also *not* preserved, meaning the model has to give the same importance to all categories of syllables.
+#### Section 2: Sample correction
+In this section, you can correct labels one by one (for example if there have been annotation errors). You can visualize mean statistics for each class (=labels).
 
-Finally, a third model, called **ensemble**, combine the outputs of the two previous models with a vote system, to combine the "judgements" of the two models in a new one.
-
-### Dashboard 2: eval
-
-The second dashboard displays the performances of the three models during the *real* annotation task: all three models are fed with the whole songs contained in the hand-annotated dataset, and we will now look at the differences between their annotations and the handmade ones.
-
-This dashboard is divided in two parts:
-
-- the Class merge dashboard
-- the Sample correction dashboard
-You can switch between them with the buttons at the top of the dashboard.
-
-#### Class merge
-
-In the `Class merge` dashboard, you can use the confusion matrices to inspect syllables categories where the models make a lot of mistakes. If the mistake pattern seems stable (high confusion between two classes, and potential agreement between the models), this could be the sign that the confused categories could be merged into one. 
-
-**Statistical Analysis:**
-Canapy provides powerful statistics to help you decide which classes to merge. On the right panel, you can view the distribution of:
-- **Duration**: The average length of the syllable.
+Canapy provides powerful statistics to help you decide which classes to merge. In *1. Global analysis & Selection*, after clicking on the *calculate stats* button, you can view the distribution of:
+- **Duration**: The average length of the class.
 - **Centroid**: The average frequency centroid (brightness of the sound).
 - **Mean Slope**: The average variation of frequency over time (Hz/s).
 
 The **Mean Slope** is particularly useful for analyzing repetitive phrases (trills). A positive slope indicates an ascending sound, while a negative slope indicates a descending sound, helping you distinguish between syllables that may look similar but sound different.
 
-You can use the inspector at the right of the confusion matrices to display some class samples and see if a merge is coherent. When you have taken your decision, simply write the new name of the class you want to modify in the correction panel at the extreme right of the dashboard.
-If the class contains few samples and doesn't seem well-founded you can delete it by writing 'DELETE' in the text input under the name of the syllable category.
+Below these stats, you can select a class and listen/view statistics for each individual sample of the class. If they are wrongly labeled, you can correct the label. Click on the "save all" button to save the label correction.
 
-Make sure to click on the `Apply` button to save your changes to memory. 
+After editing your dataset, you can export it with the *export* button, or go back to the home page. Label changes will be kept in memory for the training pipeline.
 
-#### Sample correction
+### Pipeline 2: Train models
+In this pipeline, you can train models using annotated files, to then use them to automatically annotate unlabeled data.
 
-You can also inspect individual samples in the `Sample correction` dashboard. This tool allows you to refine your dataset at the syllable level.
+**/!\ The dataset used for training should be similar to the one you want to automatically annotate.**
 
-Select a class to view its samples. Each sample card displays the spectrogram, the audio player, and key acoustic metrics:
-* **Duration**
-* **Centroid** (Hz)
-* **Slope** (Hz/s)
+*Example: I have a large dataset of one bird annotation. I manually annotated a small part of it. I use the annotated part to train models. I then use the trained models to automatically annotate the unlabeled dataset.*
 
-These metrics allow you to spot outliers (e.g., a "flat" syllable in a class of "descending" syllables) at a glance. 
+#### 1st page: Preprocessing
+This page is the same as the **Edit dataset** page.
+Once you have preprocessed the dataset, or if you don't want to preprocess it, you can click on the *next step* button to go to the next step.
 
-If you spot a mislabeled sample, simply type the correct label in the input box next to the sample.
+#### 2nd page: Train
+Click on the *Start Training* button to start training models.
+Two models are built during the training phase. They both are based on an Echo State Network (ESN), a kind of artificial neural network, and have the same parameters. They are, however, trained on two different tasks:
 
-Make sure to click on the `Save all` button on the right of the distribution figure to save your changes to disk.
+- the **syn** model (syntactic model) is trained to annotate whole songs. Entire songs and annotations files are presented to the models during training. Thus, the model is trained only on the available data, meaning that imbalance in number between the categories of bird phrases is preserved. The model is also expected to rely on syntactic information to produce its annotations, being trained on the real order of the phrases in the songs.
+- the **nsyn** model (non syntactic model) is trained to annotate only randomly mixed phrases, with an artificially balanced number of phrases samples. This model is expected to rely only on inner characteristics of each type of syllables to annotate the songs, without taking into account their context in the song. Imbalance in number is also *not* preserved, meaning the model has to give the same importance to all categories of syllables.
 
-### Next step
+Finally, a third model, called **ensemble**, combines the outputs of the two previous models using a voting system to combine the "judgements" of the two models into a new one.
 
-You have two choices then:
+At the end of the training sequence, click on *next step* to display the **eval** dashboard (it can take some time to display, don't worry, click only **once** on the button).
 
-- click the `Next step` button. This will redirect you to the 'train' dashboard. Indeed, after you have applied corrections on the dataset, you should retrain the models to see the increase in performance, and to check if by changing the data distribution new disagreements do not appear. You should do 3-4 iterations of training-evaluating to be sure that you have fixed all the annotations.
-- click the `Export` button. If you are happy with the models performances and the annotations' distribution of the dataset, after some iterations, you can click on this button to be redirected to the 'export' dashboard. This dashboard will simply retrain all the models with all the corrections applied on the dataset, and save them in the output directory, with the correction file, the configuration file, etc.
+#### 3rd page: Eval
+The **eval** page is similar in some ways to the **preprocessing** page.
 
-In any case, a checkpoint of the current state of your analysis will be saved : corrections, configuration, models and annotations will be stored in the `output/checkpoint` directory.
+##### Section 1: Class merge
+In *1. Evaluation Metrics*, you can see the performance of the trained models for each model for the train and the test phase. The spreadsheet on the right helps you assess the models' performance for each class and in general; 1 means the labels are perfectly classified. The confusion matrix on the left helps you visualize how classes can be misclassified.
+If a class is strongly misclassified as another class, they might be acoustically too similar; you can merge these below with the same modules as the **preprocessing** page.
 
-### Output directory
+#### Section 2: Sample correction
+Although the use is very similar to the **preprocessing** page, the principle differs. In this section, misclassified samples for each class are shown.
+You can view which classes have the most misclassified samples, and you can listen to these samples by clicking on the desired class button.
+If the misclassified sample was originally wrongly labeled, you can assign it the right label.
 
-After training your model you will find in the `output/` directory:
+If you are satisfied with the performance of the models, you can click on the *export* button to export the models. Else, you can click on the *next step* button to start training models again. You should do 3-4 iterations of training-evaluating to be sure that you have fixed all the annotations.
 
-- `checkpoints`: corrections, configuration, models and annotations corresponding to a round of training.
-- `models`: 'syn' and 'nsyn' program corresponding to the final version of the syntactic and non syntactic models you have trained
+#### 4th page: Export
+This page will export the trained models. Once the models are exported (in the folder specified as output), you can go back home or quit canapy.
 
-## Using canapy Python library<a name="annotate"></a>
+### 3rd Pipeline: Annotate unlabeled data
+
+To use this pipeline, you need to have trained models loaded, see *Load data*.
+If you trained models with multiple iterations, load the desired iteration: instead of loading a path like `output/model`, load `output/model/4` for example.
+If you haven't closed Canapy since you trained models, you should make sure you load the correct dataset (i.e., the unlabeled one) and the exported models you just trained using **Load data**.
+
+Select which models you want to use to automatically annotate unlabeled data by clicking on the buttons *Syn-ESN*, *NSyn-ESN* and *Ensemble*.
+Click on the *Start annotation* button to automatically annotate using the desired models.
+Once the annotation is finished, click on *Export Annotation*. Annotations will be exported in the folder specified as output in **Load data** or in the launching command.
+
+## Using quick commands <a name="quick_commands"></a>
+
+With canapy, you can run behaviors without having to run the dashboard or using the library.
+
+### Fast training
+To quickly train models, simply run:
+```bash
+canapy train -a song_dataset/annotations -s song_dataset/audio -o output
+```
+or
+```bash
+canapy train -d song_dataset/audio -o output
+```
+Canapy will then train models one time and directly export the trained models in the output folder.
+The behavior is similar to using the train pipeline of the dashboard without correcting anything in the preprocessing and eval phase and by running the training phase only once.
+
+### Fast annotation
+To quickly annotate data, simply run:
+```bash
+canapy annotate -a song_dataset/annotations -s song_dataset/audio -c models_folder -o output
+```
+or
+```bash
+canapy annotate -d song_dataset/audio -c models_folder -o output
+```
+The behavior is identical to the annotation pipeline with every model selected.
+
+## Using canapy Python library <a name="library"></a>
 
 Canapy is primarily a Python tool to build simple and fast automatic
 audio annotation pipelines, using a simple yet efficient machine learning
@@ -257,7 +316,7 @@ Annotator.
 ### Dealing with data: the `Corpus` object
 
 The `Corpus` object is a representation of your dataset within canapy.
-It holds reference to audio data, is in charge with loading and
+It holds reference to audio data, is in charge of loading and
 formatting your annotations (when needed), and may also store some
 other things like preprocessed data - spectrograms, for instance.
 
@@ -269,7 +328,7 @@ To load your dataset into a `Corpus` object, simply use:
 from canapy import Corpus
 
 corpus = Corpus.from_directory(
-  audio_directory="song_dataset/audio/", 
+  audio_directory="song_dataset/audio/",
   annots_directory="song_dataset/annotations/"
 )
 ```
@@ -284,7 +343,7 @@ provide WAV files or Numpy arrays archive files).
 
 ```python
 corpus = Corpus.from_directory(
-  audio_directory="song_dataset/audio/", 
+  audio_directory="song_dataset/audio/",
   annots_directory="song_dataset/annotations/",
   annot_format="aud-seq", # Audacity label track format
   audio_ext=".wav",  # Search for .wav files in the audio directory
@@ -367,7 +426,7 @@ corpus.to_directory("/save_directory")
 ### Annotate data
 
 Annotation in canapy is performed by an Annotator.
-There are several Annotator currently available,
+There are several Annotators currently available,
 but the simplest one and the most useful is the
 SynAnnotator:
 
@@ -377,7 +436,7 @@ from canapy.annotator import SynAnnotator
 annotator = SynAnnotator()
 ```
 
-This object is in charge with training a
+This object is in charge of training a
 machine learning model able to annotate
 your data, based on some audio and annotations
 stored in a `Corpus`, and eventually annotate
@@ -419,12 +478,12 @@ can load it again using the `.from_disk` method of the
 ```python
 from canapy.annotator import Annotator
 
-annotator = Annotator.from_disk("saved_directory/annotator") 
+annotator = Annotator.from_disk("saved_directory/annotator")
 ```
 
 #### Annotate a `Corpus` of audio
 
-You may now annotate unlabeled audio the `.predict` method
+You may now annotate unlabeled audio using the `.predict` method
 of your annotator, generating a new `Corpus` with freshly
 computed annotations:
 
@@ -478,7 +537,7 @@ my_config = deepcopy(default_config)
 my_config.transforms.audio.sampling_rate = 16000
 ```
 
-The objects in charge with dealing with the configuration throughout
+The objects in charge of dealing with the configuration throughout
 your annotation pipeline are your `Corpus` and Annotator. To apply your
 configuration, change your `Corpus` configuration files:
 
@@ -539,14 +598,13 @@ new Annotators:
 annotator = SynAnnotator(config=corpus.config)
 ```
 
-You may also change the dashboard configuration 
+You may also change the dashboard configuration
 by providing this file as argument using the `--config_path`
 parameter.
 
 
-## Support
+## Support <a name="support"></a>
 
 If you have any problems with using Canapy, don't hesitate to contact Axel Arnaud or Xavier Hinaut at Inria Mnemosyne team:
 <axel.arnaud@inria.fr>
 <xavier.hinaut@inria.fr>
-```
