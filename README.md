@@ -259,7 +259,7 @@ The **eval** page is similar in some ways to the **preprocessing** page.
 In *1. Evaluation Metrics*, you can see the performance of the trained models for each model for the train and the test phase. The spreadsheet on the right helps you assess the models' performance for each class and in general; 1 means the labels are perfectly classified. The confusion matrix on the left helps you visualize how classes can be misclassified.
 If a class is strongly misclassified as another class, they might be acoustically too similar; you can merge these below with the same modules as the **preprocessing** page.
 
-#### Section 2: Sample correction
+##### Section 2: Sample correction
 Although the use is very similar to the **preprocessing** page, the principle differs. In this section, misclassified samples for each class are shown.
 You can view which classes have the most misclassified samples, and you can listen to these samples by clicking on the desired class button.
 If the misclassified sample was originally wrongly labeled, you can assign it the right label.
