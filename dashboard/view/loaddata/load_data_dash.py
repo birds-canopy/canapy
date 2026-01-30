@@ -26,54 +26,66 @@ FORM_CSS = """
     padding: 20px;
     height: 100%;
     width: 100%;
+    box-sizing: border-box;
+    overflow-y: auto;
 }
 .form-card {
     background-color: var(--card-bg);
     border-radius: 12px;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     border: 1px solid var(--border-color);
-    padding: 30px 40px; 
-    max-width: 1400px;
-    margin: 0 auto; 
+    padding: 25px 30px; 
+    width: 100%;
+    max-width: 850px;
+    margin: 0 auto;
+    box-sizing: border-box;
+}
+@media (max-width: 768px) {
+    .form-card {
+        padding: 15px;
+    }
+    .main-dashboard-area {
+        padding: 10px;
+    }
 }
 .page-title {
-    font-size: 28px;
+    font-size: 24px;
     font-weight: 800;
     color: var(--text-main);
     margin-bottom: 5px;
     letter-spacing: -0.025em;
 }
 .page-subtitle {
-    font-size: 15px;
+    font-size: 14px;
     color: var(--text-muted);
-    margin-bottom: 20px;
+    margin-bottom: 15px;
 }
 .section-header {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 700;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.08em;
     border-bottom: 2px solid var(--border-color);
     padding-bottom: 5px;
-    margin-top: 15px;
-    margin-bottom: 15px;
+    margin-top: 10px;
+    margin-bottom: 10px;
 }
 .input-label {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
     color: #374151;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
     display: block;
 }
 .form-card .bk-input {
     border-radius: 6px !important;
     border: 1px solid var(--border-color) !important;
-    font-size: 14px !important;
+    font-size: 13px !important;
     color: var(--text-main) !important;
     box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
     transition: border-color 0.2s, box-shadow 0.2s;
-    height: 42px !important; 
+    height: 38px !important; 
 }
 .form-card .bk-input:focus {
     border-color: var(--primary-color) !important;
@@ -82,8 +94,8 @@ FORM_CSS = """
 .form-card .bk-btn {
     border-radius: 6px !important;
     font-weight: 600 !important;
-    font-size: 14px !important;
-    height: 42px !important; 
+    font-size: 13px !important;
+    height: 38px !important; 
     line-height: 1.5 !important;
     margin: 0 !important; 
 }
@@ -99,8 +111,8 @@ FORM_CSS = """
 .form-card .action-button .bk-btn-primary {
     background-color: var(--primary-color) !important;
     border: none !important;
-    font-size: 16px !important; 
-    height: 50px !important; 
+    font-size: 15px !important; 
+    height: 45px !important; 
 }
 .form-card .action-button .bk-btn-primary:hover {
     background-color: #4338ca !important;
@@ -129,17 +141,17 @@ class LoadDataDashboard(SubDash):
             value="combined",
             inline=True,
             sizing_mode="stretch_width",
-            margin=(5, 0, 15, 0)
+            margin=(5, 0, 10, 0)
         )
         self.mode_selector.param.watch(self._update_mode_visibility, 'value')
         
         def create_input_block(label_text, placeholder, browse_callback):
-            lbl = pn.pane.HTML(f"<span class='input-label'>{label_text}</span>", margin=(0, 0, 5, 0))
-            inp = pn.widgets.TextInput(placeholder=placeholder, sizing_mode="stretch_width", height=42, margin=0)
-            btn = pn.widgets.Button(name="Browse", button_type="default", width=110, height=42, margin=0)
+            lbl = pn.pane.HTML(f"<span class='input-label'>{label_text}</span>", margin=(0, 0, 2, 0))
+            inp = pn.widgets.TextInput(placeholder=placeholder, sizing_mode="stretch_width", height=38, margin=0)
+            btn = pn.widgets.Button(name="Browse", button_type="default", width=100, height=38, margin=0)
             btn.on_click(browse_callback)
             row = pn.Row(inp, pn.Spacer(width=10), btn, sizing_mode="stretch_width", margin=0, align='center')
-            container = pn.Column(lbl, row, sizing_mode="stretch_width", margin=(0, 0, 15, 0))
+            container = pn.Column(lbl, row, sizing_mode="stretch_width", margin=(0, 0, 10, 0))
             return container, inp, btn
 
         self.combined_block, self.combined_input, self.combined_browse = \
@@ -160,9 +172,9 @@ class LoadDataDashboard(SubDash):
             create_input_block("Output Directory", "Defaults to ./output if empty", self._browse_output)
         
         def create_select_block(label, options, value):
-            lbl = pn.pane.HTML(f"<span class='input-label'>{label}</span>", margin=(0, 0, 5, 0))
-            sel = pn.widgets.Select(options=options, value=value, sizing_mode="stretch_width", height=42, margin=0)
-            return pn.Column(lbl, sel, sizing_mode="stretch_width"), sel
+            lbl = pn.pane.HTML(f"<span class='input-label'>{label}</span>", margin=(0, 0, 2, 0))
+            sel = pn.widgets.Select(options=options, value=value, sizing_mode="stretch_width", height=38, margin=0)
+            return pn.Column(lbl, sel, sizing_mode="stretch_width", min_width=180), sel
 
         self.annot_fmt_block, self.annot_format_input = create_select_block("Annotation Format", ["marron1csv", "raven", "audacity"], "marron1csv")
         self.audio_ext_block, self.audio_ext_input = create_select_block("Audio Extension", [".wav", ".npy"], ".wav")
@@ -173,7 +185,7 @@ class LoadDataDashboard(SubDash):
         
         self.btn_load = pn.widgets.Button(
             name="Initialize Dataset", button_type="primary", 
-            sizing_mode="stretch_width", height=50, css_classes=['action-button']
+            sizing_mode="stretch_width", height=45, css_classes=['action-button']
         )
         self.btn_load.on_click(self._load_data)
 
@@ -192,23 +204,19 @@ class LoadDataDashboard(SubDash):
             
             self._update_mode_visibility(type('Event', (object,), {'new': self.mode_selector.value})())
 
-        # Config / Model
         if getattr(self.controler, 'model_root', None):
             self.config_input.value = str(self.controler.model_root)
         elif getattr(self.controler, 'config_path', None):
             self.config_input.value = str(self.controler.config_path)
 
-        # Output
         if getattr(self.controler, 'output_directory', None):
             self.output_input.value = str(self.controler.output_directory)
 
-        # Formats
         if getattr(self.controler, 'annot_format', None):
             self.annot_format_input.value = self.controler.annot_format
         if getattr(self.controler, 'audio_ext', None):
             self.audio_ext_input.value = self.controler.audio_ext
         
-        # --- LAYOUT CONSTRUCTION ---
         card_content = pn.Column(
             self.header,
             
@@ -225,16 +233,17 @@ class LoadDataDashboard(SubDash):
             self.output_block,
             
             pn.Spacer(height=5),
-            pn.Row(
+            pn.FlexBox(
                 self.annot_fmt_block, 
-                pn.Spacer(width=20), 
                 self.audio_ext_block, 
+                flex_wrap="wrap",
+                gap=20,
                 sizing_mode="stretch_width"
             ),
             
-            pn.Spacer(height=20),
+            pn.Spacer(height=15),
             self.global_status,
-            pn.Spacer(height=10),
+            pn.Spacer(height=5),
             
             self.btn_load,
             
@@ -247,16 +256,13 @@ class LoadDataDashboard(SubDash):
             pn.Column(
                 pn.Spacer(height=20),
                 card_content,
-                pn.Spacer(height=30),
+                pn.Spacer(height=20),
                 css_classes=['main-dashboard-area'],
                 sizing_mode="stretch_both",
-                scroll=True
             ),
             sizing_mode="stretch_both",
             margin=0
         )
-    
-    # --- LOGIC METHODS ---
     
     def _update_mode_visibility(self, event):
         is_separate = event.new == "separate"

@@ -112,13 +112,12 @@ class HomeDashboard(SubDash):
         self.btn_labelize.on_click(self.go_labelize)
 
 
-        workflows_grid = pn.GridBox(
+        workflows_grid = pn.FlexBox(
             self.btn_preprocess,
             self.btn_train,
             self.btn_labelize,
-            ncols=3,
             sizing_mode="stretch_width",
-            style={'gap': '20px'}
+            style={'gap': '20px', 'flex-wrap': 'wrap'}
         )
 
         main_content = pn.Column(
@@ -157,11 +156,6 @@ class HomeDashboard(SubDash):
         self.parent.switch_to_load_data()
 
     def go_preprocess_edit(self, _):
-        """
-        Nouveau handler pour le mode 'Quick Edit'.
-        On définit un home_path spécifique 'edit' pour signaler au controller 
-        que l'on veut juste éditer et exporter, pas suivre le pipeline d'entraînement.
-        """
         if not self.has_data:
             self.status.object = "Please load data first (-d)"
             self.status.alert_type = "danger"

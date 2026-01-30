@@ -15,8 +15,9 @@ SAMPLE_CSS = """
     background-color: #ffffff;
     border: 1px solid #e5e7eb;
     border-radius: 8px;
-    padding: 10px;
+    padding: 15px;
     box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    margin-bottom: 15px;
 }
 .selector-card {
     background-color: #ffffff;
@@ -28,6 +29,18 @@ SAMPLE_CSS = """
 .selector-card:hover {
     border-color: #3b82f6;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+.sample-row-card {
+    background-color: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 15px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
 """
 
@@ -54,52 +67,36 @@ class SampleCorrectionDashboard(SubDash):
         self.save_btn.on_click(self.on_click_save)
         self.save_msg = pn.pane.HTML(styles=dict(color="green", background="white"))
 
-        # --- REPERTOIRE: correct display like ClassMerge ---
         self.repertoire_view = RepertoireView(
             self, num_panel=1, orientation="column", num_samples=100
-        )
-        self.repertoire_card = pn.Column(
-            self.repertoire_view.layout, 
-            css_classes=['sample-card'],
-            scroll=True,
-            sizing_mode="stretch_both",
-            height=500
         )
 
         fig, self.counts = plot_bokeh_label_count(self.controler.misclassified_segments)
         fig.min_border = 0
-        bokeh_pane = pn.pane.Bokeh(fig, sizing_mode="stretch_width", height=350)
+        bokeh_pane = pn.pane.Bokeh(fig, sizing_mode="stretch_both", max_height=350)
 
         self.sample_container = pn.Column(
             pn.pane.Alert("Select a class above to start correcting.", alert_type="light"),
-            sizing_mode="stretch_width",
+            sizing_mode="stretch_both",
             scroll=True,
-            height=500
+            min_height=300
         )
 
-        repertoire_height = 350
-
-        self.repertoire_card = pn.Column(
-            pn.Column(
-                self.repertoire_view.layout,
-                css_classes=['scrollable-content'],
-                sizing_mode="stretch_both",
-                scroll=True,
-                height=repertoire_height - 20
-            ),
-            css_classes=['sample-card'],
-            sizing_mode="stretch_width",
-            height=repertoire_height
+        repertoire_card = pn.Column(
+            self.repertoire_view.layout,
+            scroll=True,
+            sizing_mode="stretch_both",
+            max_height=350,
+            css_classes=['sample-card']
         )
 
         self.layout = pn.Column(
             pn.Row(
                 bokeh_pane,
                 pn.Spacer(width=20),
-                self.repertoire_card,
+                repertoire_card,
                 sizing_mode="stretch_width",
-                width=1800,
-                height=repertoire_height
+                height=350
             ),
             pn.Spacer(height=20),
             pn.Column(
@@ -131,16 +128,13 @@ class SampleCorrectionDashboard(SubDash):
             sizing_mode="stretch_both",
         )
 
-
-
-
     @property
     def save_txt(self):
-        return self.layout[3][1].object
+        return self.layout[5][0].object
 
     @save_txt.setter
     def save_txt(self, value):
-        self.layout[3][1].object = value
+        self.layout[5][0].object = value
 
     def build_class_selectors(self):
         grid = pn.FlexBox(
@@ -177,9 +171,6 @@ class SampleCorrectionDashboard(SubDash):
         sample_corrector_layout = self.get_sample_corrector(label)
         self.sample_container.objects = [sample_corrector_layout]
 
-        self.sample_container.height = 500
-        self.sample_container.scroll = True
-
     def listen_correction(self, label, increment):
         self.registry["class"][label].receive_correction(increment)
         self.total_corrected += increment
@@ -194,7 +185,6 @@ class SampleCorrectionDashboard(SubDash):
             new_corrections.update(sample_corrector.corrections)
         self.controler.upload_corrections(new_corrections, "annot")
         self.save_txt = "Saved!"
-
 
 
 class ClassSelectionView(SubDash):
@@ -226,7 +216,7 @@ class ClassSelectionView(SubDash):
         self.layout = pn.Column(
             self.select_btn, 
             self.corrected_msg,
-            width=100,
+            width=110,
             css_classes=['selector-card']
         )
 
@@ -268,7 +258,7 @@ class SampleCorrectorView(SubDash):
 
     def build_display(self):
         segments = self.controler.load_repertoire(self.misclassified_segments)
-        grid = pn.FlexBox(justify_content='center', gap=15)
+        container = pn.Column(sizing_mode="stretch_width")
         
         for i, (segment, (idx, annots)) in enumerate(zip(
             segments, self.misclassified_segments.iterrows()
@@ -279,9 +269,9 @@ class SampleCorrectorView(SubDash):
                 self.registry[idx] = display
             else:
                 display = self.registry[idx]
-            grid.append(display.layout)
+            container.append(display.layout)
             
-        return pn.Column(grid, sizing_mode="stretch_width")
+        return container
 
 
 class SingleSampleCorrectorView(SubDash):
@@ -294,7 +284,7 @@ class SingleSampleCorrectorView(SubDash):
         self.predictions = self.repertoire_entry.filter(regex="pred_.*")
         self.predictions.index = [p.split("_")[1] for p in self.predictions.index]
 
-        self.text_input = pn.widgets.TextInput(placeholder="Correction", width=140)
+        self.text_input = pn.widgets.TextInput(placeholder="Correction", width=130)
         self.corrected = False
         self.text_input.param.watch(self.on_correction_notify, "value")
 
@@ -302,8 +292,9 @@ class SingleSampleCorrectorView(SubDash):
 
         self.number_pane = pn.pane.Markdown(
             f"**#{display_num}**",
-            styles={'font-size': '16px', 'color': '#9ca3af', 'text-align': 'right'},
-            width=40, align='center', margin=(0, 10, 0, 0)
+            styles={'font-size': '14px', 'color': '#9ca3af', 'font-weight': '600'},
+            width=40, 
+            align='center'
         )
 
         self.img = pn.pane.Matplotlib(
@@ -311,16 +302,13 @@ class SingleSampleCorrectorView(SubDash):
             format="png",
             tight=True,
             height=80,
-            width=280,
-            sizing_mode="fixed",
-            margin=(0, 10)
+            width=200,
         )
 
         self.audio_col = pn.Column(
-            pn.pane.Audio(spec[1], sample_rate=sampling_rate, height=35, width=220, sizing_mode="fixed", margin=(0, 0, 10, 0)),
-            pn.pane.Audio(spec[2], sample_rate=sampling_rate, height=35, width=220, sizing_mode="fixed", margin=(0, 0, 10, 0)),
-            width=230,
-            align='center',
+            pn.pane.Audio(spec[1], sample_rate=sampling_rate, height=30, width=200),
+            pn.Spacer(height=5),
+            pn.pane.Audio(spec[2], sample_rate=sampling_rate, height=30, width=200),
         )
 
         models_preds = ", ".join([f"{idx}: {p}" for idx, p in self.predictions.items()])
@@ -330,21 +318,17 @@ class SingleSampleCorrectorView(SubDash):
             value=f"File: {notated_file}\n"
                   f"Time: {self.repertoire_entry.onset_s:.2f}s - {self.repertoire_entry.offset_s:.2f}s\n"
                   f"Predictions: {models_preds}",
-            margin=(10, 10, 10, 10),
-            align='center'
         )
 
-        self.label_status = pn.pane.Markdown("", styles={"font-size": "12px", "color": "orange"})
+        self.label_status = pn.pane.Markdown("", styles={"font-size": "10px", "color": "orange"})
 
-        input_section = pn.Row(
-             pn.Column(
-                pn.Row(
-                    pn.pane.Markdown(f"**{self.label}**", styles={'font-size': '16px'}, margin=(0, 10, 0, 0)),
-                    self.label_status
-                ),
-                self.text_input,
-                width=150,
-                )
+        input_section = pn.Column(
+            pn.Row(
+                pn.pane.Markdown(f"**{self.label}**", styles={'font-size': '13px', 'font-weight': '600'}, margin=(0, 5, 0, 0)),
+                self.label_status
+            ),
+            self.text_input,
+            width=140,
         )
 
         self.layout = pn.Row(
@@ -353,10 +337,11 @@ class SingleSampleCorrectorView(SubDash):
             self.img,
             pn.Spacer(width=20),
             self.audio_col,
-            pn.Spacer(width=120),
+            pn.Spacer(width=20),
             input_section,
-            css_classes=['sample-card'],
-            sizing_mode="stretch_width"
+            css_classes=['sample-row-card'],
+            sizing_mode="stretch_width",
+            align="center"
         )
 
     @property

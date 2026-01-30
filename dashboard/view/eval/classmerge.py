@@ -94,8 +94,9 @@ class ClassMergeDashboard(SubDash):
                 pn.Column(
                     pn.pane.HTML("<div class='col-header' style='border-bottom: none;'>2. Class Correction</div>"),
                     self.corrector.layout,
-                    width=420, 
-                    sizing_mode="stretch_height", 
+                    css_classes=['dashboard-col'],
+                    styles={"min-width": "300px", "max-width": "420px"},
+                    sizing_mode="stretch_height",
                 ),
                 pn.Spacer(width=15),
                 pn.Column(
@@ -149,17 +150,17 @@ class MetricsView(SubDash):
                 
                 fig_pane = pn.pane.Bokeh(
                     p, 
-                    width=650,
-                    height=650,
-                    sizing_mode="fixed"
+                    sizing_mode="stretch_both",
+                    max_width=650,
+                    max_height=650
                 )
                 
                 heatmap_card = pn.Column(
                     fig_pane,
                     css_classes=['inner-metric-card'],
-                    sizing_mode="fixed",
-                    width=680,
-                    height=680
+                    sizing_mode="stretch_both",
+                    max_width=680,
+                    max_height=680
                 )
 
                 df = pd.DataFrame(metrics["report"][name]).T
@@ -167,18 +168,18 @@ class MetricsView(SubDash):
                     df, 
                     disabled=True, 
                     theme='site', 
-                    width=650,
-                    height=650,
-                    sizing_mode="fixed"
+                    sizing_mode="stretch_both",
+                    max_width=650,
+                    max_height=650
                 )
                 score_table.style.pipe(format_score_df)
 
                 stats_card = pn.Column(
                     score_table,
                     css_classes=['inner-metric-card'],
-                    sizing_mode="fixed",
-                    width=680,
-                    height=680
+                    sizing_mode="stretch_both",
+                    max_width=680,
+                    max_height=680
                 )
 
                 sub_tabs.append(
@@ -264,9 +265,9 @@ class SampleView(SubDash):
             
             visual_block = pn.Row(
                 pn.pane.Markdown(f"**#{i+1}**", styles={'font-size': '11px', 'color': '#6b7280'}, width=30, align='center'),
-                pn.pane.Matplotlib(sp[0], format="png", tight=True, sizing_mode="fixed", height=50, width=280),
-                sizing_mode="fixed",
-                width=320,
+                pn.pane.Matplotlib(sp[0], format="png", tight=True, sizing_mode="stretch_width", height=50),
+                sizing_mode="stretch_width",
+                styles={"min-width": "120px", "max-width": "320px"},
                 margin=(0, 10, 0, 0)
             )
             
@@ -275,7 +276,6 @@ class SampleView(SubDash):
                 pn.Spacer(height=5),
                 pn.pane.Audio(sp[2], sample_rate=round(sampling_rate), height=35, sizing_mode="stretch_width"),
                 sizing_mode="stretch_width",
-                min_width=200, 
             )
             
             card_content = pn.FlexBox(
@@ -321,8 +321,7 @@ class CorrectorView(SubDash):
             pn.Column(
                 self.grid, 
                 scroll=True, 
-                sizing_mode="stretch_both", 
-                height=700 
+                sizing_mode="stretch_both",
             ),
             pn.Column(
                 self.save_msg, 
