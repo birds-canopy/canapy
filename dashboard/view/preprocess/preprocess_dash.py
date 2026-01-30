@@ -131,7 +131,10 @@ PREPROCESS_CSS = """
 }
 """
 
-def compute_gated_stats(y, sr, threshold_ratio=0.15):
+def compute_gated_stats(y, sr, threshold_ratio=0.2):
+    """
+    Quick per-sample computation (mean) for individual display
+    """
     if len(y) == 0:
         return 0, 0
     N_FFT = 2048
@@ -146,7 +149,9 @@ def compute_gated_stats(y, sr, threshold_ratio=0.15):
     if np.sum(mask) < 3:
         return 0, 0
     cent_frames = librosa.feature.spectral_centroid(S=S, sr=sr, n_fft=N_FFT, hop_length=HOP_LEN)[0]
+    
     avg_cent = np.mean(cent_frames[mask])
+    
     freqs = librosa.fft_frequencies(sr=sr, n_fft=N_FFT)
     dom_freq_idx = np.argmax(S, axis=0)
     dom_freq_hz = freqs[dom_freq_idx]
@@ -162,6 +167,7 @@ def compute_gated_stats(y, sr, threshold_ratio=0.15):
     cleaned_slopes = valid_slopes[(valid_slopes >= lower_bound) & (valid_slopes <= upper_bound)]
     if len(cleaned_slopes) == 0:
         cleaned_slopes = valid_slopes
+        
     avg_slope = np.mean(cleaned_slopes)
     return int(avg_cent), int(avg_slope)
 
@@ -429,13 +435,21 @@ class CorrectionTool(SubDash):
         )
         self.build_class_selectors()
         self.stats_table = pn.widgets.Tabulator(
-            pd.DataFrame(columns=["Class", "Count", "Avg Dur", "Avg Centroid", "Avg Slope"]),
+            pd.DataFrame(columns=["Class", "Count", "Med Dur", "Med Centroid", "Med Slope"]),
             show_index=False,
             disabled=True,
             height=200,
             width=320,
             sizing_mode="stretch_width",
             configuration={"columnDefaults": {"headerSort": False}},
+        )
+        self.stats_tooltip = pn.widgets.TooltipIcon(
+            value=(
+                "Count: number of samples in the class\n"
+                "Med Dur: median segment duration\n"
+                "Med Centroid: median spectral centroid (energy-weighted mean frequency)\n"
+                "Med Slope: median temporal slope of dominant frequency"
+            )
         )
         self.compute_btn = pn.widgets.Button(
             name="Calculate Stats",
@@ -539,6 +553,7 @@ class CorrectionTool(SubDash):
                     "**Class Statistics**",
                     styles={"font-size": "13px", "font-weight": "bold"},
                 ),
+                self.stats_tooltip,
                 self.compute_status,
             ),
             self.stats_table,
@@ -659,11 +674,13 @@ class CorrectionTool(SubDash):
             for c in classes:
                 full_class_df = self.controler.corpus.dataset.query("label == @c")
                 count = len(full_class_df)
+                
                 avg_dur = (
-                    full_class_df["duration"].mean()
+                    full_class_df["duration"].median()
                     if not full_class_df.empty
                     else 0
                 )
+                
                 sub_df = full_class_df.sample(frac=1).head(200)
                 centroid_list = []
                 slope_list = []
@@ -695,17 +712,19 @@ class CorrectionTool(SubDash):
                                     ] = gated_slope
                     except Exception as e:
                         logger.error(f"Stats Error Class {c}: {e}")
+                
                 avg_centroid = (
-                    int(np.mean(centroid_list)) if centroid_list else 0
+                    int(np.median(centroid_list)) if centroid_list else 0
                 )
-                avg_slope = int(np.mean(slope_list)) if slope_list else 0
+                avg_slope = int(np.median(slope_list)) if slope_list else 0
+                
                 stats_data.append(
                     {
                         "Class": c,
                         "Count": count,
-                        "Avg Dur": f"{avg_dur:.2f}s",
-                        "Avg Centroid": f"{avg_centroid} Hz",
-                        "Avg Slope": f"{avg_slope}",
+                        "Med Dur": f"{avg_dur:.2f}s",
+                        "Med Centroid": f"{avg_centroid / 1000:.2f} kHz",
+                        "Med Slope": f"{avg_slope / 1000:.2f} kHz/s",
                     }
                 )
             self.stats_table.value = pd.DataFrame(stats_data)
@@ -882,8 +901,8 @@ class SingleSampleRow(SubDash):
                 cent_val, slope_val = compute_gated_stats(audio_float, sampling_rate)
 
                 if cent_val > 0:
-                    cent_str = f"{cent_val} Hz"
-                    slope_str = f"{slope_val} Hz/s"
+                    cent_str = f"{cent_val / 1000:.2f} kHz"
+                    slope_str = f"{slope_val / 1000:.2f} kHz/s"
                     
             except Exception as e:
                 cent_str = "Err"; slope_str = "Err"
