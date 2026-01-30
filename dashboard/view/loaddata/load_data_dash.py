@@ -145,31 +145,69 @@ class LoadDataDashboard(SubDash):
         )
         self.mode_selector.param.watch(self._update_mode_visibility, 'value')
         
-        def create_input_block(label_text, placeholder, browse_callback):
+        def create_input_block(label_text, placeholder, browse_callback, tooltip_text=None):
             lbl = pn.pane.HTML(f"<span class='input-label'>{label_text}</span>", margin=(0, 0, 2, 0))
             inp = pn.widgets.TextInput(placeholder=placeholder, sizing_mode="stretch_width", height=38, margin=0)
             btn = pn.widgets.Button(name="Browse", button_type="default", width=100, height=38, margin=0)
             btn.on_click(browse_callback)
-            row = pn.Row(inp, pn.Spacer(width=10), btn, sizing_mode="stretch_width", margin=0, align='center')
+            
+            row_elements = [inp]
+            if tooltip_text:
+                tt = pn.widgets.TooltipIcon(
+                    value=tooltip_text,
+                    margin=(0, 10), align='center'
+                )
+                row_elements.append(tt)
+            else:
+                row_elements.append(pn.Spacer(width=10))
+
+            row_elements.append(btn)
+            
+            row = pn.Row(*row_elements, sizing_mode="stretch_width", margin=0, align='center')
             container = pn.Column(lbl, row, sizing_mode="stretch_width", margin=(0, 0, 10, 0))
             return container, inp, btn
 
         self.combined_block, self.combined_input, self.combined_browse = \
-            create_input_block("Data Directory (-d)", "/path/to/dataset", self._browse_combined)
+            create_input_block(
+                "Data Directory (-d)", 
+                "/path/to/dataset", 
+                self._browse_combined,
+                "Select a folder containing BOTH audio and annotation files."
+            )
         
         self.audio_block, self.audio_input, self.audio_browse = \
-            create_input_block("Audio Directory", "/path/to/audio", self._browse_audio)
+            create_input_block(
+                "Audio Directory (-s)", 
+                "/path/to/audio", 
+                self._browse_audio,
+                "Select the folder containing your raw audio files (.wav).\nSubdirectories are supported."
+            )
         self.audio_block.visible = False 
         
         self.annots_block, self.annots_input, self.annots_browse = \
-            create_input_block("Annotations Directory", "/path/to/annotations", self._browse_annots)
+            create_input_block(
+                "Annotations Directory (-a)", 
+                "/path/to/annotations", 
+                self._browse_annots,
+                "Select the folder containing your annotation files (.csv or .txt).\nFilenames must match audio files."
+            )
         self.annots_block.visible = False
         
         self.config_block, self.config_input, self.config_browse = \
-            create_input_block("Config File / Model Directory (-c)", "Required for Annotation...", self._browse_config)
+            create_input_block(
+                "Model Directory (-c)", 
+                "Required for Annotation...", 
+                self._browse_config,
+                "Select the directory where trained models and checkpoints will be loaded from."
+            )
         
         self.output_block, self.output_input, self.output_browse = \
-            create_input_block("Output Directory", "Defaults to ./output if empty", self._browse_output)
+            create_input_block(
+                "Output Directory (-o)", 
+                "Defaults to ./output if empty", 
+                self._browse_output,
+                "Select the directory where results and logs will be saved."
+            )
         
         def create_select_block(label, options, value):
             lbl = pn.pane.HTML(f"<span class='input-label'>{label}</span>", margin=(0, 0, 2, 0))
