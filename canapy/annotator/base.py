@@ -90,6 +90,8 @@ class Annotator(abc.ABC):
 
         # This case concerns Annotators made with this version of Canapy
         if isinstance(loaded_annot, Annotator):
+            if hasattr(loaded_annot, 'rpy_model') or (hasattr(loaded_annot, '_vocab') and len(loaded_annot._vocab) > 0):   
+                loaded_annot._trained = True         
             # if spec_directory is not None:
             #     loaded_annot.spec_directory = spec_directory
             return loaded_annot

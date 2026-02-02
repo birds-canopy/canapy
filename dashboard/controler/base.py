@@ -78,10 +78,10 @@ class Controler:
         alias="_metrics_store", default=dict()
     )
     _correction_store: Optional[Dict] = attr.field(
-        alias="_correctoin_store", default=dict()
+        alias="_correction_store", default=dict()
     )
     _classes: Optional[List[str]] = attr.field(alias="_classes", default=None)
-
+    _external_accum: Optional[Dict[str, Corpus]] = attr.field(factory=dict, init=False)
     # Modif Axel 14/01 
     def __attrs_post_init__(self):
         # Modif 19/01
@@ -149,6 +149,7 @@ class Controler:
         self.preprocess_done = False
         self._iter = 1
         self._step = "home"
+        self._external_accum = {}
 
         self.annotators = _sort_annotators(self.annotators)
 
@@ -442,7 +443,6 @@ class Controler:
         self.annotate("ensemble", split="train")
         self.annotate("ensemble", split="test")
 
-    # Modif Axel 10/12 : Calcul des classes dès le départ pour preprocess
     def compute_classes(self):
         self._classes = extract_vocab(
             self.corpus, silence_tag=self.config.transforms.annots.silence_tag
@@ -536,7 +536,7 @@ class Controler:
                 for s in selected_samples.itertuples()
             )
         return specs
-    # Modif Axel 11/12 : Ajout de méthodes pour l'annotation automatique
+    
     def load_external_corpus(self, folder: str) -> "Corpus":
         logger.info(f"Loading external corpus from {folder}")
         return Corpus.from_directory(
@@ -568,80 +568,77 @@ class Controler:
             logger.error(f"Failed loading annotator '{name}' from {model_path}: {e}")
             raise
 
-    # Modif Axel 14/12 pour handle la sélection de modèles externes 
     def annotate_external(self, corpus, model_sources=None,
-                            use_in_memory=True, return_raw=False):
-        """Annotate an external corpus using either:
-        - in-memory annotators (recommended),
-        - or models loaded from disk via Annotator.from_disk().
-        model_sources: dict annotator_name -> path_to_model
-        """
-        results = {}
-        model_sources = model_sources or {}
-        
-        annotators_to_run = list(model_sources.keys()) if model_sources else self.annotators
-        
-        if "ensemble" in annotators_to_run:
-            sub_annotators = [a for a in self.annotators if a != "ensemble"]
-            for sub in sub_annotators:
-                if sub not in annotators_to_run:
-                    annotators_to_run.append(sub)
-                    logger.info(f"Adding '{sub}' to run list because 'ensemble' requires it")
-        
-        for name in annotators_to_run:
-            annot = None
-            if use_in_memory and name in self._annotators:
-                annot = self._annotators[name]
-            elif name in model_sources:
-                annot = self._load_annotator_from_disk(name, Path(model_sources[name]))
-            else:
-                # Modif 14/01 utiliser le self.model_root si défini
-                model_root = self.model_root or (self.output_directory / "model")
-                if model_root.exists():
-                    iters = sorted(model_root.iterdir(), key=lambda p: p.name, reverse=True)
-                    for itdir in iters:
-                        candidate = itdir / name
-                        if candidate.exists():
-                            annot = self._load_annotator_from_disk(name, candidate)
-                            break
+                                use_in_memory=True, return_raw=False):
+            model_sources = model_sources or {}
+            all_names = list(model_sources.keys()) if model_sources else self.annotators
+            logger.info(f"Processing models: {all_names}")
             
-            if annot is None:
-                logger.warning(f"No model found for '{name}', instantiating NEW untrained annotator.")
-                annot = get_annotator(name)(self.config)
+            results = {}
             
-            if name == "ensemble":
-                raw_inputs = []
-                sub_annotators = [a for a in self.annotators if a != "ensemble"]
-                for sub in sub_annotators:
-                    if sub not in results:
-                        sub_annot = None
-                        if use_in_memory and sub in self._annotators:
-                            sub_annot = self._annotators[sub]
-                        elif sub in model_sources:
-                            sub_annot = self._load_annotator_from_disk(sub, Path(model_sources[sub]))
-                        else:
-                            model_root = self.model_root or (self.output_directory / "model")
-                            if model_root.exists():
-                                iters = sorted(model_root.iterdir(), key=lambda p: p.name, reverse=True)
-                                for itdir in iters:
-                                    candidate = itdir / sub
-                                    if candidate.exists():
-                                        sub_annot = self._load_annotator_from_disk(sub, candidate)
-                                        break
-                            if sub_annot is None:
-                                sub_annot = get_annotator(sub)(self.config)
-                        raw_pred = sub_annot.predict(corpus, return_raw=True)
-                        results[sub] = raw_pred
-                        raw_inputs.append(raw_pred)
-                    else:
-                        raw_inputs.append(results[sub])
-                results[name] = annot.predict(raw_inputs)
-            else:
-                do_return_raw = ("ensemble" in annotators_to_run)
-                results[name] = annot.predict(corpus, return_raw=do_return_raw)
-        
-        return results
+            for name in all_names:
+                if name == "ensemble":
+                    continue
+                    
+                annot = None
+                if use_in_memory and name in self._annotators:
+                    annot = self._annotators[name]
+                else:
+                    model_root = self.model_root or (self.output_directory / "model")
+                    direct_path = model_root / name
+                    if not direct_path.exists() and model_root.exists():
+                        iters = sorted([d for d in model_root.iterdir() if d.is_dir()], key=lambda p: p.name, reverse=True)
+                        for itdir in iters:
+                            if (itdir / name).exists():
+                                direct_path = itdir / name
+                                break
+                    
+                    if direct_path.exists():
+                        annot = self._load_annotator_from_disk(name, direct_path)
 
+                if annot is not None:
+                    if hasattr(annot, 'rpy_model'):
+                        annot._trained = True
+                        if hasattr(annot.rpy_model, 'readout') and annot.vocab:
+                            annot.rpy_model.readout.output_dim = len(annot.vocab)
+
+                    logger.info(f"Running prediction for {name}...")
+                    pred_corpus = annot.predict(corpus, return_raw=True)
+                    results[name] = pred_corpus
+                    self._external_accum[name] = pred_corpus 
+                    logger.info(f"Stored {name} in persistent accumulator.")
+
+            if any("ensemble" in n.lower() for n in all_names):
+                ens_name = [n for n in all_names if "ensemble" in n.lower()][0]
+                ens_annot = None
+                
+                model_root = self.model_root or (self.output_directory / "model")
+                
+
+                search_paths = [
+                    model_root / ens_name,
+                    model_root / "1" / ens_name
+                ]
+                
+                for path in search_paths:
+                    if path.exists():
+                        logger.info(f"Ensemble found at: {path}")
+                        ens_annot = self._load_annotator_from_disk(ens_name, path)
+                        break
+
+                if ens_annot:
+                    raw_inputs = list(self._external_accum.values())
+                    logger.info(f"Ensemble voting with {len(raw_inputs)} accumulated corpora.")
+                    if len(raw_inputs) >= 2:
+                        results[ens_name] = ens_annot.predict(raw_inputs)
+                        logger.info("Ensemble prediction successful.")
+                        self._external_accum = {} 
+                    else:
+                        logger.error(f"Ensemble needs 2 sub-predictions, has {len(raw_inputs)}.")
+                else:
+                    logger.error(f"Ensemble model NOT FOUND. Path attempted: {model_root / ens_name}")
+
+            return results
 
     def export_predictions(self, pred_corpus, out_dir: Path):
         try:
