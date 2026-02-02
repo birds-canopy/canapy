@@ -4,7 +4,8 @@
 import numpy as np
 import reservoirpy as rpy
 
-from reservoirpy.nodes import Reservoir, Ridge, ESN
+from reservoirpy.nodes import Reservoir, Ridge
+from reservoirpy import ESN
 from reservoirpy.mat_gen import fast_spectral_initialization
 
 from canapy.utils.exceptions import NotTrainedError
@@ -45,7 +46,7 @@ def init_esn_model(model_config, input_dim, audio_features, seed=None):
         sr=model_config.sr,
         lr=model_config.leak,
         input_scaling=input_scaling,
-        bias_scaling=bias_scaling, #A modif si passage en reservoirpy >0.4
+        bias=bias_scaling,
         W=fast_spectral_initialization,
     )
 
@@ -55,7 +56,7 @@ def init_esn_model(model_config, input_dim, audio_features, seed=None):
         reservoir=reservoir,
         readout=readout,
         workers=model_config.workers, #A modif si passage en reservoirpy >0.4
-        backend=model_config.backend,
+        # backend=model_config.backend,
     )
 
 
