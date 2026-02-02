@@ -125,7 +125,7 @@ def compute_mfcc(corpus, *, output_directory, resource_name, redo=False, **kwarg
                 logger.info("Found previously computed spectrograms. Will use them.")
                 return corpus
             else:
-                logger.warn("Not all spectrograms could be found. Recomputing.")
+                logger.warning("Not all spectrograms could be found. Recomputing.")
 
         # If we have audios, check we have corresponding spectrograms
         if len(audio_paths) > 0:
@@ -138,7 +138,7 @@ def compute_mfcc(corpus, *, output_directory, resource_name, redo=False, **kwarg
                 )
                 return corpus
             else:
-                logger.warn("Spectrograms do not match audio files. Recomputing.")
+                logger.warning("Spectrograms do not match audio files. Recomputing.")
 
         # If we only have MFCCs:
         else:

@@ -252,7 +252,7 @@ class Corpus:
             )
 
         if audio_directory is None and redo_transforms:
-            logger.warn(
+            logger.warning(
                 "Can't redo preprocessing if no audio file is provided! (audio_directory is None). "
                 "redo_preprocessing will be ignored."
             )
@@ -266,7 +266,7 @@ class Corpus:
 
         # Check audio directory
         if audio_dir is not None and (not audio_dir.exists() or not audio_dir.is_dir()):
-            logger.warn(
+            logger.warning(
                 f"Looks like audio_dir path ({audio_dir}) is "
                 "not a directory, or does not exist."
             )
@@ -276,7 +276,7 @@ class Corpus:
             annots_dir = Path(annots_directory)
 
             if not annots_dir.exists() or not annots_dir.is_dir():
-                logger.warn(
+                logger.warning(
                     f"Looks like annots_dir path {annots_dir} "
                     "is not a directory, or does not exist."
                 )
@@ -314,7 +314,7 @@ class Corpus:
         if spec_dir is not None and spec_dir.is_dir():
             logger.info(f"Spectrogram directory already created at {spec_dir}.")
             if redo_transforms:
-                logger.warn(
+                logger.warning(
                     f"Removing content of {spec_dir} as redo_preprocessing is True"
                 )
                 shutil.rmtree(spec_dir)

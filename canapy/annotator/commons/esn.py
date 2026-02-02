@@ -45,7 +45,7 @@ def init_esn_model(model_config, input_dim, audio_features, seed=None):
         sr=model_config.sr,
         lr=model_config.leak,
         input_scaling=input_scaling,
-        bias_scaling=bias_scaling,
+        bias_scaling=bias_scaling, #A modif si passage en reservoirpy >0.4
         W=fast_spectral_initialization,
     )
 
@@ -54,7 +54,7 @@ def init_esn_model(model_config, input_dim, audio_features, seed=None):
     return ESN(
         reservoir=reservoir,
         readout=readout,
-        workers=model_config.workers,
+        workers=model_config.workers, #A modif si passage en reservoirpy >0.4
         backend=model_config.backend,
     )
 
