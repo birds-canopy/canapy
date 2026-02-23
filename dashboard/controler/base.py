@@ -24,10 +24,11 @@ from canapy.utils import as_path
 from canapy.annotator.commons.postprocess import extract_vocab
 from canapy.transforms.commons.training import split_train_test
 from canapy.utils.tempstorage import close_tempfiles
-
+from canapy.transforms.commons.annots import sort_annotations, merge_labels, tag_silences, remove_short_labels
+from canapy.transforms.commons.audio import compute_mfcc
 from .segments import fetch_misclassified_samples
 from .corpusutils import mark_whole_corpus_as_train, query_split
-
+from canapy.optimization import optimize_hyperparameters
 
 logger = logging.getLogger("canapy")
 
@@ -45,7 +46,6 @@ def _sort_annotators(annotators: List):
 
 @attr.define
 class Controler:
-    # Modif 19/01 rendre optionnel les dossiers audio/annots
     dashboard: panel.viewable.Viewer = attr.field()
     annot_format: str = attr.field(default="marron1csv")
     audio_ext: str = attr.field(default=".wav")
@@ -58,15 +58,12 @@ class Controler:
 
     corpus: Optional[Corpus] = attr.field(default=None)
     config: Optional[Mapping] = attr.field(default=None)
-    # Modif 14/01 : Ajout model_root pour chargement modèle externe (séparer file et dir choisi avec config path)
     model_root: Optional[Path] = attr.field(default=None)
-    # Modif Axel 11/12 : Ajout d'un flag pour savoir si le preprocess a été fait et quel chemin emprunter depuis home
     home_path: Optional[str] = attr.field(default=None)
     preprocess_done: Optional[bool] = attr.field(default=False)
     corrector: Optional[Corrector] = attr.field(default=None)
     _iter: Optional[int] = attr.field(alias="_iter", default=1)
     _step: Optional[str] = attr.field(alias="_step", default="train")
-    # Modif 19/01
     _is_ready: bool = attr.field(default=False, init=False)
     _annotators: Optional[Dict[str, Annotator]] = attr.field(
         alias="_annotators", default=dict()
@@ -82,9 +79,8 @@ class Controler:
     )
     _classes: Optional[List[str]] = attr.field(alias="_classes", default=None)
     _external_accum: Optional[Dict[str, Corpus]] = attr.field(factory=dict, init=False)
-    # Modif Axel 14/01 
+
     def __attrs_post_init__(self):
-        # Modif 19/01
         if (
             self.audio_directory is None
             or self.annots_directory is None
@@ -129,7 +125,7 @@ class Controler:
                 raise ValueError(f"Invalid --config-path: {config_path}")
 
         else:
-            # Aucun -c fourni : comportement par défaut
+            # No -c : default behavior
             self.corpus = Corpus.from_directory(
                 audio_directory=self.audio_directory,
                 spec_directory=self.spec_directory,
@@ -159,9 +155,7 @@ class Controler:
 
         self.corpus = split_train_test(self.corpus, redo=True)
         self.compute_classes()
-        # Modif 19/01
         self._is_ready = True
-
 
     @property
     def iter(self):
@@ -183,7 +177,6 @@ class Controler:
     def classes(self):
         return self._classes
 
-    # Modif 19/01 : rendre les arg optionnels
     @property
     def is_ready(self) -> bool:
         return self._is_ready
@@ -264,24 +257,18 @@ class Controler:
         self._correction_store[target].update(corrections)
         logger.info(f"Uploaded corrections {target}: {corrections} to store.")
 
-    # #26/01 Modif Axel MAJ pages
     def apply_live_corrections(self, corrections, target):
-        """Applies corrections immediately to the in-memory dataframe and updates the classes."""
-        # 1. Store corrections for future disk checkpoints
         self.upload_corrections(corrections, target)
 
-        # 2. Apply to current RAM dataset
         if target == "class":
-            # Renaming classes in the dataframe
             self.corpus.dataset['label'] = self.corpus.dataset['label'].replace(corrections)
+            self.corpus = merge_labels(self.corpus)
         
         elif target == "annot":
-            # Corrections is a dict {index: new_label}
             for idx, new_label in corrections.items():
                 if idx in self.corpus.dataset.index:
                     self.corpus.dataset.at[idx, 'label'] = new_label
         
-        # 3. Recompute class list (vocabulary) so other views (like selectors) are aware
         self.compute_classes()
         logger.info(f"Applied live corrections ({target}) and updated class registry.")
 
@@ -302,6 +289,10 @@ class Controler:
 
     def export_corpus(self):
         try:
+            # Appliquer les corrections avant export si elles existent
+            if hasattr(self, '_correction_store') and self._correction_store:
+                self.apply_corrections()
+
             export_dir = self.output_directory / "corrected_annotations"
             export_dir.mkdir(parents=True, exist_ok=True)
             self.corpus.to_directory(str(export_dir))
@@ -309,6 +300,10 @@ class Controler:
         except OSError as e:
             logger.critical("Failed to create export directory for annotations:")
             logger.critical(e)
+        except Exception as e:
+            logger.critical(f"Failed to export corpus: {e}")
+            raise
+
 
     def load_page(self, page_name: str):
         """Force manual navigation to a specific page."""
@@ -346,13 +341,16 @@ class Controler:
             
         if self.step == "train":
             if self.preprocess_done:
-                logger.info("Preprocess was just completed. Preparing train/test split.")
-                self.preprocess_done = False
-                
+                logger.info("Preprocess was just completed.")
+
+                logger.info("Preparing train/test split.")
+
+                self.preprocess_done = False               
                 self.corpus = split_train_test(self.corpus, redo=True)
-                
+
                 self.dashboard.switch_panel()
                 return
+            
             self._step = "eval"
             self.get_metrics()
             logger.info('Setting current dashboard to "eval".')
@@ -452,7 +450,6 @@ class Controler:
         bad_ones = []
         for split in ["train", "test"]:
             predictions = self._pred_corpora[split]
-
 
             for annot_name, pred_corpus in predictions.items():
                 logger.info(
@@ -614,7 +611,6 @@ class Controler:
                 
                 model_root = self.model_root or (self.output_directory / "model")
                 
-
                 search_paths = [
                     model_root / ens_name,
                     model_root / "1" / ens_name
@@ -653,3 +649,61 @@ class Controler:
     def stop_app(self):
         close_tempfiles()
         self.dashboard.stop()
+
+    def optimize_models(self):
+            logger.info("Starting optimization from Controller...")
+            
+            target_name = "syn-esn"
+            if target_name not in self._annotators:
+                logger.error(f"Annotator '{target_name}' not found.")
+                return
+
+            syn_annotator = self._annotators[target_name]
+            
+            # 1. ON PRÉPARE D'ABORD LES LABELS (sans toucher à l'audio)
+            # On stabilise les annotations et le split avant tout calcul audio
+
+
+            logger.info("Step 1: Stabilizing labels and split...")
+            c = self.corpus
+            c = sort_annotations(c)
+            c = merge_labels(c)
+            c = tag_silences(c, silence_tag=syn_annotator.config.transforms.annots.silence_tag)
+            c = remove_short_labels(c, min_label_duration=syn_annotator.config.transforms.annots.min_label_duration)
+            c = split_train_test(c, redo=True)
+            
+            # 2. ON FORCE LE CALCUL DES MFCC SUR LE CORPUS FINAL
+            # On appelle compute_mfcc directement (pas via le pipeline de l'annotateur)
+            logger.info("Step 2: Force-computing MFCCs on stabilized corpus...")
+            c = compute_mfcc(
+                c, 
+                output_directory=c.spec_directory,
+                resource_name="syn_mfcc",
+                redo=True, # Obligatoire pour outrepasser le cache vide
+                **syn_annotator.config.transforms.audio # On passe fmin, fmax, etc.
+            )
+
+            # 3. VÉRIFICATION DE SÉCURITÉ
+            if "syn_mfcc" not in c.data_resources:
+                logger.error("Critical: 'syn_mfcc' still missing from resources!")
+                return
+
+            # 4. LANCEMENT DE L'OPTIMISATION
+            from canapy.optimization import optimize_hyperparameters
+            logger.info("Step 3: Launching optimization...")
+            
+            best_params = optimize_hyperparameters(
+                c, 
+                syn_annotator.config, 
+                annotator_type="syn",
+                n_iter=100,       
+                max_samples=40000
+            )
+
+            if best_params:
+                logger.info(f"Optimization finished. Best params: {best_params}")
+                for k, v in best_params.items():
+                    setattr(syn_annotator.config.model.syn, k, v)
+                self.corpus = c # On met à jour le corpus global avec le nouveau
+            
+            return "Optimization complete."

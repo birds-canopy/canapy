@@ -94,94 +94,95 @@ class NSynAnnotator(Annotator):
         )
 
     def fit(self, corpus):
-        """
-        Fit the annotator to the given corpus.
+            """
+            Fit the annotator to the given corpus.
 
-        Parameters
-        ----------
-        corpus : Corpus
-            The corpus object used for training the annotator.
+            Parameters
+            ----------
+            corpus : Corpus
+                The corpus object used for training the annotator.
 
-        Returns
-        -------
-        NSynAnnotator
-            The trained annotator itself.
+            Returns
+            -------
+            NSynAnnotator
+                The trained annotator itself.
 
-        Note
-        ----
-        Even though this function returns the trained annotator, the annotator itself is trained.
+            Note
+            ----
+            Even though this function returns the trained annotator, the annotator itself is trained.
 
-        Example
-        -------
-            >>> from canapy.annotator.nsynannotator import NSynAnnotator
-            >>> from config import default_config
-            >>> # NSynAnnotator and default_config are imported to create a new annotator
-            >>> my_annotator = NSynAnnotator(default_config, "/path/to/spec")
-            >>> from canapy.corpus import Corpus
-            >>> corpus = Corpus.from_directory(audio_directory="/path/to/audio", annots_directory="/path/to/annotation")
-            >>> # A new corpus is created to train the annotator
-            >>> my_annotator_trained = my_annotator.fit(corpus)
-            >>> # The annotator is now trained with the given corpus
+            Example
+            -------
+                >>> from canapy.annotator.nsynannotator import NSynAnnotator
+                >>> from config import default_config
+                >>> # NSynAnnotator and default_config are imported to create a new annotator
+                >>> my_annotator = NSynAnnotator(default_config, "/path/to/spec")
+                >>> from canapy.corpus import Corpus
+                >>> corpus = Corpus.from_directory(audio_directory="/path/to/audio", annots_directory="/path/to/annotation")
+                >>> # A new corpus is created to train the annotator
+                >>> my_annotator_trained = my_annotator.fit(corpus)
+                >>> # The annotator is now trained with the given corpus
 
-        """
-        corpus = self.transforms(
-            corpus,
-            purpose="training",
-            output_directory=corpus.spec_directory,
-        )
+            """
 
-        # load data
-        df = corpus.data_resources["mfcc_dataset"]
-
-        train_mfcc = []
-        train_labels = []
-
-        error_audio_path = set()
-        error_step = 0
-
-        for row in df.itertuples():
-            if isinstance(row.mfcc, np.ndarray):
-                train_mfcc.append(row.mfcc.T)
-                len_mfcc = row.mfcc.shape[1]
-
-            # This case concerns failed transformations into mfcc
-            # Errors are then replaced by null MFCC (filled with 0s) to continue the
-            # training It should not be used with a normal behavior
-            else:
-                sampling_rate = corpus.config.transforms.audio.sampling_rate
-                frame_size = seconds_to_audio(
-                    corpus.config.transforms.audio.hop_length, sampling_rate
-                )
-
-                len_mfcc = seconds_to_frames(
-                    row.offset_s - row.onset_s,
-                    frame_size=frame_size,
-                    sampling_rate=sampling_rate,
-                )
-
-                error_step += 1
-                error_audio_path.add(row.notated_path)
-                train_mfcc.append(np.zeros((len_mfcc, 39)))
-            train_labels.append(
-                np.repeat(row.encoded_label.reshape(1, -1), len_mfcc, axis=0)
+            corpus = self.transforms(
+                corpus,
+                purpose="training",
+                output_directory=corpus.spec_directory,
             )
-        if len(error_audio_path) != 0:
-            str_base = "\n\t"
-            logger.error(
-                f"{error_step} failure(s) during mfcc transformation (replaced by 0). "
-                f"\nConcerned audio(s) are : \n\t{str_base.join(error_audio_path)}"
+
+            # load data
+            df = corpus.data_resources["mfcc_dataset"]
+
+            train_mfcc = []
+            train_labels = []
+
+            error_audio_path = set()
+            error_step = 0
+
+            for row in df.itertuples():
+                if isinstance(row.mfcc, np.ndarray):
+                    train_mfcc.append(row.mfcc.T)
+                    len_mfcc = row.mfcc.shape[1]
+
+                # This case concerns failed transformations into mfcc
+                # Errors are then replaced by null MFCC (filled with 0s) to continue the
+                # training It should not be used with a normal behavior
+                else:
+                    sampling_rate = corpus.config.transforms.audio.sampling_rate
+                    frame_size = seconds_to_audio(
+                        corpus.config.transforms.audio.hop_length, sampling_rate
+                    )
+
+                    len_mfcc = seconds_to_frames(
+                        row.offset_s - row.onset_s,
+                        frame_size=frame_size,
+                        sampling_rate=sampling_rate,
+                    )
+
+                    error_step += 1
+                    error_audio_path.add(row.notated_path)
+                    train_mfcc.append(np.zeros((len_mfcc, 39)))
+                train_labels.append(
+                    np.repeat(row.encoded_label.reshape(1, -1), len_mfcc, axis=0)
+                )
+            if len(error_audio_path) != 0:
+                str_base = "\n\t"
+                logger.error(
+                    f"{error_step} failure(s) during mfcc transformation (replaced by 0). "
+                    f"\nConcerned audio(s) are : \n\t{str_base.join(error_audio_path)}"
+                )
+            # train
+            self.rpy_model.fit(train_mfcc, train_labels)
+
+            self._trained = True
+
+            self._vocab = extract_vocab(
+                corpus, silence_tag=self.config.transforms.annots.silence_tag
             )
-        # train
-        self.rpy_model.fit(train_mfcc, train_labels)
 
-        self._trained = True
-
-        self._vocab = extract_vocab(
-            corpus, silence_tag=self.config.transforms.annots.silence_tag
-        )
-
-        return self
-
+            return self
+    
     def predict(self, corpus, return_raw=False, redo_transforms=False):
         """
         Predict annotations for the given corpus.

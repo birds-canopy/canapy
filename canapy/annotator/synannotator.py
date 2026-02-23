@@ -10,7 +10,6 @@ from .commons.mfccs import load_mfccs_and_repeat_labels
 from .commons.postprocess import predictions_to_corpus, extract_vocab
 from ..transforms.synesn import SynESNTransform
 from ..timings import seconds_to_audio
-
 from config import default_config
 
 
@@ -97,55 +96,55 @@ class SynAnnotator(Annotator):
         )
 
     def fit(self, corpus):
-        """
-        Fit the annotator to the given corpus.
+            """
+            Fit the annotator to the given corpus.
 
-        Parameters
-        ----------
-        corpus : Corpus
-            The corpus object used for training the annotator.
+            Parameters
+            ----------
+            corpus : Corpus
+                The corpus object used for training the annotator.
 
-        Returns
-        -------
-        SynAnnotator
-            The trained annotator itself.
+            Returns
+            -------
+            SynAnnotator
+                The trained annotator itself.
 
-        Note
-        ----
-        Even though this function returns the trained annotator, the annotator itself is trained.
+            Note
+            ----
+            Even though this function returns the trained annotator, the annotator itself is trained.
 
-        Example
-        -------
-            >>> from canapy.annotator.synannotator import SynAnnotator
-            >>> from config import default_config
-            >>> # SynAnnotator and default_config are imported to create a new annotator
-            >>> my_annotator = SynAnnotator(default_config, "/path/to/spec")
-            >>> from canapy.corpus import Corpus
-            >>> corpus = Corpus.from_directory(audio_directory="/path/to/audio", annots_directory="/path/to/annotation")
-            >>> # A new corpus is created to train the annotator
-            >>> my_annotator_trained = my_annotator.fit(corpus)
-            >>> # The annotator is now trained with the given corpus
+            Example
+            -------
+                >>> from canapy.annotator.synannotator import SynAnnotator
+                >>> from config import default_config
+                >>> # SynAnnotator and default_config are imported to create a new annotator
+                >>> my_annotator = SynAnnotator(default_config, "/path/to/spec")
+                >>> from canapy.corpus import Corpus
+                >>> corpus = Corpus.from_directory(audio_directory="/path/to/audio", annots_directory="/path/to/annotation")
+                >>> # A new corpus is created to train the annotator
+                >>> my_annotator_trained = my_annotator.fit(corpus)
+                >>> # The annotator is now trained with the given corpus
 
-        """
-        corpus = self.transforms(
-            corpus,
-            purpose="training",
-            output_directory=corpus.spec_directory,
-        )
+            """
+            corpus = self.transforms(
+                corpus,
+                purpose="training",
+                output_directory=corpus.spec_directory,
+            )
 
-        _, _, train_mfcc, train_labels = load_mfccs_and_repeat_labels(
-            corpus, purpose="training"
-        )
+            _, _, train_mfcc, train_labels = load_mfccs_and_repeat_labels(
+                corpus, purpose="training"
+            )
 
-        self.rpy_model.fit(train_mfcc, train_labels)
+            self.rpy_model.fit(train_mfcc, train_labels)
 
-        self._trained = True
+            self._trained = True
 
-        self._vocab = extract_vocab(
-            corpus, silence_tag=self.config.transforms.annots.silence_tag
-        )
+            self._vocab = extract_vocab(
+                corpus, silence_tag=self.config.transforms.annots.silence_tag
+            )
 
-        return self
+            return self
 
     def predict(self, corpus, return_raw=False, redo_transforms=False):
         """
