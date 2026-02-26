@@ -54,7 +54,7 @@ def load_mfccs_and_repeat_labels(corpus, purpose="training"):
     df["onset_spec"] = seconds_to_frames(df["onset_s"], hop_length, sampling_rate)
     df["offset_spec"] = seconds_to_frames(df["offset_s"], hop_length, sampling_rate)
 
-    n_classes = len(df["label"].unique())
+    n_classes = len(corpus.dataset["label"].unique())
 
     mfccs = []
     labels = []
@@ -114,7 +114,7 @@ def load_mfccs_for_annotation(corpus):
             "Maybe provide and audio/spec directory to the Corpus ?"
         )
 
-    # selected_paths = corpus.dataset.notated_path.unique().tolist()
+    selected_paths = corpus.dataset.notated_path.unique().tolist()
     mfcc_paths = corpus.data_resources["syn_mfcc"]
     mfccs = []
     notated_paths = []
@@ -128,8 +128,8 @@ def load_mfccs_for_annotation(corpus):
 
         # We might not want to load all data, but only the subset
         # actually present in the corpus
-        # if notated_path not in selected_paths:
-        #    continue
+        if notated_path not in selected_paths:
+           continue
 
         mfcc = np.load(spec_path)
 

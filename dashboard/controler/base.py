@@ -34,7 +34,6 @@ logger = logging.getLogger("canapy")
 
 
 def _sort_annotators(annotators: List):
-    # Ensemble should always be last
     if "ensemble" in annotators:
         annotators.remove("ensemble")
         sorted_annots = ["ensemble"]
@@ -42,6 +41,9 @@ def _sort_annotators(annotators: List):
         sorted_annots = []
     sorted_annots = annotators.copy() + sorted_annots
     return sorted_annots
+
+
+VALID_STEPS = {"home", "preprocess", "train", "eval", "export", "annotate", "loaddata", "settings"}
 
 
 @attr.define
@@ -79,6 +81,7 @@ class Controler:
     )
     _classes: Optional[List[str]] = attr.field(alias="_classes", default=None)
     _external_accum: Optional[Dict[str, Corpus]] = attr.field(factory=dict, init=False)
+    _settings_return_step: Optional[str] = attr.field(alias="_settings_return_step", default="home")
 
     def __attrs_post_init__(self):
         if (
@@ -115,7 +118,7 @@ class Controler:
                     audio_directory=self.audio_directory,
                     spec_directory=self.spec_directory,
                     annots_directory=self.annots_directory,
-                    config_path=None,  
+                    config_path=None,
                     annot_format=self.annot_format,
                     audio_ext=self.audio_ext,
                 )
@@ -125,7 +128,6 @@ class Controler:
                 raise ValueError(f"Invalid --config-path: {config_path}")
 
         else:
-            # No -c : default behavior
             self.corpus = Corpus.from_directory(
                 audio_directory=self.audio_directory,
                 spec_directory=self.spec_directory,
@@ -146,6 +148,7 @@ class Controler:
         self._iter = 1
         self._step = "home"
         self._external_accum = {}
+        self._settings_return_step = "home"
 
         self.annotators = _sort_annotators(self.annotators)
 
@@ -181,6 +184,15 @@ class Controler:
     def is_ready(self) -> bool:
         return self._is_ready
 
+    def go_settings(self):
+        self._settings_return_step = self._step
+        self._step = "settings"
+        self.dashboard.switch_panel()
+
+    def leave_settings(self):
+        self._step = self._settings_return_step
+        self.dashboard.switch_panel()
+
     def initialize_models(self):
         for name in self.annotators:
             try:
@@ -189,8 +201,6 @@ class Controler:
                 self._annotators[name] = annot_obj
 
                 if name == "ensemble":
-                    # Ensemble does not really require training but will grasp the
-                    # labels from .fit
                     annot_obj.fit(self.corpus)
 
             except KeyError:
@@ -263,12 +273,12 @@ class Controler:
         if target == "class":
             self.corpus.dataset['label'] = self.corpus.dataset['label'].replace(corrections)
             self.corpus = merge_labels(self.corpus)
-        
+
         elif target == "annot":
             for idx, new_label in corrections.items():
                 if idx in self.corpus.dataset.index:
                     self.corpus.dataset.at[idx, 'label'] = new_label
-        
+
         self.compute_classes()
         logger.info(f"Applied live corrections ({target}) and updated class registry.")
 
@@ -289,7 +299,6 @@ class Controler:
 
     def export_corpus(self):
         try:
-            # Appliquer les corrections avant export si elles existent
             if hasattr(self, '_correction_store') and self._correction_store:
                 self.apply_corrections()
 
@@ -304,21 +313,25 @@ class Controler:
             logger.critical(f"Failed to export corpus: {e}")
             raise
 
-
     def load_page(self, page_name: str):
-        """Force manual navigation to a specific page."""
         logger.info(f"Manual navigation request to: {page_name}")
-        
+
+        if page_name not in VALID_STEPS:
+            logger.error(f"Unknown page: {page_name}")
+            return
+
         if page_name == "preprocess":
             self._step = "preprocess"
             if self.home_path == "edit":
                 self.compute_classes()
-        
+
         elif page_name == "home":
-             self._step = "home"
-             self.home_path = None # Reset context
-        
-        # Update the view
+            self._step = "home"
+            self.home_path = None
+
+        else:
+            self._step = page_name
+
         self.dashboard.switch_panel()
 
     def next_step(self, export=False):
@@ -326,31 +339,30 @@ class Controler:
         if self.step == "preprocess":
             if self.home_path == "edit":
                 logger.info("Quick Edit mode: Applying corrections and exporting.")
-                self.apply_corrections() 
+                self.apply_corrections()
                 self.export_corpus()
-                
+
                 self._step = "home"
                 self.home_path = None
                 self.dashboard.switch_panel()
-                return 
+                return
 
             self._step = "train"
             self.apply_corrections()
             self.preprocess_done = True
             logger.info('Setting current dashboard to "train".')
-            
+
         if self.step == "train":
             if self.preprocess_done:
                 logger.info("Preprocess was just completed.")
-
                 logger.info("Preparing train/test split.")
 
-                self.preprocess_done = False               
+                self.preprocess_done = False
                 self.corpus = split_train_test(self.corpus, redo=True)
 
                 self.dashboard.switch_panel()
                 return
-            
+
             self._step = "eval"
             self.get_metrics()
             logger.info('Setting current dashboard to "eval".')
@@ -376,7 +388,7 @@ class Controler:
             elif self.home_path == "annotate":
                 self._step = "annotate"
             logger.info(f'Setting current dashboard to "{self._step}".')
-        
+
         self.dashboard.switch_panel()
 
     def train(self, annotator_name, export=False, save=False):
@@ -402,10 +414,8 @@ class Controler:
             except OSError as e:
                 logger.critical(e)
 
-
     def annotate(self, annotator_name, split="all"):
         if annotator_name == "ensemble":
-            # Get all previous predictions
             corpora = [c for c in self._pred_corpora[split].values()]
         else:
             corpora = query_split(self.corpus, split)
@@ -533,7 +543,7 @@ class Controler:
                 for s in selected_samples.itertuples()
             )
         return specs
-    
+
     def load_external_corpus(self, folder: str) -> "Corpus":
         logger.info(f"Loading external corpus from {folder}")
         return Corpus.from_directory(
@@ -545,14 +555,7 @@ class Controler:
             audio_ext=self.audio_ext,
         )
 
-
-
     def _load_annotator_from_disk(self, name: str, model_path: Path):
-        """Load an annotator using the official API Annotator.from_disk(path, config).
-
-        All annotators in Canapy expose `from_disk(path, config)`,
-        which handles both new and legacy saved models.
-        """
         logger.info(f"Loading annotator '{name}' from {model_path}")
 
         annot_cls = get_annotator(name)
@@ -566,75 +569,79 @@ class Controler:
             raise
 
     def annotate_external(self, corpus, model_sources=None,
-                                use_in_memory=True, return_raw=False):
-            model_sources = model_sources or {}
-            all_names = list(model_sources.keys()) if model_sources else self.annotators
-            logger.info(f"Processing models: {all_names}")
-            
-            results = {}
-            
-            for name in all_names:
-                if name == "ensemble":
-                    continue
-                    
-                annot = None
-                if use_in_memory and name in self._annotators:
-                    annot = self._annotators[name]
-                else:
-                    model_root = self.model_root or (self.output_directory / "model")
-                    direct_path = model_root / name
-                    if not direct_path.exists() and model_root.exists():
-                        iters = sorted([d for d in model_root.iterdir() if d.is_dir()], key=lambda p: p.name, reverse=True)
-                        for itdir in iters:
-                            if (itdir / name).exists():
-                                direct_path = itdir / name
-                                break
-                    
-                    if direct_path.exists():
-                        annot = self._load_annotator_from_disk(name, direct_path)
+                          use_in_memory=True, return_raw=False):
+        model_sources = model_sources or {}
+        all_names = list(model_sources.keys()) if model_sources else self.annotators
+        logger.info(f"Processing models: {all_names}")
 
-                if annot is not None:
-                    if hasattr(annot, 'rpy_model'):
-                        annot._trained = True
-                        if hasattr(annot.rpy_model, 'readout') and annot.vocab:
-                            annot.rpy_model.readout.output_dim = len(annot.vocab)
+        results = {}
 
-                    logger.info(f"Running prediction for {name}...")
-                    pred_corpus = annot.predict(corpus, return_raw=True)
-                    results[name] = pred_corpus
-                    self._external_accum[name] = pred_corpus 
-                    logger.info(f"Stored {name} in persistent accumulator.")
+        for name in all_names:
+            if name == "ensemble":
+                continue
 
-            if any("ensemble" in n.lower() for n in all_names):
-                ens_name = [n for n in all_names if "ensemble" in n.lower()][0]
-                ens_annot = None
-                
+            annot = None
+            if use_in_memory and name in self._annotators:
+                annot = self._annotators[name]
+            else:
                 model_root = self.model_root or (self.output_directory / "model")
-                
-                search_paths = [
-                    model_root / ens_name,
-                    model_root / "1" / ens_name
-                ]
-                
-                for path in search_paths:
-                    if path.exists():
-                        logger.info(f"Ensemble found at: {path}")
-                        ens_annot = self._load_annotator_from_disk(ens_name, path)
-                        break
+                direct_path = model_root / name
+                if not direct_path.exists() and model_root.exists():
+                    iters = sorted(
+                        [d for d in model_root.iterdir() if d.is_dir()],
+                        key=lambda p: p.name,
+                        reverse=True,
+                    )
+                    for itdir in iters:
+                        if (itdir / name).exists():
+                            direct_path = itdir / name
+                            break
 
-                if ens_annot:
-                    raw_inputs = list(self._external_accum.values())
-                    logger.info(f"Ensemble voting with {len(raw_inputs)} accumulated corpora.")
-                    if len(raw_inputs) >= 2:
-                        results[ens_name] = ens_annot.predict(raw_inputs)
-                        logger.info("Ensemble prediction successful.")
-                        self._external_accum = {} 
-                    else:
-                        logger.error(f"Ensemble needs 2 sub-predictions, has {len(raw_inputs)}.")
+                if direct_path.exists():
+                    annot = self._load_annotator_from_disk(name, direct_path)
+
+            if annot is not None:
+                if hasattr(annot, 'rpy_model'):
+                    annot._trained = True
+                    if hasattr(annot.rpy_model, 'readout') and annot.vocab:
+                        annot.rpy_model.readout.output_dim = len(annot.vocab)
+
+                logger.info(f"Running prediction for {name}...")
+                pred_corpus = annot.predict(corpus, return_raw=True)
+                results[name] = pred_corpus
+                self._external_accum[name] = pred_corpus
+                logger.info(f"Stored {name} in persistent accumulator.")
+
+        if any("ensemble" in n.lower() for n in all_names):
+            ens_name = [n for n in all_names if "ensemble" in n.lower()][0]
+            ens_annot = None
+
+            model_root = self.model_root or (self.output_directory / "model")
+
+            search_paths = [
+                model_root / ens_name,
+                model_root / "1" / ens_name,
+            ]
+
+            for path in search_paths:
+                if path.exists():
+                    logger.info(f"Ensemble found at: {path}")
+                    ens_annot = self._load_annotator_from_disk(ens_name, path)
+                    break
+
+            if ens_annot:
+                raw_inputs = list(self._external_accum.values())
+                logger.info(f"Ensemble voting with {len(raw_inputs)} accumulated corpora.")
+                if len(raw_inputs) >= 2:
+                    results[ens_name] = ens_annot.predict(raw_inputs)
+                    logger.info("Ensemble prediction successful.")
+                    self._external_accum = {}
                 else:
-                    logger.error(f"Ensemble model NOT FOUND. Path attempted: {model_root / ens_name}")
+                    logger.error(f"Ensemble needs 2 sub-predictions, has {len(raw_inputs)}.")
+            else:
+                logger.error(f"Ensemble model NOT FOUND. Path attempted: {model_root / ens_name}")
 
-            return results
+        return results
 
     def export_predictions(self, pred_corpus, out_dir: Path):
         try:
@@ -651,59 +658,60 @@ class Controler:
         self.dashboard.stop()
 
     def optimize_models(self):
-            logger.info("Starting optimization from Controller...")
-            
-            target_name = "syn-esn"
-            if target_name not in self._annotators:
-                logger.error(f"Annotator '{target_name}' not found.")
-                return
+        logger.info("Starting optimization from Controller...")
 
-            syn_annotator = self._annotators[target_name]
-            
-            # 1. ON PRÉPARE D'ABORD LES LABELS (sans toucher à l'audio)
-            # On stabilise les annotations et le split avant tout calcul audio
+        target_name = "syn-esn"
+        if target_name not in self._annotators:
+            logger.error(f"Annotator '{target_name}' not found.")
+            return
 
+        syn_annotator = self._annotators[target_name]
 
-            logger.info("Step 1: Stabilizing labels and split...")
-            c = self.corpus
-            c = sort_annotations(c)
-            c = merge_labels(c)
-            c = tag_silences(c, silence_tag=syn_annotator.config.transforms.annots.silence_tag)
-            c = remove_short_labels(c, min_label_duration=syn_annotator.config.transforms.annots.min_label_duration)
-            c = split_train_test(c, redo=True)
-            
-            # 2. ON FORCE LE CALCUL DES MFCC SUR LE CORPUS FINAL
-            # On appelle compute_mfcc directement (pas via le pipeline de l'annotateur)
-            logger.info("Step 2: Force-computing MFCCs on stabilized corpus...")
-            c = compute_mfcc(
-                c, 
-                output_directory=c.spec_directory,
-                resource_name="syn_mfcc",
-                redo=True, # Obligatoire pour outrepasser le cache vide
-                **syn_annotator.config.transforms.audio # On passe fmin, fmax, etc.
-            )
+        # Work on a deep copy to never alter the global corpus
+        import copy
+        c = copy.deepcopy(self.corpus)
 
-            # 3. VÉRIFICATION DE SÉCURITÉ
-            if "syn_mfcc" not in c.data_resources:
-                logger.error("Critical: 'syn_mfcc' still missing from resources!")
-                return
+        logger.info("Step 1: Stabilizing labels and split...")
+        c = sort_annotations(c)
+        c = merge_labels(c)
+        c = tag_silences(c, silence_tag=syn_annotator.config.transforms.annots.silence_tag)
+        c = remove_short_labels(c, min_label_duration=syn_annotator.config.transforms.annots.min_label_duration)
+        # redo=False : preserve the original split to stay consistent with the main pipeline
+        c = split_train_test(c, redo=False)
 
-            # 4. LANCEMENT DE L'OPTIMISATION
-            from canapy.optimization import optimize_hyperparameters
-            logger.info("Step 3: Launching optimization...")
-            
-            best_params = optimize_hyperparameters(
-                c, 
-                syn_annotator.config, 
-                annotator_type="syn",
-                n_iter=100,       
-                max_samples=40000
-            )
+        # Dedicated temp directory so we don't overwrite shared .npz files
+        import tempfile
+        optim_spec_dir = Path(tempfile.mkdtemp(prefix="canapy_optim_"))
+        logger.info(f"Step 2: Computing MFCCs in isolated directory: {optim_spec_dir}")
 
-            if best_params:
-                logger.info(f"Optimization finished. Best params: {best_params}")
-                for k, v in best_params.items():
-                    setattr(syn_annotator.config.model.syn, k, v)
-                self.corpus = c # On met à jour le corpus global avec le nouveau
-            
-            return "Optimization complete."
+        c = compute_mfcc(
+            c,
+            output_directory=optim_spec_dir,
+            resource_name="syn_mfcc",
+            redo=True,
+        )
+
+        if "syn_mfcc" not in c.data_resources:
+            logger.error("Critical: 'syn_mfcc' still missing from resources!")
+            return
+
+        logger.info("Step 3: Launching optimization...")
+        best_params = optimize_hyperparameters(
+            c,
+            syn_annotator.config,
+            annotator_type="syn",
+            n_iter=100,
+            max_percentage=0.1,
+        )
+
+        if best_params:
+            logger.info(f"Optimization finished. Best params: {best_params}")
+            for k, v in best_params.items():
+                setattr(syn_annotator.config.model.syn, k, v)
+
+        # Cleanup temp files
+        import shutil
+        shutil.rmtree(optim_spec_dir, ignore_errors=True)
+
+        return "Optimization complete."
+

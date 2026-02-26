@@ -3,174 +3,48 @@ import os
 import tempfile
 import traceback
 import json
-import warnings
-import time
-from glob import glob
-from typing import Optional, Dict
+from typing import Dict
 import numpy as np
 
-from joblib import Parallel, cpu_count, delayed, parallel_config
-from tqdm import tqdm
-
 from hyperopt import STATUS_OK, STATUS_FAIL
+
+from reservoirpy.hyper import research
 
 from canapy.corpus import Corpus
 from canapy.annotator.commons.esn import init_esn_model
 from canapy.annotator.commons.mfccs import load_mfccs_and_repeat_labels
-from canapy.transforms.commons.training import encode_labels
+from canapy.transforms.synesn import SynESNTransform
 
 logger = logging.getLogger("canapy")
 
 # =============================================================================
-# 1. Parsing utils
+# 1. Helper
 # =============================================================================
 
-def rand_generator(seed=None):
-    return np.random.default_rng(seed)
-
-def _parse_searchspace(specs):
-    """Converts JSON lists in executables methods"""
-    if not isinstance(specs, list):
-        return lambda rng: specs
-
-    dist = specs[0]
-    
-    # Note: Theses lambdas are only used in the principal process 
-    # to generate params list. Wont get sent to workers. 
-    if dist == "choice":
-        choices = specs[1:]
-        return lambda rng: choices[rng.integers(0, len(choices))]
-        
-    if dist == "randint":
-        return lambda rng: rng.integers(specs[1], specs[2])
-    if dist == "uniform":
-        return lambda rng: rng.uniform(specs[1], specs[2])
-    if dist == "quniform":
-        return lambda rng: np.round(rng.uniform(specs[1], specs[2]) / specs[3]) * specs[3]
-    if dist == "loguniform":
-        return lambda rng: np.exp(rng.uniform(np.log(specs[1]), np.log(specs[2])))
-    if dist == "qloguniform":
-        return lambda rng: np.round(np.exp(rng.uniform(np.log(specs[1]), np.log(specs[2]))) / specs[3]) * specs[3]
-    if dist == "normal":
-        return lambda rng: specs[1] + specs[2] * rng.randn()
-    
-    return lambda rng: specs
-
-def _parse_config(config):
-    """Validate and transform HP space."""
-    if "hp_space" in config:
-        config["hp_space"] = {arg: _parse_searchspace(specs) for arg, specs in config["hp_space"].items()}
-    return config
-
-def _get_conf_from_json(confpath):
-    with open(confpath, "r") as f:
-        config = json.load(f)
-    return _parse_config(config)
+def _concat_xy(X_list, Y_list):
+    """Concatenate lists of sequence arrays, trimming to min length per sequence."""
+    xs, ys = [], []
+    for x, y in zip(X_list, Y_list):
+        n = min(x.shape[0], y.shape[0])
+        y_row = y[:n]
+        if y_row.ndim == 1:
+            y_row = y_row.reshape(-1, 1)
+        xs.append(x[:n])
+        ys.append(y_row)
+    return np.concatenate(xs), np.concatenate(ys)
 
 # =============================================================================
-# 2. Backend Multiprocessing
-# =============================================================================
-
-def _worker(objective, dataset, config, kwargs):
-    """Worker function executing the objective for one trial."""
-    start = time.time()
-    try:
-        returned_dict = objective(dataset, config, **kwargs)
-        status = returned_dict.get("status", STATUS_OK)
-    except Exception as e:
-        traceback.print_exc()
-        returned_dict = {"loss": float("inf"), "status": STATUS_FAIL, "error": str(e)}
-        status = STATUS_FAIL
-    
-    end = time.time()
-    returned_dict["start_time"] = start
-    returned_dict["duration"] = end - start
-    
-    loss_val = returned_dict.get("loss", 1e9)
-    save_file = f"{loss_val:.7f}_results" if status == STATUS_OK else f"ERR{start}_results"
-        
-    return kwargs, returned_dict, save_file
-
-def custom_parallel_research(
-    objective,
-    dataset,
-    config_path,
-    report_path=None,
-    n_jobs=-1,
-    inner_max_num_threads=None, 
-):
-    """
-    Parallel research from reservoirpy but customed to work inside panel
-    """
-    # 1. config parsing
-    config = _get_conf_from_json(config_path)
-    
-    if report_path is None:
-        report_path = os.path.join(tempfile.gettempdir(), config.get("exp", "exp"))
-    os.makedirs(report_path, exist_ok=True)
-
-    search_space = config["hp_space"]
-    max_evals = config["hp_max_evals"]
-    rng = rand_generator(config.get("seed"))
-
-    # 2. genrating all parameters in the principal process
-    # params_list contains int/float (pickable)
-    params_list = [{arg: f(rng) for arg, f in search_space.items()} for _ in range(max_evals)]
-
-    best_params = None
-    best_loss = float("inf")
-
-    logger.info(f"Parallel Research: launching {max_evals} tasks (Backend: Multiprocessing).")
-    logger.info("NOTE: Progress bar will update only at the END of all tasks due to backend limitations.")
-
-    with parallel_config(backend="multiprocessing"):
-        results = Parallel(n_jobs=n_jobs)(
-            delayed(_worker)(objective, dataset, {}, kwargs) for kwargs in params_list
-        )
-
-        # 3. Handling results once everything is done
-        pbar = tqdm(iterable=results, total=len(params_list), unit="trial", postfix="best loss=?")
-
-        for kwargs, returned_dict, save_file_base in pbar:
-            try:
-                # Normalisation of numpy types for JSON
-                for key in kwargs:
-                    if isinstance(kwargs[key], (np.integer, np.int64, np.int32)):
-                        kwargs[key] = int(kwargs[key])
-                    elif isinstance(kwargs[key], (np.floating, np.float64, np.float32)):
-                        kwargs[key] = float(kwargs[key])
-
-                json_dict = {"returned_dict": returned_dict, "current_params": kwargs}
-                full_save_path = os.path.join(report_path, save_file_base)
-                
-                nb_same = len(glob(f"{full_save_path}*"))
-                final_name = f"{full_save_path}_{nb_same+1}call.json"
-                
-                with open(final_name, "w+") as f:
-                    json.dump(json_dict, f, indent=2)
-            except Exception as e:
-                warnings.warn(f"JSON save failed: {e}")
-
-            current_loss = returned_dict.get("loss", float("inf"))
-            if current_loss < best_loss:
-                best_loss = current_loss
-                best_params = kwargs
-                pbar.set_postfix({"best loss": f"{best_loss:.5f}"})
-
-    return best_params, best_loss
-
-# =============================================================================
-# 3. OBJECTIVE METHOD
+# 2. OBJECTIVE METHOD
 # =============================================================================
 
 def objective(dataset, config, **kwargs):
     """
-    Method executed by each worker. 
-    - dataset : contains data and model config
-    - config 
+    Method executed by each worker.
+    - dataset : contains train data, val data and model config
+    - config
     - kwargs : hyperparameters chosen for this run
     """
-    X_train, Y_train, model_config, input_dim, audio_features = dataset
+    X_train, Y_train, X_val, Y_val, model_config, input_dim, audio_features = dataset
 
     try:
         if "seed" in kwargs:
@@ -182,33 +56,28 @@ def objective(dataset, config, **kwargs):
              kwargs["seed"] = 42
 
         model = init_esn_model(
-            model_config, 
-            input_dim, 
-            audio_features, 
-            **kwargs 
+            model_config,
+            input_dim,
+            audio_features,
+            **kwargs
         )
 
+        # Use the corpus train/test split — no internal split
+        model.fit(X_train, Y_train)
+        predictions = model.predict(X_val)
 
-        split = int(len(X_train) * 0.8)
-        X_t, X_v = X_train[:split], X_train[split:]
-        Y_t, Y_v = Y_train[:split], Y_train[split:]
-        
-        # Train and validate
-        model.fit(X_t, Y_t)
-        predictions = model.predict(X_v)
-        
-        mse = np.mean((predictions - Y_v) ** 2)
-            
+        mse = np.mean((predictions - Y_val) ** 2)
+
         if np.isnan(mse) or np.isinf(mse):
             return {"loss": 1e5, "status": STATUS_FAIL}
-            
+
         return {"loss": float(mse), "status": STATUS_OK}
 
     except Exception as e:
         return {"loss": float("inf"), "status": STATUS_FAIL, "error": str(e)}
 
 # =============================================================================
-# 4. MAIN PIPELINE
+# 3. MAIN PIPELINE
 # =============================================================================
 
 def optimize_hyperparameters(
@@ -216,50 +85,48 @@ def optimize_hyperparameters(
     config: Dict,
     annotator_type: str = "syn",
     n_iter: int = 100,
-    max_samples: Optional[int] = None,
+    max_percentage: float = 1.0,
 ):
     logger.info("Starting hyperparameter optimization pipeline...")
 
-    # Prepare data
-    if "encoded_labels" not in corpus.data_resources:
-        corpus = encode_labels(corpus, resource_name="encoded_labels")
+    # Step 1: Apply the same transforms as SynAnnotator.fit()
+    # This ensures: annotation sorting/merging/silence tagging,
+    # train/test split (split_train_test), label encoding, and MFCC computation.
+    logger.info("Step 1 (Opt): Applying SynESNTransform (same as real training)...")
+    syn_transform = SynESNTransform()
+    corpus = syn_transform(
+        corpus,
+        purpose="training",
+        output_directory=corpus.spec_directory,
+    )
 
-    if "syn_mfcc" in corpus.data_resources:
-        corpus.data_resources["mfcc"] = corpus.data_resources["syn_mfcc"]
+    # Step 2: Load train and val data from the corpus split (same as SynAnnotator)
+    logger.info("Step 2 (Opt): Loading training and validation MFCCs...")
+    _, _, X_train_list, Y_train_list = load_mfccs_and_repeat_labels(corpus, purpose="training")
+    _, _, X_val_list, Y_val_list = load_mfccs_and_repeat_labels(corpus, purpose="eval")
 
-    logger.info("Step 2 (Opt): Loading MFCCs...")
-    _, _, X_list, Y_list = load_mfccs_and_repeat_labels(corpus, purpose="training")
-
-    if not X_list or len(X_list) == 0:
+    if not X_train_list:
         logger.error("CRITICAL: No training data found!")
         return None
-
-    
-    X_concat, Y_concat = [], []
-    total_frames = 0
-    indices = np.random.permutation(len(X_list))
-
-    for i in indices:
-        x, y = X_list[i], Y_list[i]
-        min_len = min(x.shape[0], y.shape[0])
-        
-        y_cut = y[:min_len]
-        if y_cut.ndim == 1:
-            y_cut = y_cut.reshape(-1, 1)
-
-        X_concat.append(x[:min_len])
-        Y_concat.append(y_cut)
-
-        total_frames += min_len
-        if max_samples and total_frames >= max_samples:
-            break
-
-    if not X_concat:
-        logger.error("Failed to concatenate data.")
+    if not X_val_list:
+        logger.error("CRITICAL: No validation data found!")
         return None
 
-    X_train = np.concatenate(X_concat)
-    Y_train = np.concatenate(Y_concat)
+    # Step 3: Select a subset of training sequences according to max_percentage
+    if max_percentage < 1.0:
+        rng = np.random.default_rng(corpus.config.misc.seed)
+        n_total = len(X_train_list)
+        n_select = max(1, int(n_total * max_percentage))
+        indices = rng.choice(n_total, size=n_select, replace=False)
+        X_train_list = [X_train_list[i] for i in indices]
+        Y_train_list = [Y_train_list[i] for i in indices]
+        logger.info(
+            f"Using {n_select}/{n_total} training sequences ({max_percentage * 100:.0f}%)."
+        )
+
+    # Step 4: Concatenate sequences into single arrays
+    X_train, Y_train = _concat_xy(X_train_list, Y_train_list)
+    X_val, Y_val = _concat_xy(X_val_list, Y_val_list)
 
     audio_features = corpus.config.transforms.audio.audio_features
     total_dim = X_train.shape[1]
@@ -271,41 +138,39 @@ def optimize_hyperparameters(
             "sr": ["loguniform", 1e-3, 1e1],
             "leak": ["loguniform", 1e-3, 1.0],
             "ridge": ["loguniform", 1e-9, 1e-2],
-            "iss": ["loguniform", 1e-3, 1e1], 
-            "isd": ["loguniform", 1e-3, 1e1], 
-            "isd2": ["uniform", 1e-3, 1e1],
+            "iss": ["loguniform", 1e-3, 1e1],
+            "isd": ["loguniform", 1e-3, 1e1],
+            "isd2": ["loguniform", 1e-3, 1e1],
             "seed": ["choice", 42]
         }
 
     research_config = {
         "exp": "canapy_opt",
         "hp_max_evals": n_iter,
-        "hp_method": "random", 
+        "hp_method": "random",
         "hp_space": hp_space,
-        "instances_per_trial": 3, 
+        "instances_per_trial": 1,
         "seed": 42
     }
 
     # temporary JSON file for research config
     fd, config_path = tempfile.mkstemp(suffix=".json", prefix="canapy_opt_")
-    os.close(fd) 
+    os.close(fd)
 
     with open(config_path, "w") as f:
         json.dump(research_config, f)
 
     try:
-        logger.info(f"Step 3 (Opt): Launching Custom Parallel Research ({n_iter} iters)...")
+        logger.info(f"Step 3 (Opt): Launching ReservoirPy research ({n_iter} iters)...")
 
-        dataset_tuple = (X_train, Y_train, config.model.syn, input_dim, audio_features)
+        dataset_tuple = (X_train, Y_train, X_val, Y_val, config.model.syn, input_dim, audio_features)
 
-        
-        best_params, best_loss = custom_parallel_research(
+        best_params, _trials = research(
             objective,
             dataset_tuple,
             config_path,
-            n_jobs=-1 
         )
-        
+
         if best_params:
             best_params["seed"] = 42
 
