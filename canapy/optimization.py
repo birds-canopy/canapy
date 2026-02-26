@@ -141,7 +141,7 @@ def optimize_hyperparameters(
             "iss": ["loguniform", 1e-3, 1e1],
             "isd": ["loguniform", 1e-3, 1e1],
             "isd2": ["loguniform", 1e-3, 1e1],
-            "seed": ["choice", 42]
+            "seed": ["randint", 0, 10000]
         }
 
     research_config = {
@@ -170,9 +170,6 @@ def optimize_hyperparameters(
             dataset_tuple,
             config_path,
         )
-
-        if best_params:
-            best_params["seed"] = 42
 
         return best_params
 
