@@ -36,19 +36,16 @@ button.bk-btn {
 class HomeDashboard(SubDash):
     def __init__(self, parent):
         super().__init__(parent)
-        
+
         pn.config.raw_css.append(SCALED_CSS)
 
         self.sidebar = SideBar(self, "Home")
 
-
         self.has_data = self.controler.is_ready
-        
 
         c_path = getattr(self.controler, 'config_path', None)
         m_root = getattr(self.controler, 'model_root', None)
-        self.has_config = (c_path is not None) or (m_root is not None)
-
+        self.has_config = self.controler.config is not None
 
         self.logo = pn.pane.PNG(
             "images/Logo_canapy.png",
@@ -65,7 +62,7 @@ class HomeDashboard(SubDash):
         else:
             status_text = "System Standby: No data loaded."
             status_type = "danger"
-            
+
         self.status = pn.pane.Alert(
             status_text,
             alert_type=status_type,
@@ -111,6 +108,14 @@ class HomeDashboard(SubDash):
         )
         self.btn_labelize.on_click(self.go_labelize)
 
+        self.btn_settings = pn.widgets.Button(
+            name="⚙ Settings",
+            button_type="light",
+            sizing_mode="stretch_width",
+            height=50,
+            disabled=not self.has_config,
+        )
+        self.btn_settings.on_click(self.go_settings)
 
         workflows_grid = pn.FlexBox(
             self.btn_preprocess,
@@ -123,17 +128,21 @@ class HomeDashboard(SubDash):
         main_content = pn.Column(
             pn.Row(self.logo, align="center"),
             pn.Spacer(height=40),
-            
+
             self.status,
             pn.Spacer(height=40),
-            
+
             pn.pane.Markdown("<div class='section-header'>Data Management</div>"),
             self.btn_load,
             pn.Spacer(height=40),
-            
+
             pn.pane.Markdown("<div class='section-header'>Workflows</div>"),
             workflows_grid,
-            
+            pn.Spacer(height=40),
+
+            pn.pane.Markdown("<div class='section-header'>Configuration</div>"),
+            self.btn_settings,
+
             css_classes=['dashboard-container'],
             sizing_mode="stretch_width",
         )
@@ -143,7 +152,7 @@ class HomeDashboard(SubDash):
             pn.Spacer(width=50),
             pn.Column(
                 pn.Spacer(height=60),
-                main_content, 
+                main_content,
                 pn.Spacer(height=60),
                 sizing_mode="stretch_width"
             ),
@@ -160,8 +169,8 @@ class HomeDashboard(SubDash):
             self.status.object = "Please load data first (-d)"
             self.status.alert_type = "danger"
             return
-        
-        self.controler.home_path = "edit" 
+
+        self.controler.home_path = "edit"
         self.controler.load_page("preprocess")
 
     def go_train(self, _):
@@ -183,3 +192,11 @@ class HomeDashboard(SubDash):
             return
         self.controler.home_path = "annotate"
         self.controler.next_step()
+
+    def go_settings(self, _):
+        if not self.has_config:
+            self.status.object = "Configuration required to access Settings (-c)"
+            self.status.alert_type = "danger"
+            return
+        self.controler._step = "settings"
+        self.controler.dashboard.switch_panel()

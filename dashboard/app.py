@@ -14,19 +14,17 @@ from .view.helpers import Registry
 from .view.preprocess.preprocess_dash import PreprocessDashboard
 from .view.home.home_dash import HomeDashboard
 from .view.annotate.annotate_dash import AnnotateDashboard
-from .view.loaddata.load_data_dash import LoadDataDashboard  
+from .view.loaddata.load_data_dash import LoadDataDashboard
+from .view.settings.settings_dash import SettingsDashboard
 
 MAX_SAMPLE_DISPLAY = 10
 logger = logging.getLogger("canapy-dashboard")
 
-
 @attr.define
 class CanapyDashboard(pn.viewable.Viewer):
-    # modif 20/01
     annots_directory: Optional[Path] = attr.field(default=None, converter=as_path)
     audio_directory: Optional[Path] = attr.field(default=None, converter=as_path)
     output_directory: Optional[Path] = attr.field(default=None, converter=as_path)
-    # modif 20/01
     spec_directory: Optional[Path] = attr.field(default=None, converter=as_path)
     config_path: Optional[Path] = attr.field(default=None, converter=as_path)
     port: Optional[int] = attr.field(default=None)
@@ -35,10 +33,9 @@ class CanapyDashboard(pn.viewable.Viewer):
     annotators: List = attr.field(default=["syn-esn", "nsyn-esn", "ensemble"])
 
     def __attrs_post_init__(self):
-        # modif 20/01 : output dir par défaut pour canapy dash
         if self.output_directory is None:
             self.output_directory = Path.cwd() / "canapy_output"
-        
+
         self.spec_directory = (
             self.output_directory / "spectrograms"
             if self.spec_directory is None
@@ -64,7 +61,8 @@ class CanapyDashboard(pn.viewable.Viewer):
             "export": ExportDashboard,
             "home": HomeDashboard,
             "annotate": AnnotateDashboard,
-            "loaddata": LoadDataDashboard,  
+            "loaddata": LoadDataDashboard,
+            "settings": SettingsDashboard,
         }
 
         self.subdash = None
@@ -80,17 +78,15 @@ class CanapyDashboard(pn.viewable.Viewer):
         Registry.clean_all()
         self.subdash = self.views[self.controler.step](self)
         self.current_view[0] = self.subdash.layout
-        
+
         if self.controler.step == "export":
             self.subdash.begin()
 
     def switch_to_load_data(self):
-        """Navigate to Load Data view"""
         self.controler._step = "loaddata"
         self.switch_panel()
-    
+
     def switch_to_home(self):
-        """Navigate back to Home view"""
         self.controler._step = "home"
         self.switch_panel()
 

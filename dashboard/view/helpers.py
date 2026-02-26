@@ -3,7 +3,7 @@ from ..controler import Controler
 
 SIDEBAR_CSS = """
 .sidebar-container {
-    background-color: #f8fafc; /* Gris très clair */
+    background-color: #f8fafc;
     border-right: 1px solid #e2e8f0;
     padding: 20px 10px;
     height: 100%;
@@ -18,7 +18,6 @@ SIDEBAR_CSS = """
     text-align: center;
     margin-bottom: 30px;
 }
-/* Style des boutons de navigation */
 .nav-btn button.bk-btn {
     background-color: transparent !important;
     color: #64748b !important;
@@ -39,17 +38,18 @@ SIDEBAR_CSS = """
     color: #cbd5e1 !important;
     cursor: not-allowed;
 }
-/* Bouton Quit spécifique (rouge au survol) */
 .quit-btn button.bk-btn:hover {
     color: #ef4444 !important;
     background-color: #fee2e2 !important;
 }
-/* Séparateur visuel */
 .nav-divider {
     border-top: 1px solid #e2e8f0;
     margin: 15px 0;
 }
 """
+
+NO_NEXT_PAGES = {"Home", "Load Data", "Settings"}
+
 
 class SubDash(pn.viewable.Viewer):
     def __init__(self, parent, **kwargs):
@@ -105,17 +105,16 @@ class Registry(object):
 class SideBar(SubDash):
     def __init__(self, parent, title, disabled=True):
         super().__init__(parent)
-        
+
         pn.config.raw_css.append(SIDEBAR_CSS)
 
         self.title = title
-
         is_home_page = (self.title == "Home")
-        
+
         self.home_btn = pn.widgets.Button(
-            name="Home", 
-            button_type="primary", 
-            disabled=is_home_page, 
+            name="Home",
+            button_type="primary",
+            disabled=is_home_page,
             align="center",
             sizing_mode="stretch_width",
             css_classes=['nav-btn']
@@ -136,39 +135,48 @@ class SideBar(SubDash):
             button_type="warning",
             align="center",
             sizing_mode="stretch_width",
-            css_classes=['nav-btn', 'quit-btn'] 
+            css_classes=['nav-btn', 'quit-btn']
         )
         self.quit_btn.on_click(self.on_click_stop)
 
         widgets_list = [pn.Spacer(height=20)]
 
-        if self.title == "Home":
+        if self.title in ("Home", "Settings"):
             widgets_list.extend([
                 pn.Spacer(height=20),
                 self.quit_btn
             ])
-            
+
+            if self.title == "Settings":
+                self.back_btn = pn.widgets.Button(
+                    name="← Back",
+                    align="center",
+                    sizing_mode="stretch_width",
+                    css_classes=['nav-btn']
+                )
+                self.back_btn.on_click(self.on_click_back)
+                widgets_list.insert(1, self.back_btn)
+
         else:
             if not self.controler.is_ready:
                 self.next_btn.disabled = True
-            
+
             if self.title == "Preprocessing":
-                #modif 27/01 Axel Preprocess en home
                 if self.controler.home_path == "edit":
                     self.next_btn.name = "Export Changes"
-                    self.next_btn.stylesheets = [""" 
-                        button.bk-btn { 
-                            background-color: #dcfce7 !important; 
-                            color: #166534 !important; 
+                    self.next_btn.stylesheets = ["""
+                        button.bk-btn {
+                            background-color: #dcfce7 !important;
+                            color: #166534 !important;
                             border: 1px solid #86efac !important;
                             font-weight: bold !important;
-                        } 
+                        }
                     """]
                 self.enable_next()
 
             if self.title == "eval":
                 self.export_btn = pn.widgets.Button(
-                    name="Export", 
+                    name="Export",
                     button_type="primary",
                     sizing_mode="stretch_width",
                     css_classes=['nav-btn']
@@ -181,23 +189,22 @@ class SideBar(SubDash):
                 self.next_btn.name = "End Workflow"
                 self.next_btn.button_type = "success"
                 self.next_btn.disabled = False
-                self.next_btn.on_click(self.on_click_stop) 
+                self.next_btn.on_click(self.on_click_stop)
                 self.home_btn.disabled = False
-            
-            if self.title != "Load Data":
+
+            if self.title not in NO_NEXT_PAGES:
                 widgets_list.append(self.next_btn)
-            
+
             widgets_list.append(pn.pane.HTML("<div class='nav-divider'></div>"))
             widgets_list.append(self.home_btn)
-            
             widgets_list.append(pn.Spacer(height=20))
             widgets_list.append(self.quit_btn)
 
         self.layout = pn.Column(
             *widgets_list,
-            width=220, 
+            width=220,
             sizing_mode="stretch_height",
-            css_classes=['sidebar-container'] 
+            css_classes=['sidebar-container']
         )
 
     def on_click_next(self, events):
@@ -212,6 +219,9 @@ class SideBar(SubDash):
         self.controler._step = "home"
         self.controler.dashboard.switch_panel()
 
+    def on_click_back(self, events):
+        self.controler.leave_settings()
+
     def on_click_stop(self, events):
         self.layout.append(
             pn.pane.Alert(
@@ -224,10 +234,10 @@ class SideBar(SubDash):
     def enable_next(self):
         self.next_btn.disabled = False
         if self.controler.home_path != "edit":
-            self.next_btn.stylesheets = [""" 
-                button.bk-btn { 
-                    background-color: #dcfce7 !important; 
-                    color: #166534 !important; 
+            self.next_btn.stylesheets = ["""
+                button.bk-btn {
+                    background-color: #dcfce7 !important;
+                    color: #166534 !important;
                     border: 1px solid #86efac !important;
-                } 
+                }
             """]
