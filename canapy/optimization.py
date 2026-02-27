@@ -3,12 +3,13 @@ import os
 import tempfile
 import traceback
 import json
+import threading
 from typing import Dict
 import numpy as np
 
 from hyperopt import STATUS_OK, STATUS_FAIL
 
-from reservoirpy.hyper import research
+from reservoirpy.hyper import research, parallel_research
 
 from canapy.corpus import Corpus
 from canapy.annotator.commons.esn import init_esn_model
@@ -86,6 +87,7 @@ def optimize_hyperparameters(
     annotator_type: str = "syn",
     n_iter: int = 100,
     max_percentage: float = 1.0,
+    parallel: bool = False,
 ):
     logger.info("Starting hyperparameter optimization pipeline...")
 
@@ -147,7 +149,7 @@ def optimize_hyperparameters(
     research_config = {
         "exp": "canapy_opt",
         "hp_max_evals": n_iter,
-        "hp_method": "random",
+        "hp_method": "random" if parallel else "tpe",
         "hp_space": hp_space,
         "instances_per_trial": 1,
         "seed": 42
@@ -165,11 +167,23 @@ def optimize_hyperparameters(
 
         dataset_tuple = (X_train, Y_train, X_val, Y_val, config.model.syn, input_dim, audio_features)
 
-        best_params, _trials = research(
-            objective,
-            dataset_tuple,
-            config_path,
-        )
+        if parallel:
+            # Panel/Tornado callbacks can leave threading._SHUTTING_DOWN=True,
+            # which causes loky/concurrent.futures to refuse creating new executors.
+            # Reset it here since the process is not actually shutting down.
+            if hasattr(threading, "_SHUTTING_DOWN"):
+                threading._SHUTTING_DOWN = False
+            best_params, _trials = parallel_research(
+                objective,
+                dataset_tuple,
+                config_path,
+            )
+        else:
+            best_params, _trials = research(
+                objective,
+                dataset_tuple,
+                config_path,
+            )
 
         return best_params
 
