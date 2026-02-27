@@ -82,6 +82,8 @@ class Controler:
     _classes: Optional[List[str]] = attr.field(alias="_classes", default=None)
     _external_accum: Optional[Dict[str, Corpus]] = attr.field(factory=dict, init=False)
     _settings_return_step: Optional[str] = attr.field(alias="_settings_return_step", default="home")
+    opt_parallel: bool = attr.field(default=False)
+    opt_max_percentage: float = attr.field(default=0.3)
 
     def __attrs_post_init__(self):
         if (
@@ -653,6 +655,15 @@ class Controler:
             logger.critical(f"Failed to export predictions to {out_dir}: {e}")
             raise
 
+    def export_config(self) -> str:
+        project_root = Path(__file__).resolve().parents[2]
+        user_config_dir = project_root / "config" / "user"
+        user_config_dir.mkdir(parents=True, exist_ok=True)
+        config_path = user_config_dir / "user.config.toml"
+        self.config.to_disk(config_path, format="toml")
+        logger.info(f"Config exported to {config_path}")
+        return str(config_path)
+
     def stop_app(self):
         close_tempfiles()
         self.dashboard.stop()
@@ -701,7 +712,8 @@ class Controler:
             syn_annotator.config,
             annotator_type="syn",
             n_iter=100,
-            max_percentage=0.1,
+            max_percentage=self.opt_max_percentage,
+            parallel=self.opt_parallel,
         )
 
         if best_params:
