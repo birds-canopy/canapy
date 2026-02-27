@@ -36,19 +36,27 @@ class TrainerDashboard(SubDash):
 
         # Composants pour l'optimisation (déplacés en bas)
         self.optimize_btn = pn.widgets.Button(
-            name="Auto-Tune Hyperparameters (Parallel Search)", 
+            name="Auto-Tune Reservoir",
             button_type="primary"
         )
         self.optimize_btn.on_click(self.on_click_optimize)
         self.opt_indicator = pn.indicators.LoadingSpinner(value=False, width=50, height=50)
-        self.opt_status = pn.pane.HTML("<i>Recommended before first training</i>")
+        self.opt_status = pn.pane.HTML("<i>Recommended for new data</i>")
         self.params_display = pn.pane.Markdown("**Current Params:** Default", width=300)
+
+        self.export_config_btn = pn.widgets.Button(
+            name="Export config",
+            button_type="success",
+            visible=False,
+        )
+        self.export_config_btn.on_click(self.on_click_export_config)
+        self.export_config_status = pn.pane.HTML("", visible=False)
 
         self.layout = pn.Column(
             pn.Row(
                 pn.Column(
-                    pn.pane.HTML("Syn training:"), 
-                    self.syn_indicator, 
+                    pn.pane.HTML("Syn training:"),
+                    self.syn_indicator,
                     self.syn_status
                 ),
                 pn.Column(
@@ -63,6 +71,8 @@ class TrainerDashboard(SubDash):
             pn.Row(self.optimize_btn, self.opt_indicator),
             self.opt_status,
             self.params_display,
+            self.export_config_btn,
+            self.export_config_status,
         )
 
     def switch_status(self, obj, status, duration=0.0):
@@ -70,7 +80,7 @@ class TrainerDashboard(SubDash):
             obj.object = "<h2>Training...</h2>"
             obj.style = {"color": "blue"}
         elif status == "optimizing":
-            obj.object = "<b>Running Parallel Search...</b>"
+            obj.object = "<b>Running hyperparameters search...</b>"
             obj.style = {"color": "orange"}
         elif status == "done":
             obj.object = f"<h2>Done !</h2> in {round(duration, 2)} sec."
@@ -81,6 +91,8 @@ class TrainerDashboard(SubDash):
 
     def on_click_optimize(self, events):
         self.optimize_btn.disabled = True
+        self.export_config_btn.visible = False
+        self.export_config_status.visible = False
         self.switch_status(self.opt_status, "optimizing")
         self.opt_indicator.value = True
         tic = time.time()
@@ -88,10 +100,23 @@ class TrainerDashboard(SubDash):
             result_text = self.controler.optimize_models()
             self.params_display.object = f"```yaml\n{result_text}\n```"
             self.switch_status(self.opt_status, "opt_done", duration=time.time() - tic)
+            self.export_config_btn.visible = True
         except Exception as e:
             self.opt_status.object = f"<span style='color:red'>Error: {e}</span>"
         self.opt_indicator.value = False
         self.optimize_btn.disabled = False
+
+    def on_click_export_config(self, events):
+        try:
+            path = self.controler.export_config()
+            self.export_config_status.object = (
+                f"<span style='color:green'>Config saved to <code>{path}</code></span>"
+            )
+        except Exception as e:
+            self.export_config_status.object = (
+                f"<span style='color:red'>Export failed: {e}</span>"
+            )
+        self.export_config_status.visible = True
 
     def on_click_train(self, events):
         self.train_btn.disabled = True
