@@ -101,7 +101,7 @@ def display_dashboard(
         annots_directory = data_directory
         audio_directory = data_directory
 
-    pn.extension()
+    pn.extension(notifications=True)
     
     dashboard = CanapyDashboard(
         annots_directory=annots_directory,

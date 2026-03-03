@@ -84,7 +84,7 @@ class App(pn.viewable.Viewer):
 
 
 if __name__ == "__main__":
-    pn.extension(sizing_mode="stretch_width", template="material")
+    pn.extension(sizing_mode="stretch_width", template="material", notifications=True)
 
     # App().servable()
     HomeView().show()

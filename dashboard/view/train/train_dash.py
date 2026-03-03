@@ -97,10 +97,19 @@ class TrainerDashboard(SubDash):
         self.opt_indicator.value = True
         tic = time.time()
         try:
-            result_text = self.controler.optimize_models()
-            self.params_display.object = f"```yaml\n{result_text}\n```"
-            self.switch_status(self.opt_status, "opt_done", duration=time.time() - tic)
-            self.export_config_btn.visible = True
+            best_params = self.controler.optimize_models()
+            if best_params is None:
+                self.opt_status.object = (
+                    "<span style='color:red'><b>Optimization failed or was interrupted.</b> "
+                    "Check the logs for details.</span>"
+                )
+            else:
+                lines = []
+                for k, v in best_params.items():
+                    lines.append(f"  {k}: {v:.4g}" if isinstance(v, float) else f"  {k}: {v}")
+                self.params_display.object = "**Best parameters found:**\n```\n" + "\n".join(lines) + "\n```"
+                self.switch_status(self.opt_status, "opt_done", duration=time.time() - tic)
+                self.export_config_btn.visible = True
         except Exception as e:
             self.opt_status.object = f"<span style='color:red'>Error: {e}</span>"
         self.opt_indicator.value = False
