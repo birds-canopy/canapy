@@ -61,6 +61,9 @@ def merge_labels(corpus, **kwargs):
     df = corpus.dataset
     config = corpus.config.transforms.annots
 
+    if not getattr(config, "merge_consecutive_labels", True):
+        return corpus
+
     groups = ["annotation", "sequence"]
 
     gemini_groups = (
