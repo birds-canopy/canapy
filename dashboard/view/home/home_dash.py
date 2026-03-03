@@ -42,10 +42,7 @@ class HomeDashboard(SubDash):
         self.sidebar = SideBar(self, "Home")
 
         self.has_data = self.controler.is_ready
-
-        c_path = getattr(self.controler, 'config_path', None)
-        m_root = getattr(self.controler, 'model_root', None)
-        self.has_config = self.controler.config is not None
+        self.has_model = getattr(self.controler, 'model_root', None) is not None
 
         self.logo = pn.pane.PNG(
             "images/Logo_canapy.png",
@@ -53,11 +50,11 @@ class HomeDashboard(SubDash):
             align="center"
         )
 
-        if self.has_data and self.has_config:
-            status_text = "System Fully Ready: Data & Configuration loaded."
+        if self.has_data and self.has_model:
+            status_text = "System Fully Ready: Data & Model loaded."
             status_type = "success"
         elif self.has_data:
-            status_text = "Partial Ready: Data loaded. (Training enabled, Annotation disabled due to missing Config)"
+            status_text = "Partial Ready: Data loaded. (Training enabled, Annotation requires a trained model)"
             status_type = "warning"
         else:
             status_text = "System Standby: No data loaded."
@@ -96,15 +93,15 @@ class HomeDashboard(SubDash):
         self.btn_train.on_click(self.go_train)
 
         label_btn_name = "Annotate unlabeled data"
-        if self.has_data and not self.has_config:
-            label_btn_name += " (Missing Config)"
+        if self.has_data and not self.has_model:
+            label_btn_name += " (Missing Model)"
 
         self.btn_labelize = pn.widgets.Button(
             name=label_btn_name,
             button_type="success",
             sizing_mode="stretch_width",
             height=100,
-            disabled=not (self.has_data and self.has_config),
+            disabled=not (self.has_data and self.has_model),
         )
         self.btn_labelize.on_click(self.go_labelize)
 
@@ -113,7 +110,7 @@ class HomeDashboard(SubDash):
             button_type="light",
             sizing_mode="stretch_width",
             height=50,
-            disabled=not self.has_config,
+            disabled=not self.has_data,
         )
         self.btn_settings.on_click(self.go_settings)
 
@@ -186,16 +183,16 @@ class HomeDashboard(SubDash):
             self.status.object = "Please load data first (-d)"
             self.status.alert_type = "danger"
             return
-        if not self.has_config:
-            self.status.object = "Configuration or Model required for annotation (-c)"
+        if not self.has_model:
+            self.status.object = "A trained model directory is required for annotation (-c)"
             self.status.alert_type = "danger"
             return
         self.controler.home_path = "annotate"
         self.controler.next_step()
 
     def go_settings(self, _):
-        if not self.has_config:
-            self.status.object = "Configuration required to access Settings (-c)"
+        if not self.has_data:
+            self.status.object = "Please load data first (-d)"
             self.status.alert_type = "danger"
             return
         self.controler._step = "settings"

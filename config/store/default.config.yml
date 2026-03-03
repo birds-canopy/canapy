@@ -39,6 +39,7 @@ transforms:
     lonely_labels:
     - cri
     - TRASH
+    merge_consecutive_labels: true
     min_label_duration: 0.02
     min_silence_gap: 0.001
     silence_tag: SIL

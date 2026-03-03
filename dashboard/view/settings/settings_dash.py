@@ -41,8 +41,7 @@ PARAM_HELP = {
     ),
     "n_fft": (
         "FFT window size (samples). Must be ≥ win_length × sampling_rate. "
-        "Should be a power of 2 (512, 1024, 2048, 4096, 8192…). "
-        "At high sampling rates (e.g. 192 kHz), increase this value accordingly."
+        "Automatically updated based on sampling rate to maintain resolution."
     ),
     "sr": "Spectral radius of the reservoir weight matrix. Controls the echo state property (typical: 0.1–1.5).",
     "leak": "Leak rate of the reservoir neurons. Controls the temporal memory of the reservoir (0 < leak ≤ 1).",
@@ -59,6 +58,17 @@ PARAM_HELP = {
         "Fraction of training sequences used during each optimization trial. "
         "Lower values speed up the search but may reduce accuracy. "
         "Recommended: 0.3–0.5 for large datasets, 1.0 for small ones."
+    ),
+    "opt_n_jobs": (
+        "Number of parallel workers for the HP search (Parallel mode only). "
+        "Each worker is a separate process — higher values speed up the search "
+        "but use more CPU and RAM. Recommended: 4–8. "
+        "Has no effect in Normal (TPE) mode."
+    ),
+    "merge_consecutive_labels": (
+        "If enabled, consecutive annotations with the same label separated by a silence "
+        "shorter than min_silence_gap are merged into a single annotation. "
+        "Disable if your protocol distinguishes repeated identical labels."
     ),
 }
 
@@ -94,7 +104,6 @@ class SettingsDashboard(SubDash):
 
         cfg = self.controler.config
 
-        # --- Audio widgets ---
         self.sampling_rate_input = pn.widgets.IntInput(
             value=int(cfg.transforms.audio.data["sampling_rate"]),
             start=1000,
@@ -131,9 +140,10 @@ class SettingsDashboard(SubDash):
             sizing_mode="stretch_width",
             align="center",
         )
+        
         self.win_length_input.param.watch(self._update_hop_display, "value")
+        self.sampling_rate_input.param.watch(self._update_n_fft_from_sr, "value")
 
-        # --- Reservoir widgets ---
         self.sr_input = pn.widgets.FloatInput(
             value=float(cfg.model.syn.data["sr"]),
             start=0.0,
@@ -177,7 +187,20 @@ class SettingsDashboard(SubDash):
             sizing_mode="stretch_width",
         )
 
-        # --- Optimization widgets ---
+        _merge_val = bool(cfg.transforms.annots.data.get("merge_consecutive_labels", True))
+        self.merge_labels_input = pn.widgets.Toggle(
+            name="Enabled" if _merge_val else "Disabled",
+            value=_merge_val,
+            button_type="success" if _merge_val else "default",
+            sizing_mode="stretch_width",
+        )
+
+        def _on_merge_toggle(event):
+            self.merge_labels_input.name = "Enabled" if event.new else "Disabled"
+            self.merge_labels_input.button_type = "success" if event.new else "default"
+
+        self.merge_labels_input.param.watch(_on_merge_toggle, "value")
+
         self.opt_parallel_input = pn.widgets.Select(
             options={"Normal (TPE)": False, "Parallel (Random)": True},
             value=self.controler.opt_parallel,
@@ -190,8 +213,15 @@ class SettingsDashboard(SubDash):
             step=0.05,
             sizing_mode="stretch_width",
         )
+        import os as _os
+        self.opt_n_jobs_input = pn.widgets.IntSlider(
+            value=self.controler.opt_n_jobs,
+            start=1,
+            end=max(1, _os.cpu_count() or 8),
+            step=1,
+            sizing_mode="stretch_width",
+        )
 
-        # --- Apply button ---
         self.btn_apply = pn.widgets.Button(
             name="Apply",
             button_type="primary",
@@ -200,7 +230,6 @@ class SettingsDashboard(SubDash):
         )
         self.btn_apply.on_click(self._apply)
 
-        # --- Layout ---
         audio_card = pn.Column(
             pn.pane.HTML("<div class='settings-section-header'>Audio</div>"),
             _make_param_row("Sampling rate (Hz)", self.sampling_rate_input, "sampling_rate"),
@@ -213,6 +242,13 @@ class SettingsDashboard(SubDash):
                 sizing_mode="stretch_width",
             ),
             _make_param_row("n_fft (samples)", self.n_fft_input, "n_fft"),
+            css_classes=["settings-card"],
+            sizing_mode="stretch_width",
+        )
+
+        annots_card = pn.Column(
+            pn.pane.HTML("<div class='settings-section-header'>Annotations</div>"),
+            _make_param_row("Merge consecutive labels", self.merge_labels_input, "merge_consecutive_labels"),
             css_classes=["settings-card"],
             sizing_mode="stretch_width",
         )
@@ -233,6 +269,7 @@ class SettingsDashboard(SubDash):
             pn.pane.HTML("<div class='settings-section-header'>Hyperparameter Search</div>"),
             _make_param_row("Search mode", self.opt_parallel_input, "opt_parallel"),
             _make_param_row("Data fraction", self.opt_percentage_input, "opt_max_percentage"),
+            _make_param_row("Parallel workers (n_jobs)", self.opt_n_jobs_input, "opt_n_jobs"),
             css_classes=["settings-card"],
             sizing_mode="stretch_width",
         )
@@ -242,6 +279,7 @@ class SettingsDashboard(SubDash):
             self.status,
             pn.Spacer(height=20),
             audio_card,
+            annots_card,
             reservoir_card,
             optimization_card,
             self.btn_apply,
@@ -264,13 +302,23 @@ class SettingsDashboard(SubDash):
             background="#ffffff",
         )
 
-    # ------------------------------------------------------------------
     def _hop_label(self, win_length: float) -> str:
         hop = round(win_length / 2, 6)
         return f"<span style='color:#64748b;font-size:13px;'>{hop} s (win_length / 2, read-only)</span>"
 
     def _update_hop_display(self, event):
         self.hop_length_display.object = self._hop_label(event.new)
+
+    def _update_n_fft_from_sr(self, event):
+        sr = event.new
+        if sr < 20000:
+            self.n_fft_input.value = 512
+        elif sr < 40000:
+            self.n_fft_input.value = 1024
+        elif sr < 60000:
+            self.n_fft_input.value = 2048
+        else:
+            self.n_fft_input.value = 4096
 
     def _apply(self, _):
         try:
@@ -299,8 +347,11 @@ class SettingsDashboard(SubDash):
             model_data["isd2"] = self.isd2_input.value
             model_data["ridge"] = self.ridge_input.value
 
+        cfg.data["transforms"]["annots"]["merge_consecutive_labels"] = self.merge_labels_input.value
+
         self.controler.opt_parallel = self.opt_parallel_input.value
         self.controler.opt_max_percentage = self.opt_percentage_input.value
+        self.controler.opt_n_jobs = self.opt_n_jobs_input.value
 
         logger.info("Settings applied to config.")
         nyquist = self.sampling_rate_input.value / 2
