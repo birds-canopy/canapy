@@ -22,13 +22,13 @@ from canapy.metrics import (
 from canapy.plots import plot_segment_melspectrogram
 from canapy.utils import as_path
 from canapy.annotator.commons.postprocess import extract_vocab
-from canapy.transforms.commons.training import split_train_test
+from canapy.transforms.commons.training import split_train_test, encode_labels
 from canapy.utils.tempstorage import close_tempfiles
 from canapy.transforms.commons.annots import sort_annotations, merge_labels, tag_silences, remove_short_labels
 from canapy.transforms.commons.audio import compute_mfcc
 from .segments import fetch_misclassified_samples
 from .corpusutils import mark_whole_corpus_as_train, query_split
-from canapy.optimization import optimize_hyperparameters
+from canapy.optimization import optimize_hyperparameters_isolated
 
 logger = logging.getLogger("canapy")
 
@@ -84,6 +84,7 @@ class Controler:
     _settings_return_step: Optional[str] = attr.field(alias="_settings_return_step", default="home")
     opt_parallel: bool = attr.field(default=False)
     opt_max_percentage: float = attr.field(default=0.3)
+    opt_n_jobs: int = attr.field(default=4)
 
     def __attrs_post_init__(self):
         if (
@@ -299,6 +300,48 @@ class Controler:
             f"\nAnnotation correction:\n{annot_corrections}"
         )
 
+    def clean_corpus_pre_training(self, max_silence_ratio=0.2, min_class_count=10):
+        df = self.corpus.dataset.copy()
+        silence_tag = self.config.transforms.annots.silence_tag
+
+        # Compute durations for silence ratio check
+        df["_duration"] = df["offset_s"] - df["onset_s"]
+
+        # Explicit SIL labels already present (if any)
+        sil_duration = df.loc[df["label"] == silence_tag, "_duration"].sum()
+
+        # Implicit silences: gaps between annotations, mirroring tag_silences() logic
+        # (tag_silences is called later in the pipeline, not yet applied here)
+        df_sorted = df.sort_values(["notated_path", "onset_s"])
+        prev_offset = df_sorted.groupby("notated_path")["offset_s"].shift(fill_value=0.0)
+        gap_duration = (df_sorted["onset_s"] - prev_offset).clip(lower=0).sum()
+
+        total_sil_duration = sil_duration + gap_duration
+        total_duration = df["_duration"].sum() + gap_duration
+
+        # Check silence ratio (duration-based)
+        if total_duration > 0 and total_sil_duration / total_duration > max_silence_ratio:
+            sil_pct = round(total_sil_duration / total_duration * 100, 1)
+            panel.state.notifications.warning(
+                f"High silence ratio detected ({sil_pct}% of total duration). "
+                "Model performance may be impacted.",
+                duration=8000,
+            )
+            logger.warning(f"High silence ratio: {sil_pct}%")
+
+        # Remove under-represented classes (occurrence-based)
+        counts = df[~df["label"].isin([silence_tag, "TRASH"])].groupby("label").size()
+        classes_to_remove = counts[counts < min_class_count].index.tolist()
+
+        if classes_to_remove:
+            df.loc[df["label"].isin(classes_to_remove), "label"] = "TRASH"
+            msg = f"Not enough samples for {classes_to_remove}, classes have been removed"
+            panel.state.notifications.warning(msg, duration=0)
+            logger.warning(msg)
+
+        df = df.drop(columns=["_duration"])
+        self.corpus = self.corpus.clone_with_df(df)
+
     def export_corpus(self):
         try:
             if hasattr(self, '_correction_store') and self._correction_store:
@@ -351,6 +394,7 @@ class Controler:
 
             self._step = "train"
             self.apply_corrections()
+            self.clean_corpus_pre_training()
             self.preprocess_done = True
             logger.info('Setting current dashboard to "train".')
 
@@ -418,7 +462,7 @@ class Controler:
 
     def annotate(self, annotator_name, split="all"):
         if annotator_name == "ensemble":
-            corpora = [c for c in self._pred_corpora[split].values()]
+            corpora = [c for name, c in self._pred_corpora[split].items() if name != "ensemble"]
         else:
             corpora = query_split(self.corpus, split)
 
@@ -678,9 +722,14 @@ class Controler:
 
         syn_annotator = self._annotators[target_name]
 
-        # Work on a deep copy to never alter the global corpus
+        # Shallow-copy the corpus so annotation transforms and MFCC registration
+        # don't affect the live corpus used by the rest of the dashboard.
+        # Only dataset (modified in-place by transforms) and data_resources (new
+        # entries added) need their own copies; config and annotations are read-only.
         import copy
-        c = copy.deepcopy(self.corpus)
+        c = copy.copy(self.corpus)
+        c.dataset = self.corpus.dataset.copy()
+        c.data_resources = dict(self.corpus.data_resources)
 
         logger.info("Step 1: Stabilizing labels and split...")
         c = sort_annotations(c)
@@ -689,6 +738,8 @@ class Controler:
         c = remove_short_labels(c, min_label_duration=syn_annotator.config.transforms.annots.min_label_duration)
         # redo=False : preserve the original split to stay consistent with the main pipeline
         c = split_train_test(c, redo=False)
+        # encode_labels is required by load_mfccs_and_repeat_labels (encoded_label column)
+        c = encode_labels(c, resource_name=None)
 
         # Dedicated temp directory so we don't overwrite shared .npz files
         import tempfile
@@ -706,24 +757,30 @@ class Controler:
             logger.error("Critical: 'syn_mfcc' still missing from resources!")
             return
 
-        logger.info("Step 3: Launching optimization...")
-        best_params = optimize_hyperparameters(
+        logger.info("Step 3: Launching optimization (isolated subprocess)...")
+        best_params = optimize_hyperparameters_isolated(
             c,
             syn_annotator.config,
             annotator_type="syn",
             n_iter=100,
             max_percentage=self.opt_max_percentage,
             parallel=self.opt_parallel,
+            n_jobs=self.opt_n_jobs,
         )
-
-        if best_params:
-            logger.info(f"Optimization finished. Best params: {best_params}")
-            for k, v in best_params.items():
-                setattr(syn_annotator.config.model.syn, k, v)
 
         # Cleanup temp files
         import shutil
         shutil.rmtree(optim_spec_dir, ignore_errors=True)
 
-        return "Optimization complete."
+        if not best_params:
+            logger.warning(
+                "Optimization returned no results — subprocess may have crashed or timed out."
+            )
+            return None
+
+        logger.info(f"Optimization finished. Best params: {best_params}")
+        for k, v in best_params.items():
+            setattr(syn_annotator.config.model.syn, k, v)
+
+        return best_params
 

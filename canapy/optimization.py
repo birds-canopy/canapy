@@ -1,4 +1,5 @@
 import logging
+import multiprocessing
 import os
 import tempfile
 import traceback
@@ -14,7 +15,6 @@ from reservoirpy.hyper import research, parallel_research
 from canapy.corpus import Corpus
 from canapy.annotator.commons.esn import init_esn_model
 from canapy.annotator.commons.mfccs import load_mfccs_and_repeat_labels
-from canapy.transforms.synesn import SynESNTransform
 
 logger = logging.getLogger("canapy")
 
@@ -35,7 +35,54 @@ def _concat_xy(X_list, Y_list):
     return np.concatenate(xs), np.concatenate(ys)
 
 # =============================================================================
-# 2. OBJECTIVE METHOD
+# 2. STRATIFIED SEQUENCE SELECTION
+# =============================================================================
+
+def _select_representative_sequences(X_list, Y_list, n_select, rng):
+    """
+    Select n_select sequences using inverse class-frequency weighting.
+
+    Each sequence is assigned a score = sum(1/global_freq[c]) for every class c
+    present in it. Sequences carrying rare classes thus get a higher sampling
+    probability, ensuring the selected subset reflects the full class distribution
+    better than uniform random sampling.
+
+    Y arrays are expected to have shape (n_timesteps, n_classes) with one-hot
+    encoded labels, as produced by load_mfccs_and_repeat_labels.
+    """
+    n_total = len(X_list)
+    if n_select >= n_total:
+        return X_list, Y_list
+
+    # Global frame counts per class across the full training set
+    n_classes = Y_list[0].shape[1]
+    global_counts = np.zeros(n_classes)
+    for y in Y_list:
+        global_counts += y.sum(axis=0)
+
+    # Avoid division by zero for classes absent from training (shouldn't happen)
+    global_counts = np.maximum(global_counts, 1.0)
+
+    # Per-sequence score: sum of inverse frequencies of classes present
+    seq_weights = np.zeros(n_total)
+    for i, y in enumerate(Y_list):
+        present = y.sum(axis=0) > 0
+        if present.any():
+            seq_weights[i] = np.sum(1.0 / global_counts[present])
+
+    total = seq_weights.sum()
+    if total == 0:
+        # Fallback to uniform if all weights collapse (degenerate case)
+        seq_weights = np.ones(n_total)
+        total = float(n_total)
+    seq_weights /= total
+
+    indices = rng.choice(n_total, size=n_select, replace=False, p=seq_weights)
+    return [X_list[i] for i in indices], [Y_list[i] for i in indices]
+
+
+# =============================================================================
+# 3. OBJECTIVE METHOD
 # =============================================================================
 
 def objective(dataset, config, **kwargs):
@@ -88,22 +135,12 @@ def optimize_hyperparameters(
     n_iter: int = 100,
     max_percentage: float = 1.0,
     parallel: bool = False,
+    n_jobs: int = 4,
 ):
     logger.info("Starting hyperparameter optimization pipeline...")
 
-    # Step 1: Apply the same transforms as SynAnnotator.fit()
-    # This ensures: annotation sorting/merging/silence tagging,
-    # train/test split (split_train_test), label encoding, and MFCC computation.
-    logger.info("Step 1 (Opt): Applying SynESNTransform (same as real training)...")
-    syn_transform = SynESNTransform()
-    corpus = syn_transform(
-        corpus,
-        purpose="training",
-        output_directory=corpus.spec_directory,
-    )
-
-    # Step 2: Load train and val data from the corpus split (same as SynAnnotator)
-    logger.info("Step 2 (Opt): Loading training and validation MFCCs...")
+    # Load train and val data from the corpus split.
+    logger.info("Step 1 (Opt): Loading training and validation MFCCs...")
     _, _, X_train_list, Y_train_list = load_mfccs_and_repeat_labels(corpus, purpose="training")
     _, _, X_val_list, Y_val_list = load_mfccs_and_repeat_labels(corpus, purpose="eval")
 
@@ -114,19 +151,20 @@ def optimize_hyperparameters(
         logger.error("CRITICAL: No validation data found!")
         return None
 
-    # Step 3: Select a subset of training sequences according to max_percentage
+    # Select a representative subset of training sequences
     if max_percentage < 1.0:
         rng = np.random.default_rng(corpus.config.misc.seed)
         n_total = len(X_train_list)
         n_select = max(1, int(n_total * max_percentage))
-        indices = rng.choice(n_total, size=n_select, replace=False)
-        X_train_list = [X_train_list[i] for i in indices]
-        Y_train_list = [Y_train_list[i] for i in indices]
+        X_train_list, Y_train_list = _select_representative_sequences(
+            X_train_list, Y_train_list, n_select, rng
+        )
         logger.info(
-            f"Using {n_select}/{n_total} training sequences ({max_percentage * 100:.0f}%)."
+            f"Selected {n_select}/{n_total} representative sequences "
+            f"({max_percentage * 100:.0f}%, inverse-frequency weighted)."
         )
 
-    # Step 4: Concatenate sequences into single arrays
+    # Concatenate sequences into single arrays
     X_train, Y_train = _concat_xy(X_train_list, Y_train_list)
     X_val, Y_val = _concat_xy(X_val_list, Y_val_list)
 
@@ -163,10 +201,9 @@ def optimize_hyperparameters(
         json.dump(research_config, f)
 
     try:
-        logger.info(f"Step 3 (Opt): Launching ReservoirPy research ({n_iter} iters)...")
+        logger.info(f"Step 2 (Opt): Launching ReservoirPy research ({n_iter} iters)...")
 
         dataset_tuple = (X_train, Y_train, X_val, Y_val, config.model.syn, input_dim, audio_features)
-
         if parallel:
             # Panel/Tornado callbacks can leave threading._SHUTTING_DOWN=True,
             # which causes loky/concurrent.futures to refuse creating new executors.
@@ -177,6 +214,7 @@ def optimize_hyperparameters(
                 objective,
                 dataset_tuple,
                 config_path,
+                n_jobs=n_jobs,
             )
         else:
             best_params, _trials = research(
@@ -198,3 +236,91 @@ def optimize_hyperparameters(
                 os.remove(config_path)
             except OSError:
                 pass
+
+
+# =============================================================================
+# 4. ISOLATED SUBPROCESS WRAPPER
+# =============================================================================
+
+def _subprocess_target(queue, corpus, config, annotator_type, n_iter, max_percentage, parallel, n_jobs):
+    """
+    Entry point for the isolated optimization subprocess.
+    Must be a module-level function so multiprocessing can pickle it.
+    """
+    # Lower priority so the UI stays responsive during a long search.
+    try:
+        os.nice(10)
+    except OSError:
+        pass
+
+    # Cap BLAS/OpenMP threads per worker to prevent oversubscription.
+    # Without this, each of the n_jobs workers would spawn cpu_count threads
+    # (via OpenBLAS/MKL), saturating the machine (e.g. 8 workers × 16 threads = 128).
+    if parallel and n_jobs > 1:
+        threads_per_worker = max(1, (os.cpu_count() or 1) // n_jobs)
+    else:
+        threads_per_worker = os.cpu_count() or 1
+    for var in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS"):
+        os.environ[var] = str(threads_per_worker)
+
+    try:
+        result = optimize_hyperparameters(
+            corpus, config,
+            annotator_type=annotator_type,
+            n_iter=n_iter,
+            max_percentage=max_percentage,
+            parallel=parallel,
+            n_jobs=n_jobs,
+        )
+        queue.put(("ok", result))
+    except Exception as e:
+        queue.put(("error", str(e), traceback.format_exc()))
+
+
+def optimize_hyperparameters_isolated(
+    corpus: Corpus,
+    config: Dict,
+    annotator_type: str = "syn",
+    n_iter: int = 100,
+    max_percentage: float = 1.0,
+    parallel: bool = False,
+    n_jobs: int = 4,
+):
+    """
+    Run optimize_hyperparameters in a fresh spawned subprocess.
+
+    When parallel_research forks workers, it does so from a clean ~50 MB
+    Python process instead of forking directly from VS Code's heavy process
+    (Panel server + extensions...).  This prevents OOM crashes regardless of
+    dataset size or n_jobs value.
+    """
+    ctx = multiprocessing.get_context("spawn")
+    queue = ctx.Queue()
+    p = ctx.Process(
+        target=_subprocess_target,
+        args=(queue, corpus, config, annotator_type, n_iter, max_percentage, parallel, n_jobs),
+        daemon=False,  # must be False: daemon processes cannot spawn children
+    )
+    _TIMEOUT_S = 7200  # 2-hour safety net — prevents infinite hang on subprocess deadlock
+    p.start()
+    p.join(timeout=_TIMEOUT_S)
+
+    if p.is_alive():
+        logger.error(
+            f"Optimization subprocess exceeded timeout ({_TIMEOUT_S}s). Terminating."
+        )
+        p.terminate()
+        p.join(timeout=10)
+        if p.is_alive():
+            p.kill()
+        return None
+
+    if not queue.empty():
+        status, *data = queue.get_nowait()
+        if status == "ok":
+            return data[0]
+        else:
+            logger.error(f"Optimization subprocess failed: {data[0]}")
+            if len(data) > 1:
+                logger.error(data[1])
+    return None
