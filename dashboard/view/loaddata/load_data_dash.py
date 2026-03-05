@@ -11,6 +11,7 @@ from canapy.transforms.commons.training import split_train_test
 
 logger = logging.getLogger("canapy")
 
+
 FORM_CSS = """
 :host {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -127,7 +128,7 @@ class LoadDataDashboard(SubDash):
         
         self.sidebar = SideBar(self, "Load Data")
         self.data_loaded = False
-        
+
         self.header = pn.Column(
             pn.pane.Markdown("Load Data", css_classes=['page-title'], margin=0),
             pn.pane.Markdown("Configure your dataset sources and output targets.", css_classes=['page-subtitle'], margin=0),
@@ -216,7 +217,45 @@ class LoadDataDashboard(SubDash):
 
         self.annot_fmt_block, self.annot_format_input = create_select_block("Annotation Format", ["marron1csv", "raven", "audacity"], "marron1csv")
         self.audio_ext_block, self.audio_ext_input = create_select_block("Audio Extension", [".wav", ".npy"], ".wav")
-        
+
+        # SR detection section
+        self._detected_sr = None
+        self.sr_detected_display = pn.pane.HTML(
+            "<span style='color:#6b7280;font-size:13px;'>Not detected — select a data directory above.</span>",
+            sizing_mode="stretch_width",
+            align="center",
+        )
+        self.downsample_toggle = pn.widgets.Toggle(
+            name="Disabled",
+            value=False,
+            button_type="default",
+            sizing_mode="stretch_width",
+        )
+        _target_sr_lbl = pn.pane.HTML("<span class='input-label'>Target SR (Hz)</span>", margin=(0, 0, 2, 0))
+        self.target_sr_input = pn.widgets.IntInput(
+            value=22050,
+            start=1000,
+            sizing_mode="stretch_width",
+            height=38,
+            margin=0,
+        )
+        self.target_sr_block = pn.Column(
+            _target_sr_lbl,
+            self.target_sr_input,
+            sizing_mode="stretch_width",
+            margin=(6, 0, 0, 0),
+            visible=False,
+        )
+
+        def _on_downsample_toggle(event):
+            self.downsample_toggle.name = "Enabled" if event.new else "Disabled"
+            self.downsample_toggle.button_type = "success" if event.new else "default"
+            self.target_sr_block.visible = event.new
+
+        self.downsample_toggle.param.watch(_on_downsample_toggle, "value")
+        self.combined_input.param.watch(lambda e: self._auto_detect_sr(), "value")
+        self.audio_input.param.watch(lambda e: self._auto_detect_sr(), "value")
+
         self.global_status = pn.pane.Alert(
             "Please configure your paths below.", alert_type="info", sizing_mode="stretch_width", visible=False
         )
@@ -257,7 +296,7 @@ class LoadDataDashboard(SubDash):
         
         card_content = pn.Column(
             self.header,
-            
+
             pn.pane.HTML("<div class='section-header'>1. Source Selection</div>"),
             self.mode_label,
             self.mode_selector,
@@ -265,8 +304,31 @@ class LoadDataDashboard(SubDash):
             self.combined_block,
             self.audio_block,
             self.annots_block,
-            
-            pn.pane.HTML("<div class='section-header'>2. Configuration</div>"),
+
+            pn.pane.HTML("<div class='section-header'>2. Sampling Rate</div>"),
+            pn.Row(
+                pn.pane.HTML("<b>Detected SR</b>", width=120, align="center"),
+                self.sr_detected_display,
+                pn.widgets.TooltipIcon(
+                    value="Sample rate detected from the first audio file found in the selected directory.",
+                    margin=(0, 10), align="center",
+                ),
+                sizing_mode="stretch_width",
+                margin=(4, 0),
+            ),
+            pn.Row(
+                pn.pane.HTML("<b>Downsample</b>", width=120, align="center"),
+                self.downsample_toggle,
+                pn.widgets.TooltipIcon(
+                    value="Enable to resample audio to a lower target sample rate during processing.",
+                    margin=(0, 10), align="center",
+                ),
+                sizing_mode="stretch_width",
+                margin=(4, 0),
+            ),
+            self.target_sr_block,
+
+            pn.pane.HTML("<div class='section-header'>3. Configuration</div>"),
             self.config_block,
             self.output_block,
             
@@ -372,7 +434,7 @@ class LoadDataDashboard(SubDash):
             self.output_input.value = directory
             logger.info(f"Selected output directory: {directory}")
         root.destroy()
-    
+
     def _validate_path(self, path_str, must_exist=True):
         if not path_str or path_str.strip() == "":
             return False, "Path is empty"
@@ -455,7 +517,17 @@ class LoadDataDashboard(SubDash):
                 audio_ext=self.controler.audio_ext,
             )
             self.controler.config = self.controler.corpus.config
-            
+
+            # Apply sampling rate from load-data section
+            if self.downsample_toggle.value:
+                target_sr = self.target_sr_input.value
+            elif self._detected_sr:
+                target_sr = self._detected_sr
+            else:
+                target_sr = None
+            if target_sr:
+                self.controler.config.data["transforms"]["audio"]["sampling_rate"] = target_sr
+
             self.controler.corrector = Corrector(
                 output_dir / "checkpoints",
                 [{"class": dict(), "annot": dict()}],
@@ -481,3 +553,45 @@ class LoadDataDashboard(SubDash):
             logger.error(f"Error loading data: {e}", exc_info=True)
             self.global_status.object = f"Error: {str(e)}"
             self.global_status.alert_type = "danger"
+
+    def _detect_sr_from_dir(self, directory: Path):
+        """Return the sample rate of the first audio file found in directory, or None."""
+        try:
+            import soundfile as sf
+            ext = self.audio_ext_input.value if hasattr(self, "audio_ext_input") else ".wav"
+            for p in directory.rglob(f"*{ext}"):
+                try:
+                    return sf.info(str(p)).samplerate
+                except Exception:
+                    continue
+        except ImportError:
+            pass
+        return None
+
+    def _auto_detect_sr(self):
+        """Auto-detect SR from the currently selected audio directory."""
+        if self.mode_selector.value == "combined":
+            dir_str = self.combined_input.value
+        else:
+            dir_str = self.audio_input.value
+
+        if not dir_str or not dir_str.strip():
+            return
+
+        p = Path(dir_str)
+        if not p.exists():
+            return
+
+        sr = self._detect_sr_from_dir(p)
+        if sr:
+            self._detected_sr = sr
+            self.sr_detected_display.object = (
+                f"<span style='color:#059669;font-weight:600;font-size:13px;'>{sr} Hz</span>"
+            )
+            if not self.downsample_toggle.value:
+                self.target_sr_input.value = sr
+        else:
+            self._detected_sr = None
+            self.sr_detected_display.object = (
+                "<span style='color:#dc2626;font-size:13px;'>Could not detect — no audio files found.</span>"
+            )

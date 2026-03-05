@@ -301,7 +301,7 @@ def optimize_hyperparameters_isolated(
         args=(queue, corpus, config, annotator_type, n_iter, max_percentage, parallel, n_jobs),
         daemon=False,  # must be False: daemon processes cannot spawn children
     )
-    _TIMEOUT_S = 7200  # 2-hour safety net — prevents infinite hang on subprocess deadlock
+    _TIMEOUT_S = 7200  # 2-hour safety net, prevents infinite hang on subprocess deadlock
     p.start()
     p.join(timeout=_TIMEOUT_S)
 

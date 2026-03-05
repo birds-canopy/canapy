@@ -85,6 +85,7 @@ class Controler:
     opt_parallel: bool = attr.field(default=False)
     opt_max_percentage: float = attr.field(default=0.3)
     opt_n_jobs: int = attr.field(default=4)
+    opt_max_evals: int = attr.field(default=100)
 
     def __attrs_post_init__(self):
         if (
@@ -762,7 +763,7 @@ class Controler:
             c,
             syn_annotator.config,
             annotator_type="syn",
-            n_iter=100,
+            n_iter=self.opt_max_evals,
             max_percentage=self.opt_max_percentage,
             parallel=self.opt_parallel,
             n_jobs=self.opt_n_jobs,
