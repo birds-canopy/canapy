@@ -55,10 +55,11 @@ class AnnotateDashboard(SubDash):
         self.layout = pn.Row(
             self.sidebar,
             self.config_panel,
-            pn.Spacer(width=50),
+            pn.Spacer(width=20),
             self.monitor_panel,
             sizing_mode="stretch_both",
-            margin=20
+            background="#ffffff",
+            margin=(20, 20, 20, 0),
         )
         
         self._external_corpus = None
@@ -73,21 +74,21 @@ class AnnotateDashboard(SubDash):
         path_label = pn.pane.Markdown(f"**Source:** {audio_dir}")
 
         # Toggles pour sélectionner les modèles
-        self.toggle_syn = pn.widgets.Toggle(name="Syn-ESN", value=False, button_type="default", width=150)
-        self.toggle_nsyn = pn.widgets.Toggle(name="NSyn-ESN", value=False, button_type="default", width=150)
-        self.toggle_ens = pn.widgets.Toggle(name="Ensemble", value=False, button_type="default", width=150)
+        self.toggle_syn = pn.widgets.Toggle(name="Syn-ESN", value=False, button_type="default", sizing_mode="stretch_width")
+        self.toggle_nsyn = pn.widgets.Toggle(name="NSyn-ESN", value=False, button_type="default", sizing_mode="stretch_width")
+        self.toggle_ens = pn.widgets.Toggle(name="Ensemble", value=False, button_type="default", sizing_mode="stretch_width")
         
         # Callbacks pour changer la couleur des boutons quand actifs
         for t in [self.toggle_syn, self.toggle_nsyn, self.toggle_ens]:
             t.param.watch(self._on_toggle_change, 'value')
 
-        self.btn_run = pn.widgets.Button(name="START ANNOTATION", button_type="primary", height=60, width=200)
+        self.btn_run = pn.widgets.Button(name="START ANNOTATION", button_type="primary", height=60, sizing_mode="stretch_width")
         self.btn_run.on_click(self._on_annotate)
 
-        self.btn_export = pn.widgets.Button(name="Export Results", button_type="success", height=40, width=200, disabled=True)
+        self.btn_export = pn.widgets.Button(name="Export Results", button_type="success", height=40, sizing_mode="stretch_width", disabled=True)
         self.btn_export.on_click(self._on_export)
 
-        self.info_msg = pn.pane.HTML("", width=300)
+        self.info_msg = pn.pane.HTML("", sizing_mode="stretch_width")
 
         return pn.Column(
             pn.pane.HTML("<div class='title-text'>Configuration</div>"),
@@ -102,7 +103,9 @@ class AnnotateDashboard(SubDash):
             self.btn_export,
             pn.Spacer(height=20),
             self.info_msg,
-            width=350
+            sizing_mode="stretch_width",
+            min_width=220,
+            max_width=380,
         )
 
     def _build_monitor_panel(self):
@@ -119,27 +122,36 @@ class AnnotateDashboard(SubDash):
         # Layout en colonnes pour chaque modèle
         return pn.Column(
             pn.pane.HTML("<div class='title-text'>Process Monitor</div>"),
-            pn.Row(
+            pn.FlexBox(
                 pn.Column(
                     pn.pane.HTML("<h3>Syn-ESN</h3>"),
                     self.syn_indicator,
                     self.syn_status,
-                    width=200, align='center'
+                    sizing_mode="stretch_width",
+                    align="center",
+                    min_width=150,
                 ),
                 pn.Column(
                     pn.pane.HTML("<h3>NSyn-ESN</h3>"),
                     self.nsyn_indicator,
                     self.nsyn_status,
-                    width=200, align='center'
+                    sizing_mode="stretch_width",
+                    align="center",
+                    min_width=150,
                 ),
                 pn.Column(
                     pn.pane.HTML("<h3>Ensemble</h3>"),
                     self.ens_indicator,
                     self.ens_status,
-                    width=200, align='center'
+                    sizing_mode="stretch_width",
+                    align="center",
+                    min_width=150,
                 ),
-                spacing=20
-            )
+                flex_wrap="wrap",
+                gap=20,
+                sizing_mode="stretch_width",
+            ),
+            sizing_mode="stretch_width",
         )
 
     def switch_status(self, obj, status, duration=0.0):

@@ -353,7 +353,7 @@ class SettingsDashboard(SubDash):
             pn.Row(
                 pn.Spacer(),
                 self.advanced_toggle,
-                width=300,
+                sizing_mode="stretch_width",
                 margin=(0, 0, 10, 0),
             ),
 
@@ -413,6 +413,7 @@ class SettingsDashboard(SubDash):
             ),
             pn.Row(
                 self.config_path_input,
+                pn.Spacer(width=8),
                 self.config_browse_btn,
                 sizing_mode="stretch_width",
                 margin=0,
@@ -421,9 +422,9 @@ class SettingsDashboard(SubDash):
             pn.Spacer(height=6),
             self.config_load_btn,
             self.config_load_status,
-
             css_classes=["settings-card"],
             sizing_mode="stretch_width",
+            min_width=260,
         )
 
         params_column = pn.Column(
@@ -431,6 +432,7 @@ class SettingsDashboard(SubDash):
             hp_card,
             self.btn_apply,
             sizing_mode="stretch_width",
+            min_width=320,
         )
 
         main_content = pn.Column(
@@ -442,10 +444,10 @@ class SettingsDashboard(SubDash):
                 pn.Spacer(width=24),
                 params_column,
                 sizing_mode="stretch_width",
-                align="start",
             ),
             pn.Spacer(height=40),
             sizing_mode="stretch_width",
+            max_width=1400,
         )
 
         self.layout = pn.Row(
@@ -454,7 +456,7 @@ class SettingsDashboard(SubDash):
                 pn.Spacer(height=30),
                 main_content,
                 sizing_mode="stretch_width",
-                styles={"padding": "0 40px", "overflow-y": "auto"},
+                styles={"padding": "0 24px", "overflow-y": "auto"},
             ),
             sizing_mode="stretch_both",
             background="#ffffff",
@@ -518,12 +520,13 @@ class SettingsDashboard(SubDash):
             preset = _Config.from_file(self._selected_preset_path)
             _deep_update(self.controler.config.data, preset.data)
             self._refresh_widgets_from_config()
+            self._apply(None)
             name = self._selected_preset_path.stem.replace("_", " ").title()
             self._preset_status.object = (
                 f"<span style='font-size:12px;color:#059669;'>Preset <b>{name}</b> applied.</span>"
             )
-            self.status.object = f"Preset '{name}' applied — click Apply to confirm."
-            self.status.alert_type = "warning"
+            self.status.object = f"Preset '{name}' applied successfully."
+            self.status.alert_type = "success"
             logger.info(f"Applied preset: {self._selected_preset_path.stem}")
         except Exception as e:
             self._preset_status.object = (
@@ -562,11 +565,12 @@ class SettingsDashboard(SubDash):
             loaded = _Config.from_file(path)
             _deep_update(self.controler.config.data, loaded.data)
             self._refresh_widgets_from_config()
+            self._apply(None)
             self.config_load_status.object = (
-                "<span style='font-size:12px;color:#059669;'>Config loaded.</span>"
+                "<span style='font-size:12px;color:#059669;'>Config loaded and applied.</span>"
             )
-            self.status.object = f"Config '{path.name}' loaded — click Apply to confirm."
-            self.status.alert_type = "warning"
+            self.status.object = f"Config '{path.name}' applied successfully."
+            self.status.alert_type = "success"
             logger.info(f"Loaded config: {path}")
         except Exception as e:
             self.config_load_status.object = (

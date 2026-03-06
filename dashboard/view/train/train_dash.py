@@ -15,7 +15,13 @@ class TrainDashboard(SubDash):
         self.traindash = TrainerDashboard(self)
         self.annotdash = AnnotatorDashboard(self)
 
-        self.layout = pn.Row(self.sidebar, self.traindash, self.annotdash)
+        self.layout = pn.Row(
+            self.sidebar,
+            self.traindash,
+            self.annotdash,
+            sizing_mode="stretch_both",
+            background="#ffffff",
+        )
 
 class TrainerDashboard(SubDash):
     def __init__(self, parent):
@@ -42,7 +48,7 @@ class TrainerDashboard(SubDash):
         self.optimize_btn.on_click(self.on_click_optimize)
         self.opt_indicator = pn.indicators.LoadingSpinner(value=False, width=50, height=50)
         self.opt_status = pn.pane.HTML("<i>Recommended for new data</i>")
-        self.params_display = pn.pane.Markdown("**Current Params:** Default", width=300)
+        self.params_display = pn.pane.Markdown("**Current Params:** Default", sizing_mode="stretch_width")
 
         self.export_config_btn = pn.widgets.Button(
             name="Export config",
@@ -57,22 +63,30 @@ class TrainerDashboard(SubDash):
                 pn.Column(
                     pn.pane.HTML("Syn training:"),
                     self.syn_indicator,
-                    self.syn_status
+                    self.syn_status,
+                    sizing_mode="stretch_width",
+                    align="center",
                 ),
                 pn.Column(
                     pn.pane.HTML("NSyn training:"),
                     self.nsyn_indicator,
                     self.nsyn_status,
+                    sizing_mode="stretch_width",
+                    align="center",
                 ),
+                sizing_mode="stretch_width",
             ),
             self.train_btn,
             pn.layout.Divider(),
             pn.pane.Markdown("### Hyperparameter Optimization"),
-            pn.Row(self.optimize_btn, self.opt_indicator),
+            pn.Row(self.optimize_btn, self.opt_indicator, sizing_mode="stretch_width"),
             self.opt_status,
             self.params_display,
             self.export_config_btn,
             self.export_config_status,
+            sizing_mode="stretch_width",
+            margin=(20, 30),
+            min_width=280,
         )
 
     def switch_status(self, obj, status, duration=0.0):
@@ -160,9 +174,15 @@ class AnnotatorDashboard(SubDash):
         self.ens_status = pn.pane.HTML("<h2>Idle</h2>")
 
         self.layout = pn.Row(
-            pn.Column(pn.pane.HTML("Syn annotation:"), self.syn_indicator, self.syn_status),
-            pn.Column(pn.pane.HTML("NSyn annotations:"), self.nsyn_indicator, self.nsyn_status),
-            pn.Column(pn.pane.HTML("Ensemble annotations:"), self.ens_indicator, self.ens_status),
+            pn.Column(pn.pane.HTML("Syn annotation:"), self.syn_indicator, self.syn_status,
+                      sizing_mode="stretch_width", align="center"),
+            pn.Column(pn.pane.HTML("NSyn annotations:"), self.nsyn_indicator, self.nsyn_status,
+                      sizing_mode="stretch_width", align="center"),
+            pn.Column(pn.pane.HTML("Ensemble annotations:"), self.ens_indicator, self.ens_status,
+                      sizing_mode="stretch_width", align="center"),
+            sizing_mode="stretch_width",
+            margin=(20, 30),
+            min_width=280,
         )
 
     def switch_status(self, obj, status, duration=0.0):

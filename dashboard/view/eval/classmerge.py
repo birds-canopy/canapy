@@ -106,7 +106,7 @@ class ClassMergeDashboard(SubDash):
                     sizing_mode="stretch_both",
                 ),
                 sizing_mode="stretch_both",
-                height=850 
+                min_height=500,
             ),
             sizing_mode="stretch_both",
         )
@@ -144,8 +144,7 @@ class MetricsView(SubDash):
             for name, cm in metrics["cm"].items():
                 
                 p = plot_bokeh_confusion_matrix(cm, self.controler.classes, title=None)
-                p.width = 650
-                p.height = 650
+                p.sizing_mode = "stretch_both"
                 p.min_border = 10
                 
                 fig_pane = pn.pane.Bokeh(
@@ -189,8 +188,8 @@ class MetricsView(SubDash):
                             heatmap_card,
                             pn.Spacer(width=15),
                             stats_card,
-                            sizing_mode="stretch_width",
-                            height=700 
+                            sizing_mode="stretch_both",
+                            min_height=500,
                         ),
                     ),
                 )

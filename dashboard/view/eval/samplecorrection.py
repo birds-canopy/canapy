@@ -36,10 +36,6 @@ SAMPLE_CSS = """
     border-radius: 8px;
     padding: 15px;
     margin-bottom: 15px;
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 15px;
     box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
 """
@@ -96,7 +92,7 @@ class SampleCorrectionDashboard(SubDash):
                 pn.Spacer(width=20),
                 repertoire_card,
                 sizing_mode="stretch_width",
-                height=350
+                min_height=280
             ),
             pn.Spacer(height=20),
             pn.Column(
@@ -104,7 +100,7 @@ class SampleCorrectionDashboard(SubDash):
                 pn.Column(
                     self.class_selectors,
                     scroll=True,
-                    height=320, 
+                    min_height=200,
                     styles={
                         "background": "#f8f9fa",
                         "padding": "15px",
@@ -302,13 +298,19 @@ class SingleSampleCorrectorView(SubDash):
             format="png",
             tight=True,
             height=80,
-            width=200,
+            sizing_mode="stretch_width",
+            min_width=100,
+            max_width=200,
         )
 
         self.audio_col = pn.Column(
-            pn.pane.Audio(spec[1], sample_rate=sampling_rate, height=30, width=200),
+            pn.pane.Audio(spec[1], sample_rate=sampling_rate, height=30, sizing_mode="stretch_width"),
             pn.Spacer(height=5),
-            pn.pane.Audio(spec[2], sample_rate=sampling_rate, height=30, width=200),
+            pn.pane.Audio(spec[2], sample_rate=sampling_rate, height=30, sizing_mode="stretch_width"),
+            sizing_mode="stretch_width",
+            min_width=290,
+            max_width=340,
+            styles={"overflow": "hidden"},
         )
 
         models_preds = ", ".join([f"{idx}: {p}" for idx, p in self.predictions.items()])
@@ -335,13 +337,13 @@ class SingleSampleCorrectorView(SubDash):
             self.number_pane,
             file_tooltip,
             self.img,
-            pn.Spacer(width=20),
+            pn.Spacer(width=10),
             self.audio_col,
             pn.Spacer(width=20),
             input_section,
             css_classes=['sample-row-card'],
             sizing_mode="stretch_width",
-            align="center"
+            align="center",
         )
 
     @property

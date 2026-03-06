@@ -146,14 +146,13 @@ class HomeDashboard(SubDash):
 
         self.layout = pn.Row(
             self.sidebar,
-            pn.Spacer(width=50),
             pn.Column(
-                pn.Spacer(height=60),
+                pn.Spacer(height=40),
                 main_content,
-                pn.Spacer(height=60),
-                sizing_mode="stretch_width"
+                pn.Spacer(height=40),
+                sizing_mode="stretch_width",
+                styles={"padding": "0 40px", "overflow-y": "auto"},
             ),
-            pn.Spacer(width=50),
             sizing_mode="stretch_both",
             background="#ffffff"
         )

@@ -348,7 +348,8 @@ class LoadDataDashboard(SubDash):
             self.btn_load,
             
             css_classes=['form-card'],
-            sizing_mode="stretch_width"
+            sizing_mode="stretch_width",
+            max_width=850,
         )
 
         self.layout = pn.Row(

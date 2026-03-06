@@ -123,10 +123,6 @@ PREPROCESS_CSS = """
     border-radius: 8px;
     padding: 15px;
     margin-bottom: 15px;
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 15px;
     box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
 """
@@ -227,7 +223,7 @@ class MergeTool(SubDash):
                 pn.pane.HTML("<div class='col-header' style='border-bottom: none;'>1. Class Correction</div>"),
                 self.corrector.layout,
                 css_classes=["dashboard-col"],
-                styles={"min-width": "300px", "max-width": "420px"},
+                styles={"min-width": "260px", "max-width": "420px"},
                 sizing_mode="stretch_height",
             ),
             pn.Spacer(width=15),
@@ -238,7 +234,7 @@ class MergeTool(SubDash):
                 sizing_mode="stretch_both",
             ),
             sizing_mode="stretch_both",
-            height=750,
+            min_height=500,
         )
 
 class CorrectorView(SubDash):
@@ -555,11 +551,12 @@ class CorrectionTool(SubDash):
                 ),
                 self.stats_tooltip,
                 self.compute_status,
+                sizing_mode="stretch_width",
             ),
             self.stats_table,
             self.compute_btn,
-            width=430,
-            sizing_mode="fixed",
+            sizing_mode="stretch_width",
+            max_width=430,
             margin=(0, 0, 0, 15),
         )
         return pn.Row(
@@ -871,14 +868,17 @@ class SingleSampleRow(SubDash):
         )
 
         self.img = pn.pane.Matplotlib(
-            spec[0], format="png", tight=True, height=70, width=250, 
-            sizing_mode="fixed", margin=(0, 0), align='center'
+            spec[0], format="png", tight=True, height=70,
+            sizing_mode="stretch_width", min_width=100, max_width=220,
+            margin=(0, 0), align='center'
         )
 
         self.audio_col = pn.Column(
-            pn.pane.Audio(spec[1], sample_rate=sampling_rate, height=30, width=200, sizing_mode="fixed"),
-            pn.pane.Audio(spec[2], sample_rate=sampling_rate, height=30, width=200, sizing_mode="fixed"),
-            width=210, align='center', margin=(0, 0, 0, 0)
+            pn.pane.Audio(spec[1], sample_rate=sampling_rate, height=30, sizing_mode="stretch_width"),
+            pn.pane.Audio(spec[2], sample_rate=sampling_rate, height=30, sizing_mode="stretch_width"),
+            sizing_mode="stretch_width", min_width=290, max_width=340,
+            align='center', margin=(0, 0, 0, 0),
+            styles={"overflow": "hidden"},
         )
 
         duration = row_data.offset_s - row_data.onset_s
@@ -936,8 +936,10 @@ class SingleSampleRow(SubDash):
         
         self.layout = pn.Row(
             self.number_pane, file_tooltip, self.img, self.audio_col,
-            pn.Spacer(width=120), self.stats_col, pn.Spacer(width=30), input_section,
-            css_classes=['sample-card'], sizing_mode="stretch_width", align="center"
+            pn.Spacer(width=20), self.stats_col, pn.Spacer(width=10), input_section,
+            css_classes=['sample-card'],
+            sizing_mode="stretch_width",
+            align="center",
         )
 
     @property

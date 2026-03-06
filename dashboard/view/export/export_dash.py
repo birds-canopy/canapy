@@ -36,14 +36,23 @@ class ExportDashboard(SubDash):
                         pn.pane.HTML("Syn training:"),
                         self.syn_indicator,
                         self.syn_status,
+                        sizing_mode="stretch_width",
+                        align="center",
                     ),
                     pn.Column(
                         pn.pane.HTML("NSyn training:"),
                         self.nsyn_indicator,
                         self.nsyn_status,
+                        sizing_mode="stretch_width",
+                        align="center",
                     ),
+                    sizing_mode="stretch_width",
                 ),
+                sizing_mode="stretch_width",
+                margin=(30, 40),
             ),
+            sizing_mode="stretch_both",
+            background="#ffffff",
         )
 
     def begin(self):
