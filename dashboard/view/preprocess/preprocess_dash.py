@@ -1,7 +1,10 @@
 import pathlib
 import logging
+import threading
 import panel as pn
 import pandas as pd
+import matplotlib
+matplotlib.use("agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import librosa
@@ -192,8 +195,10 @@ class PreprocessDashboard(SubDash):
         self.merge_tool = MergeTool(self)
         self.correction_tool = CorrectionTool(self)
         self.content_area = pn.Column(self.merge_tool.layout, sizing_mode="stretch_both")
+        trim_section = self._build_trim_section()
         main_content = pn.Column(
             self.header,
+            trim_section,
             pn.Row(self.pane_selection, css_classes=["selector-bar"], sizing_mode="stretch_width"),
             self.content_area,
             sizing_mode="stretch_both",
@@ -205,6 +210,112 @@ class PreprocessDashboard(SubDash):
             sizing_mode="stretch_both",
             background="#f8fafc",
         )
+
+    def _build_trim_section(self):
+        ratio, ratio_str = self.controler._compute_silence_ratio()
+
+        # --- Collapsed state: button + ratio ---
+        self.trim_toggle_btn = pn.widgets.Button(
+            name="Trim Silence",
+            button_type="warning",
+            width=140,
+        )
+        self.trim_toggle_btn.on_click(self._on_toggle_trim_panel)
+        self.trim_collapsed = pn.Row(
+            self.trim_toggle_btn,
+            pn.pane.Markdown(
+                f"Current silence ratio: **{ratio_str}**",
+                styles={"font-size": "13px", "color": "#374151"},
+                align="center",
+                margin=(0, 0, 0, 12),
+            ),
+            align="center",
+            sizing_mode="stretch_width",
+        )
+
+        # --- Expanded state: full panel ---
+        self.trim_target_input = pn.widgets.IntSlider(
+            name="Target silence ratio (%)",
+            start=5,
+            end=50,
+            step=1,
+            value=20,
+            sizing_mode="stretch_width",
+        )
+        self.trim_confirm_btn = pn.widgets.Button(
+            name="Trim Silence",
+            button_type="warning",
+            width=160,
+        )
+        self.trim_confirm_btn.on_click(self.on_click_trim_silence)
+        self.trim_progress = pn.widgets.Progress(
+            value=0,
+            max=100,
+            sizing_mode="stretch_width",
+            visible=False,
+            bar_color="warning",
+        )
+        self.trim_status = pn.pane.Markdown(
+            "",
+            styles={"font-size": "12px", "color": "#6b7280"},
+            visible=False,
+        )
+        self.trim_expanded = pn.Column(
+            pn.pane.Alert(
+                "⚠️ This operation modifies audio files and resets the preprocess view. "
+                "Trimmed files are saved to <code>output/audio_trimmed/</code>. Originals are preserved.",
+                alert_type="warning",
+                margin=(0, 0, 8, 0),
+            ),
+            pn.Row(
+                pn.Column(self.trim_target_input, sizing_mode="stretch_width"),
+                pn.Column(self.trim_confirm_btn, align="end", margin=(18, 0, 0, 15)),
+            ),
+            self.trim_progress,
+            self.trim_status,
+            visible=False,
+            sizing_mode="stretch_width",
+        )
+
+        return pn.Column(
+            self.trim_collapsed,
+            self.trim_expanded,
+            css_classes=["dashboard-col"],
+            sizing_mode="stretch_width",
+            styles={"margin-bottom": "15px"},
+        )
+
+    def _on_toggle_trim_panel(self, event):
+        self.trim_expanded.visible = not self.trim_expanded.visible
+
+    def on_click_trim_silence(self, event):
+        target_ratio = self.trim_target_input.value / 100.0
+        self.trim_confirm_btn.disabled = True
+        self.trim_confirm_btn.loading = True
+        self.trim_progress.value = 0
+        self.trim_progress.visible = True
+        self.trim_status.visible = True
+        self.trim_status.object = "Starting..."
+
+        def update_progress(current, total):
+            self.trim_progress.value = int(current / total * 100) if total > 0 else 0
+            self.trim_status.object = f"Processing file {current} / {total}..."
+
+        def run():
+            try:
+                self.controler.trim_silences_hard(
+                    target_ratio=target_ratio,
+                    progress_callback=update_progress,
+                )
+                self.trim_status.object = "Done! Reloading view..."
+                pn.state.execute(lambda: self.controler.load_page("preprocess"))
+            except Exception as e:
+                logger.error(f"Trim silences failed: {e}")
+                self.trim_status.object = f"Error: {e}"
+                self.trim_confirm_btn.disabled = False
+                self.trim_confirm_btn.loading = False
+
+        threading.Thread(target=run, daemon=True).start()
 
     def on_switch_panel(self, event):
         if event.new == "Class Merge":

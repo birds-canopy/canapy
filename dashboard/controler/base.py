@@ -271,6 +271,32 @@ class Controler:
         self._correction_store[target].update(corrections)
         logger.info(f"Uploaded corrections {target}: {corrections} to store.")
 
+    def _compute_silence_ratio(self):
+        """Return (ratio, pct_str) of silence (explicit SIL + implicit gaps) in current corpus."""
+        df = self.corpus.dataset.copy()
+        silence_tag = self.config.transforms.annots.silence_tag
+        df["_duration"] = df["offset_s"] - df["onset_s"]
+        sil_duration = df.loc[df["label"] == silence_tag, "_duration"].sum()
+        df_sorted = df.sort_values(["notated_path", "onset_s"])
+        prev_offset = df_sorted.groupby("notated_path")["offset_s"].shift(fill_value=0.0)
+        gap_duration = (df_sorted["onset_s"] - prev_offset).clip(lower=0).sum()
+        total_sil = sil_duration + gap_duration
+        total_dur = df["_duration"].sum() + gap_duration
+        ratio = total_sil / total_dur if total_dur > 0 else 0.0
+        return ratio, f"{ratio * 100:.1f}%"
+
+    def check_silence_ratio(self, max_silence_ratio=0.2):
+        """Show a warning notification if silence ratio exceeds threshold."""
+        ratio, pct_str = self._compute_silence_ratio()
+        if ratio > max_silence_ratio:
+            panel.state.notifications.warning(
+                f"High silence ratio detected ({pct_str} of total duration). "
+                "Consider trimming silence before training.",
+                duration=8000,
+            )
+            logger.warning(f"High silence ratio: {pct_str}")
+        return ratio
+
     def apply_live_corrections(self, corrections, target):
         self.upload_corrections(corrections, target)
 
@@ -301,34 +327,9 @@ class Controler:
             f"\nAnnotation correction:\n{annot_corrections}"
         )
 
-    def clean_corpus_pre_training(self, max_silence_ratio=0.2, min_class_count=10):
+    def clean_corpus_pre_training(self, min_class_count=10):
         df = self.corpus.dataset.copy()
         silence_tag = self.config.transforms.annots.silence_tag
-
-        # Compute durations for silence ratio check
-        df["_duration"] = df["offset_s"] - df["onset_s"]
-
-        # Explicit SIL labels already present (if any)
-        sil_duration = df.loc[df["label"] == silence_tag, "_duration"].sum()
-
-        # Implicit silences: gaps between annotations, mirroring tag_silences() logic
-        # (tag_silences is called later in the pipeline, not yet applied here)
-        df_sorted = df.sort_values(["notated_path", "onset_s"])
-        prev_offset = df_sorted.groupby("notated_path")["offset_s"].shift(fill_value=0.0)
-        gap_duration = (df_sorted["onset_s"] - prev_offset).clip(lower=0).sum()
-
-        total_sil_duration = sil_duration + gap_duration
-        total_duration = df["_duration"].sum() + gap_duration
-
-        # Check silence ratio (duration-based)
-        if total_duration > 0 and total_sil_duration / total_duration > max_silence_ratio:
-            sil_pct = round(total_sil_duration / total_duration * 100, 1)
-            panel.state.notifications.warning(
-                f"High silence ratio detected ({sil_pct}% of total duration). "
-                "Model performance may be impacted.",
-                duration=8000,
-            )
-            logger.warning(f"High silence ratio: {sil_pct}%")
 
         # Remove under-represented classes (occurrence-based)
         counts = df[~df["label"].isin([silence_tag, "TRASH"])].groupby("label").size()
@@ -340,7 +341,6 @@ class Controler:
             panel.state.notifications.warning(msg, duration=0)
             logger.warning(msg)
 
-        df = df.drop(columns=["_duration"])
         self.corpus = self.corpus.clone_with_df(df)
 
     def export_corpus(self):
@@ -370,6 +370,7 @@ class Controler:
             self._step = "preprocess"
             if self.home_path == "edit":
                 self.compute_classes()
+            self.check_silence_ratio()
 
         elif page_name == "home":
             self._step = "home"
@@ -713,6 +714,179 @@ class Controler:
         close_tempfiles()
         self.dashboard.stop()
 
+    def trim_silences_hard(self, target_ratio: float, progress_callback=None):
+        """
+        Hard-trim silence regions (explicit SIL annotations + implicit gaps) from
+        audio files by center-cropping each region so that the total silence reaches
+        target_ratio.  Writes new WAVs and annotation CSVs under
+        output_directory/audio_trimmed/ and output_directory/annots_trimmed/, clears
+        the MFCC cache, then reloads the corpus from these new paths.
+
+        Original audio files are never modified.
+        """
+        import soundfile as sf
+        import numpy as np
+
+        if self.audio_directory is None:
+            panel.state.notifications.error(
+                "No audio directory configured. Cannot trim silences.", duration=5000
+            )
+            logger.error("trim_silences_hard: audio_directory is None.")
+            return
+
+        silence_tag = self.config.transforms.annots.silence_tag
+
+        # --- Compute keep_fraction ---
+        ratio, _ = self._compute_silence_ratio()
+        if ratio <= target_ratio:
+            panel.state.notifications.warning(
+                f"Silence ratio ({ratio*100:.1f}%) is already at or below "
+                f"target ({target_ratio*100:.1f}%). Nothing to do.",
+                duration=5000,
+            )
+            return
+
+        df = self.corpus.dataset.copy()
+        df["_dur"] = df["offset_s"] - df["onset_s"]
+        sil_dur = df.loc[df["label"] == silence_tag, "_dur"].sum()
+        non_sil_dur = df["_dur"].sum() - sil_dur
+
+        df_sorted = df.sort_values(["notated_path", "onset_s"])
+        prev_offset = df_sorted.groupby("notated_path")["offset_s"].shift(fill_value=0.0)
+        gap_dur = (df_sorted["onset_s"] - prev_offset).clip(lower=0).sum()
+        total_sil = sil_dur + gap_dur
+
+        # target_ratio = keep_sil / (non_sil + keep_sil)  =>  keep_sil = target_ratio * non_sil / (1 - target_ratio)
+        keep_sil = (target_ratio * non_sil_dur / (1 - target_ratio)) if target_ratio < 1 else float("inf")
+        keep_fraction = min(1.0, keep_sil / total_sil) if total_sil > 0 else 1.0
+
+        logger.info(
+            f"trim_silences_hard: ratio={ratio*100:.1f}% → target={target_ratio*100:.1f}%, "
+            f"keep_fraction={keep_fraction:.3f}"
+        )
+
+        # --- Output directories ---
+        trimmed_audio_dir = self.output_directory / "audio_trimmed"
+        trimmed_annots_dir = self.output_directory / "annots_trimmed"
+        trimmed_audio_dir.mkdir(parents=True, exist_ok=True)
+        trimmed_annots_dir.mkdir(parents=True, exist_ok=True)
+
+        audio_files = list(df["notated_path"].unique())
+        n_files = len(audio_files)
+
+        for file_idx, audio_path_str in enumerate(audio_files):
+            if progress_callback:
+                progress_callback(file_idx + 1, n_files)
+
+            audio_path = Path(audio_path_str)
+            file_df = df[df["notated_path"] == audio_path_str].sort_values("onset_s")
+
+            audio_data, sr = sf.read(str(audio_path))
+            audio_total_samples = len(audio_data)
+            audio_duration_s = audio_total_samples / sr
+
+            # Build ordered segment list: (start_s, end_s, is_silence, row_or_None)
+            segments = []
+            prev_end_s = 0.0
+            for _, row in file_df.iterrows():
+                if row["onset_s"] > prev_end_s + 1e-6:
+                    segments.append((prev_end_s, row["onset_s"], True, None))
+                segments.append((row["onset_s"], row["offset_s"], row["label"] == silence_tag, row))
+                prev_end_s = row["offset_s"]
+            if prev_end_s < audio_duration_s - 1e-6:
+                segments.append((prev_end_s, audio_duration_s, True, None))
+
+            # Reconstruct audio and collect updated annotation rows
+            audio_chunks = []
+            updated_annot_rows = []
+            current_pos_s = 0.0
+
+            for start_s, end_s, is_silence, row in segments:
+                start_sample = int(round(start_s * sr))
+                end_sample = min(int(round(end_s * sr)), audio_total_samples)
+                chunk = audio_data[start_sample:end_sample]
+
+                if is_silence:
+                    n = len(chunk)
+                    keep_n = max(0, min(int(round(n * keep_fraction)), n))
+                    if keep_n == 0:
+                        chunk = chunk[0:0]
+                    elif keep_n < n:
+                        remove_each = (n - keep_n) // 2
+                        chunk = chunk[remove_each:remove_each + keep_n]
+
+                chunk_dur_s = len(chunk) / sr
+
+                if len(chunk) > 0:
+                    audio_chunks.append(chunk)
+
+                if row is not None:
+                    new_row = row.copy()
+                    new_row["onset_s"] = current_pos_s
+                    new_row["offset_s"] = current_pos_s + chunk_dur_s
+                    updated_annot_rows.append(new_row)
+
+                current_pos_s += chunk_dur_s
+
+            # Write new WAV
+            if audio_chunks:
+                new_audio = np.concatenate(audio_chunks, axis=0) if len(audio_chunks) > 1 else audio_chunks[0]
+                sf.write(str(trimmed_audio_dir / audio_path.name), new_audio, sr)
+
+            # Write updated annotation CSV (marron1csv: wave, start, end, syll)
+            if updated_annot_rows:
+                rows_df = pd.DataFrame(updated_annot_rows)
+                csv_out = pd.DataFrame({
+                    "wave": audio_path.name,
+                    "start": rows_df["onset_s"].values,
+                    "end": rows_df["offset_s"].values,
+                    "syll": rows_df["label"].values,
+                })
+                orig_annot_name = Path(str(file_df["annot_path"].iloc[0])).name
+                csv_out.to_csv(str(trimmed_annots_dir / orig_annot_name), index=False)
+
+            logger.info(f"Trimmed {audio_path.name} ({file_idx + 1}/{n_files})")
+
+        if progress_callback:
+            progress_callback(n_files, n_files)
+
+        # --- Clear MFCC cache ---
+        if self.spec_directory and self.spec_directory.exists():
+            for f in self.spec_directory.glob("*.npz"):
+                f.unlink(missing_ok=True)
+            logger.info("MFCC cache cleared.")
+
+        # --- Reload corpus from trimmed directories ---
+        self.audio_directory = trimmed_audio_dir
+        self.annots_directory = trimmed_annots_dir
+
+        # Preserve HP params before corpus reload (Corpus.from_directory resets config from disk)
+        _hp_attrs = ("sr", "leak", "ridge", "iss", "isd", "isd2")
+        # Reading via attribute access is fine for scalars (copy has same scalar values).
+        _saved_hp = {k: self.config.data["model"]["syn"].get(k) for k in _hp_attrs}
+
+        config_path = Path(self.config_path) if self.config_path is not None else None
+        self.corpus = Corpus.from_directory(
+            audio_directory=trimmed_audio_dir,
+            spec_directory=self.spec_directory,
+            annots_directory=trimmed_annots_dir,
+            config_path=config_path,
+            annot_format=self.annot_format,
+            audio_ext=self.audio_ext,
+        )
+        self.config = self.corpus.config
+
+        # Reapply HP params that were set by optimization (lost during corpus reload)
+        for k, v in _saved_hp.items():
+            if v is not None:
+                self.config.data["model"]["syn"][k] = v
+        self.corpus = split_train_test(self.corpus, redo=True)
+        self.compute_classes()
+        self.initialize_annots()
+        self.preprocess_done = False
+
+        logger.info(f"trim_silences_hard complete. Corpus reloaded from {trimmed_audio_dir}.")
+
     def optimize_models(self):
         logger.info("Starting optimization from Controller...")
 
@@ -780,8 +954,17 @@ class Controler:
             return None
 
         logger.info(f"Optimization finished. Best params: {best_params}")
+        # _BaseConfig.__getattr__ returns a COPY on every attribute access,
+        # so `setattr(config.model.syn, k, v)` writes to a throwaway object.
+        # Write directly into the underlying dict to actually persist the values.
         for k, v in best_params.items():
-            setattr(syn_annotator.config.model.syn, k, v)
+            syn_annotator.config.data["model"]["syn"][k] = v
+
+        # Rebuild the ESN model with the new HP params.
+        # The rpy_model was created at annotator init time (before optimization),
+        # so updating the config alone has no effect on the existing model.
+        syn_annotator.rpy_model = syn_annotator.initialize()
+        logger.info("ESN model reinitialized with optimized hyperparameters.")
 
         return best_params
 
