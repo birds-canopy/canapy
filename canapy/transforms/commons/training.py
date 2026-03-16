@@ -60,8 +60,8 @@ def split_train_test(corpus, *, redo=False, **kwargs):
         min_occurences_seqs = df.query("label in @min_occurences")["seqid"].unique()
         train_df = df.query("seqid in @min_occurences_seqs")
 
-    already_picked = train_df["seqid"].unique()
-    left_to_pick = df.query("seqid not in @already_picked")["seqid"].unique()
+    already_picked = np.sort(train_df["seqid"].unique())
+    left_to_pick = np.sort(df.query("seqid not in @already_picked")["seqid"].unique())
 
     logger.info(f"Min. number of sequences to train over all classes: {len(already_picked)}")
 
@@ -85,7 +85,7 @@ def split_train_test(corpus, *, redo=False, **kwargs):
 
     current_train_seqs = len(train_df["seqid"].unique())
     if current_train_seqs > desired_train_seqs:
-        sequences = train_df["seqid"].unique()
+        sequences = np.sort(train_df["seqid"].unique())
         selection = rs.choice(sequences, size=desired_train_seqs, replace=False)
         train_df = train_df.query("seqid in @selection")
         logger.info(
@@ -103,7 +103,7 @@ def split_train_test(corpus, *, redo=False, **kwargs):
     test_df = df.query("seqid not in @train_df.seqid.unique()")
 
     if len(test_df["seqid"].unique()) == 0 and n_sequences >= 2:
-        train_seqs = train_df["seqid"].unique()
+        train_seqs = np.sort(train_df["seqid"].unique())
         chosen = rs.choice(train_seqs, size=1, replace=False)
         train_df = train_df.query("seqid not in @chosen")
         test_df = df.query("seqid in @chosen")
@@ -112,7 +112,7 @@ def split_train_test(corpus, *, redo=False, **kwargs):
 
     n_train_seqs = len(train_df["seqid"].unique())
     if max_sequences < n_train_seqs:
-        sequences = train_df["seqid"].unique()
+        sequences = np.sort(train_df["seqid"].unique())
         selection = rs.choice(sequences, size=max_sequences, replace=False)
         train_df = train_df.query("seqid in @selection")
         logger.info(f"Applied max_sequences cap: train sequences reduced to {max_sequences}.")

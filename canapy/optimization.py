@@ -1,6 +1,7 @@
 import logging
 import multiprocessing
 import os
+import shutil
 import tempfile
 import traceback
 import json
@@ -35,7 +36,28 @@ def _concat_xy(X_list, Y_list):
     return np.concatenate(xs), np.concatenate(ys)
 
 # =============================================================================
-# 2. STRATIFIED SEQUENCE SELECTION
+# 2. MEMMAP HELPER
+# =============================================================================
+
+def _arrays_to_memmap(arrays, tmpdir):
+    """Write numpy arrays to memmap files and return read-only memmaps.
+
+    Workers opened by loky receive only the file metadata (path, dtype, shape)
+    via pickle — not a copy of the data — so each worker reads from the same
+    OS pages instead of duplicating the arrays in RAM.
+    """
+    result = []
+    for i, arr in enumerate(arrays):
+        path = os.path.join(tmpdir, f"arr_{i}.dat")
+        mm = np.memmap(path, dtype=arr.dtype, mode="w+", shape=arr.shape)
+        mm[:] = arr
+        mm.flush()
+        result.append(np.memmap(path, dtype=arr.dtype, mode="r", shape=arr.shape))
+    return result
+
+
+# =============================================================================
+# 3. STRATIFIED SEQUENCE SELECTION
 # =============================================================================
 
 def _select_representative_sequences(X_list, Y_list, n_select, rng):
@@ -82,17 +104,19 @@ def _select_representative_sequences(X_list, Y_list, n_select, rng):
 
 
 # =============================================================================
-# 3. OBJECTIVE METHOD
+# 4. OBJECTIVE METHOD
 # =============================================================================
 
 def objective(dataset, config, **kwargs):
     """
     Method executed by each worker.
-    - dataset : contains train data, val data and model config
+    - dataset : contains train data, val data, model config, and a
+                sequential_esn flag (True when called from parallel_research,
+                to prevent nested ESN multiprocessing).
     - config
     - kwargs : hyperparameters chosen for this run
     """
-    X_train, Y_train, X_val, Y_val, model_config, input_dim, audio_features = dataset
+    X_train, Y_train, X_val, Y_val, model_config, input_dim, audio_features, sequential_esn = dataset
 
     try:
         if "seed" in kwargs:
@@ -107,6 +131,7 @@ def objective(dataset, config, **kwargs):
             model_config,
             input_dim,
             audio_features,
+            workers=1 if sequential_esn else None,
             **kwargs
         )
 
@@ -125,7 +150,7 @@ def objective(dataset, config, **kwargs):
         return {"loss": float("inf"), "status": STATUS_FAIL, "error": str(e)}
 
 # =============================================================================
-# 3. MAIN PIPELINE
+# 5. MAIN PIPELINE
 # =============================================================================
 
 def optimize_hyperparameters(
@@ -200,11 +225,21 @@ def optimize_hyperparameters(
     with open(config_path, "w") as f:
         json.dump(research_config, f)
 
+    mmap_tmpdir = None
     try:
         logger.info(f"Step 2 (Opt): Launching ReservoirPy research ({n_iter} iters)...")
 
-        dataset_tuple = (X_train, Y_train, X_val, Y_val, config.model.syn, input_dim, audio_features)
         if parallel:
+            # Convert arrays to memmaps so loky workers share OS pages instead
+            # of receiving full pickle copies (~dataset_size × n_jobs RAM saved).
+            mmap_tmpdir = tempfile.mkdtemp(prefix="canapy_mmap_")
+            X_train_m, Y_train_m, X_val_m, Y_val_m = _arrays_to_memmap(
+                [X_train, Y_train, X_val, Y_val], mmap_tmpdir
+            )
+            # sequential_esn=True prevents each ESN worker from spawning its own
+            # multiprocessing pool, which would create nested parallelism.
+            dataset_tuple = (X_train_m, Y_train_m, X_val_m, Y_val_m, config.model.syn, input_dim, audio_features, True)
+
             # Panel/Tornado callbacks can leave threading._SHUTTING_DOWN=True,
             # which causes loky/concurrent.futures to refuse creating new executors.
             # Reset it here since the process is not actually shutting down.
@@ -217,6 +252,7 @@ def optimize_hyperparameters(
                 n_jobs=n_jobs,
             )
         else:
+            dataset_tuple = (X_train, Y_train, X_val, Y_val, config.model.syn, input_dim, audio_features, False)
             best_params, _trials = research(
                 objective,
                 dataset_tuple,
@@ -231,6 +267,8 @@ def optimize_hyperparameters(
         return None
 
     finally:
+        if mmap_tmpdir and os.path.exists(mmap_tmpdir):
+            shutil.rmtree(mmap_tmpdir, ignore_errors=True)
         if config_path and os.path.exists(config_path):
             try:
                 os.remove(config_path)
@@ -239,7 +277,7 @@ def optimize_hyperparameters(
 
 
 # =============================================================================
-# 4. ISOLATED SUBPROCESS WRAPPER
+# 6. ISOLATED SUBPROCESS WRAPPER
 # =============================================================================
 
 def _subprocess_target(queue, corpus, config, annotator_type, n_iter, max_percentage, parallel, n_jobs):
