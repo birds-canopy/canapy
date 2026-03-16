@@ -166,7 +166,7 @@ def compute_mfcc(corpus, *, output_directory, resource_name, redo=False, **kwarg
         audio = load_audio(audio_path, rate)
 
         hop_length = seconds_to_audio(config.hop_length, rate)
-        win_length = seconds_to_audio(config.win_length, rate)
+        win_length = min(seconds_to_audio(config.win_length, rate), config.n_fft)
 
         cepstrum = lbr.feature.mfcc(
             y=audio,

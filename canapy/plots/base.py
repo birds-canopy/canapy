@@ -135,11 +135,12 @@ def plot_segment_melspectrogram(
     e_delta = min(len(y), round(e_delta))
 
     full = y[s_delta:e_delta]
+    win_length_samples = min(seconds_to_audio(win_length, sampling_rate), n_fft)
     spec = lbr.feature.melspectrogram(
         y=full,
         sr=sampling_rate,
         n_fft=n_fft,
-        win_length=seconds_to_audio(win_length, sampling_rate),
+        win_length=win_length_samples,
         hop_length=seconds_to_audio(hop_length, sampling_rate),
         fmin=fmin,
         fmax=fmax,

@@ -132,7 +132,7 @@ def compute_mfcc_for_balanced_dataset(corpus, *, resource_name, redo=False, **kw
         annots = df.query("notated_path == @audio_path_")
 
         hop_length = seconds_to_audio(config.hop_length, rate)
-        win_length = seconds_to_audio(config.win_length, rate)
+        win_length = min(seconds_to_audio(config.win_length, rate), config.n_fft)
 
         for entry in annots.itertuples():
             start = seconds_to_audio(entry.onset_s, rate)
