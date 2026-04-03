@@ -12,6 +12,25 @@ from canapy.transforms.commons.training import split_train_test
 logger = logging.getLogger("canapy")
 
 
+def _find_long_audio_files(audio_dir: Path, ext: str, max_duration_s: float) -> list:
+    """Return paths of audio files whose duration exceeds max_duration_s.
+    Uses soundfile.info() — reads only the file header, no audio data loaded.
+    """
+    try:
+        import soundfile as sf
+    except ImportError:
+        return []
+    long_files = []
+    for p in sorted(audio_dir.rglob(f"*{ext}")):
+        try:
+            info = sf.info(str(p))
+            if info.duration > max_duration_s:
+                long_files.append(p)
+        except Exception:
+            continue
+    return long_files
+
+
 FORM_CSS = """
 :host {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -194,11 +213,11 @@ class LoadDataDashboard(SubDash):
             )
         self.annots_block.visible = False
         
-        self.config_block, self.config_input, self.config_browse = \
+        self.model_block, self.model_input, self.model_browse = \
             create_input_block(
-                "Model Directory (-c)", 
-                "Required for Annotation...", 
-                self._browse_config,
+                "Model Directory (-m)",
+                "Optional — load pre-trained models",
+                self._browse_model,
                 "Select the directory where trained models and checkpoints will be loaded from."
             )
         
@@ -215,7 +234,6 @@ class LoadDataDashboard(SubDash):
             sel = pn.widgets.Select(options=options, value=value, sizing_mode="stretch_width", height=38, margin=0)
             return pn.Column(lbl, sel, sizing_mode="stretch_width", min_width=180), sel
 
-        self.annot_fmt_block, self.annot_format_input = create_select_block("Annotation Format", ["marron1csv", "raven", "audacity"], "marron1csv")
         self.audio_ext_block, self.audio_ext_input = create_select_block("Audio Extension", [".wav", ".npy"], ".wav")
 
         # SR detection section
@@ -282,15 +300,11 @@ class LoadDataDashboard(SubDash):
             self._update_mode_visibility(type('Event', (object,), {'new': self.mode_selector.value})())
 
         if getattr(self.controler, 'model_root', None):
-            self.config_input.value = str(self.controler.model_root)
-        elif getattr(self.controler, 'config_path', None):
-            self.config_input.value = str(self.controler.config_path)
+            self.model_input.value = str(self.controler.model_root)
 
         if getattr(self.controler, 'output_directory', None):
             self.output_input.value = str(self.controler.output_directory)
 
-        if getattr(self.controler, 'annot_format', None):
-            self.annot_format_input.value = self.controler.annot_format
         if getattr(self.controler, 'audio_ext', None):
             self.audio_ext_input.value = self.controler.audio_ext
         
@@ -329,13 +343,12 @@ class LoadDataDashboard(SubDash):
             self.target_sr_block,
 
             pn.pane.HTML("<div class='section-header'>3. Configuration</div>"),
-            self.config_block,
+            self.model_block,
             self.output_block,
             
             pn.Spacer(height=5),
             pn.FlexBox(
-                self.annot_fmt_block, 
-                self.audio_ext_block, 
+                self.audio_ext_block,
                 flex_wrap="wrap",
                 gap=20,
                 sizing_mode="stretch_width"
@@ -407,21 +420,16 @@ class LoadDataDashboard(SubDash):
             logger.info(f"Selected audio directory: {directory}")
         root.destroy()
     
-    def _browse_config(self, event):
+    def _browse_model(self, event):
         import tkinter as tk
         from tkinter import filedialog
         root = tk.Tk()
         root.withdraw()
         root.attributes('-topmost', True)
-        answer = filedialog.askdirectory(title="Select Model Directory (or Cancel for config file)")
-        if answer:
-            self.config_input.value = answer
-            logger.info(f"Selected model directory: {answer}")
-        else:
-            answer = filedialog.askopenfilename(title="Select Config File", filetypes=[("TOML files", "*.toml"), ("All files", "*.*")])
-            if answer:
-                self.config_input.value = answer
-                logger.info(f"Selected config file: {answer}")
+        directory = filedialog.askdirectory(title="Select Model Directory (-m)")
+        if directory:
+            self.model_input.value = directory
+            logger.info(f"Selected model directory: {directory}")
         root.destroy()
     
     def _browse_output(self, event):
@@ -486,27 +494,24 @@ class LoadDataDashboard(SubDash):
             
             output_dir = Path(self.output_input.value)
             
-            config_path = None
             model_root = None
-            has_conf = False
-            
-            if self.config_input.value and self.config_input.value.strip() != "":
-                c_path = Path(self.config_input.value)
-                if c_path.exists():
-                    has_conf = True
-                    if c_path.is_dir():
-                        model_root = c_path
-                    elif c_path.is_file():
-                        config_path = c_path
+            has_model = False
+
+            if self.model_input.value and self.model_input.value.strip() != "":
+                m_path = Path(self.model_input.value)
+                if m_path.is_dir():
+                    model_root = m_path
+                    has_model = True
                 else:
-                    logger.warning("Config path provided but does not exist.")
-            
+                    logger.warning("Model path provided but does not exist or is not a directory.")
+
             self.controler.audio_directory = audio_dir
             self.controler.annots_directory = annots_dir
             self.controler.output_directory = output_dir
-            self.controler.config_path = config_path
+            self.controler.config_path = None
             self.controler.model_root = model_root
-            self.controler.annot_format = self.annot_format_input.value
+            config_path = None
+            self.controler.annot_format = "marron1csv"
             self.controler.audio_ext = self.audio_ext_input.value
             
             logger.info("Creating corpus...")
@@ -541,14 +546,33 @@ class LoadDataDashboard(SubDash):
             
             self.controler._is_ready = True
             self.controler._step = "home"
-            
-            if has_conf:
-                msg = "Data & Configuration loaded! (Training & Annotation enabled)"
+
+            # Check for audio files that are too long to be processed safely.
+            # Loading a 3h file at 96 kHz requires ~4 GB of RAM peak (raw audio
+            # + resampling buffer), which will crash the training pipeline.
+            _MAX_DURATION_S = 1800  # 30 minutes
+            _long_files = _find_long_audio_files(audio_dir, self.audio_ext_input.value, _MAX_DURATION_S)
+
+            if has_model:
+                msg = "Data & Models loaded! (Annotation enabled)"
             else:
                 msg = "Data loaded successfully! (Training pipeline enabled)"
-            
-            self.global_status.object = msg
-            self.global_status.alert_type = "success"
+
+            if _long_files:
+                _names = ", ".join(f"<code>{p.name}</code>" for p in _long_files[:3])
+                if len(_long_files) > 3:
+                    _names += f" and {len(_long_files) - 3} more"
+                self.global_status.object = (
+                    f"{msg}<br><br>"
+                    f"⚠️ <b>Warning — audio files too long to train on:</b> {_names}. "
+                    f"Files longer than {_MAX_DURATION_S // 60} minutes will likely crash "
+                    f"the training pipeline due to memory constraints. "
+                    f"Please segment them into shorter clips before training."
+                )
+                self.global_status.alert_type = "warning"
+            else:
+                self.global_status.object = msg
+                self.global_status.alert_type = "success"
             
         except Exception as e:
             logger.error(f"Error loading data: {e}", exc_info=True)

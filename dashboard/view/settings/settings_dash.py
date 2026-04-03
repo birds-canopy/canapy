@@ -165,14 +165,12 @@ class SettingsDashboard(SubDash):
         self.fmin_input = pn.widgets.IntInput(
             value=int(cfg.transforms.audio.data["fmin"]),
             start=0,
-            end=22050,
             step=100,
             sizing_mode="stretch_width",
         )
         self.fmax_input = pn.widgets.IntInput(
             value=int(cfg.transforms.audio.data["fmax"]),
             start=0,
-            end=22050,
             step=100,
             sizing_mode="stretch_width",
         )

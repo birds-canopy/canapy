@@ -72,8 +72,14 @@ def cli():
 @click.option(
     "-c",
     "--config-path",
-    type=click.Path(exists=True, allow_dash=True),
-    help="Path to a configuration file in TOML format.",
+    type=click.Path(exists=True, file_okay=True, dir_okay=False),
+    help="Path to a configuration file in TOML/YAML format.",
+)
+@click.option(
+    "-m",
+    "--model-path",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+    help="Path to a directory containing pre-trained models to load.",
 )
 @click.option("-p", "--port", default=9321, help="Port use by the Bokeh server.")
 @click.option("--annot-format", type=str, default="marron1csv")
@@ -177,10 +183,10 @@ def train_cli(data_directory, output_directory, config_path):
     help="Directory containing raw audio files to annotate."
 )
 @click.option(
-    "-c", "--models-dir", "models_directory",
+    "-m", "--models-dir", "models_directory",
     required=True,
-    type=click.Path(exists=True, file_okay=False), 
-    help="Directory containing trained models."
+    type=click.Path(exists=True, file_okay=False),
+    help="Directory containing trained models.",
 )
 @click.option(
     "-o", "--output-dir", "output_directory",

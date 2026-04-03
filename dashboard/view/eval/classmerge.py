@@ -85,8 +85,15 @@ class ClassMergeDashboard(SubDash):
         self.layout = pn.Column(
             pn.Column(
                 pn.pane.HTML("<div class='col-header'>1. Evaluation Metrics</div>"),
-                pn.Column(self.metrics.layout, css_classes=['scrollable-content'], sizing_mode="stretch_both"),
-                css_classes=['dashboard-col'],
+                self.metrics.layout,
+                styles={
+                    "background-color": "#ffffff",
+                    "border-radius": "8px",
+                    "box-shadow": "0 1px 3px rgba(0,0,0,0.1)",
+                    "padding": "15px",
+                    "border": "1px solid #e5e7eb",
+                    "box-sizing": "border-box",
+                },
                 sizing_mode="stretch_width",
             ),
             pn.Spacer(height=15),
@@ -138,7 +145,7 @@ class MetricsView(SubDash):
         self.layout = self.build_tabs()
 
     def build_tabs(self):
-        tabs = pn.Tabs(dynamic=True)
+        tabs = pn.Tabs(dynamic=True, sizing_mode="stretch_width")
         for split, metrics in self.controler.metrics.items():
             sub_tabs = pn.Tabs(dynamic=True)
             for name, cm in metrics["cm"].items():
@@ -188,14 +195,15 @@ class MetricsView(SubDash):
                             heatmap_card,
                             pn.Spacer(width=15),
                             stats_card,
-                            sizing_mode="stretch_both",
+                            sizing_mode="stretch_width",
                             min_height=500,
+                            max_height=700,
                         ),
                     ),
                 )
 
             tabs.append((split.capitalize(), sub_tabs))
-        return pn.Row(tabs, sizing_mode="stretch_width")
+        return tabs
 
 
 class RepertoireView(SubDash):

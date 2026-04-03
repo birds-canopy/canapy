@@ -1,4 +1,5 @@
 import logging
+import threading
 import time
 import panel as pn
 
@@ -7,52 +8,179 @@ from ..helpers import SideBar
 
 logger = logging.getLogger("canapy-dashboard")
 
+TRAIN_CSS = """
+.train-card {
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    padding: 18px 20px;
+    border: 1px solid #e5e7eb;
+    box-sizing: border-box;
+}
+.page-title {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0;
+}
+.page-subtitle {
+    font-size: 14px;
+    color: #6b7280;
+    margin: 0;
+}
+"""
+
+
 class TrainDashboard(SubDash):
     def __init__(self, parent):
         super().__init__(parent)
+
+        pn.config.raw_css.append(TRAIN_CSS)
 
         self.sidebar = SideBar(self, "train")
         self.traindash = TrainerDashboard(self)
         self.annotdash = AnnotatorDashboard(self)
 
+        hp_section = self._build_hp_section()
+
+        header = pn.Column(
+            pn.pane.Markdown("# Train", css_classes=["page-title"], margin=0),
+            pn.pane.Markdown(
+                "Train and evaluate the annotator models.",
+                css_classes=["page-subtitle"],
+                margin=0,
+            ),
+            margin=(0, 0, 12, 0),
+        )
+
         self.layout = pn.Row(
             self.sidebar,
-            self.traindash,
-            self.annotdash,
+            pn.Column(
+                header,
+                hp_section,
+                self.traindash,
+                sizing_mode="stretch_both",
+                margin=(20, 10),
+            ),
             sizing_mode="stretch_both",
-            background="#ffffff",
+            background="#f8fafc",
         )
+
+    def _build_hp_section(self):
+        td = self.traindash
+
+        self._hp_toggle_btn = pn.widgets.Button(
+            name="Optimize Hyperparameters",
+            button_type="primary",
+            width=230,
+        )
+        self._hp_toggle_btn.on_click(self._on_toggle_hp_panel)
+
+        hp_collapsed = pn.Row(
+            self._hp_toggle_btn,
+            td.params_display,
+            align="center",
+            sizing_mode="stretch_width",
+        )
+
+        self._hp_expanded = pn.Column(
+            pn.pane.Alert(
+                "Runs a hyperparameter search on the ESN reservoir. "
+                "This may take several minutes. Configure dataset percentage and number of jobs in Settings.",
+                alert_type="info",
+                margin=(0, 0, 10, 0),
+            ),
+            pn.Row(td.optimize_btn, td.opt_indicator, align="center", margin=(0, 0, 6, 0)),
+            td.opt_progress,
+            td.opt_progress_text,
+            td.opt_status,
+            pn.Row(td.export_config_btn, td.export_config_status, align="center", margin=(6, 0, 0, 0)),
+            visible=False,
+            sizing_mode="stretch_width",
+            margin=(10, 0, 0, 0),
+        )
+
+        return pn.Column(
+            hp_collapsed,
+            self._hp_expanded,
+            css_classes=["train-card"],
+            sizing_mode="stretch_width",
+            styles={"margin-bottom": "12px"},
+        )
+
+    def _on_toggle_hp_panel(self, event):
+        self._hp_expanded.visible = not self._hp_expanded.visible
+
+
+def _spinner_col(label, indicator, status):
+    return pn.Column(
+        pn.pane.HTML(f"<span style='font-size:12px; color:#6b7280;'>{label}</span>"),
+        indicator,
+        status,
+        sizing_mode="stretch_width",
+        align="center",
+    )
+
 
 class TrainerDashboard(SubDash):
     def __init__(self, parent):
         super().__init__(parent)
 
-        self.train_btn = pn.widgets.Button(name="Start training")
+        self.train_btn = pn.widgets.Button(
+            name="Start Training",
+            button_type="success",
+            sizing_mode="stretch_width",
+            margin=(16, 0, 0, 0),
+        )
         self.train_btn.on_click(self.on_click_train)
 
-        self.syn_indicator = pn.indicators.LoadingSpinner(
-            value=False, width=100, height=100
-        )
-        self.nsyn_indicator = pn.indicators.LoadingSpinner(
-            value=False, width=100, height=100
-        )
+        # Train spinners
+        self.syn_train_indicator  = pn.indicators.LoadingSpinner(value=False, width=60, height=60)
+        self.nsyn_train_indicator = pn.indicators.LoadingSpinner(value=False, width=60, height=60)
+        self.syn_train_status     = pn.pane.HTML(_idle())
+        self.nsyn_train_status    = pn.pane.HTML(_idle())
 
-        self.syn_status = pn.pane.HTML("<h2>Idle</h2>")
-        self.nsyn_status = pn.pane.HTML("<h2>Idle</h2>")
+        # Annotate spinners
+        self.syn_annot_indicator  = pn.indicators.LoadingSpinner(value=False, width=60, height=60)
+        self.nsyn_annot_indicator = pn.indicators.LoadingSpinner(value=False, width=60, height=60)
+        self.ens_annot_indicator  = pn.indicators.LoadingSpinner(value=False, width=60, height=60)
+        self.syn_annot_status     = pn.pane.HTML(_idle())
+        self.nsyn_annot_status    = pn.pane.HTML(_idle())
+        self.ens_annot_status     = pn.pane.HTML(_idle())
 
-        # Composants pour l'optimisation (déplacés en bas)
+        # HP optimization components (used by TrainDashboard._build_hp_section)
         self.optimize_btn = pn.widgets.Button(
-            name="Auto-Tune Reservoir",
-            button_type="primary"
+            name="Run Search",
+            button_type="primary",
+            width=140,
         )
         self.optimize_btn.on_click(self.on_click_optimize)
-        self.opt_indicator = pn.indicators.LoadingSpinner(value=False, width=50, height=50)
-        self.opt_status = pn.pane.HTML("<i>Recommended for new data</i>")
-        self.params_display = pn.pane.Markdown("**Current Params:** Default", sizing_mode="stretch_width")
 
+        self.opt_indicator = pn.indicators.LoadingSpinner(value=False, width=40, height=40)
+        self.opt_status = pn.pane.HTML(
+            "<span style='color:#6b7280; font-size:13px;'>Recommended for new data.</span>"
+        )
+        self.opt_progress = pn.widgets.Progress(
+            value=0,
+            max=100,
+            sizing_mode="stretch_width",
+            bar_color="primary",
+            visible=False,
+        )
+        self.opt_progress_text = pn.pane.HTML(
+            "",
+            styles={"font-size": "12px", "color": "#6b7280"},
+            visible=False,
+        )
+        self.params_display = pn.pane.Markdown(
+            "**Current params:** default",
+            styles={"font-size": "13px", "color": "#374151"},
+            align="center",
+            margin=(0, 0, 0, 16),
+        )
         self.export_config_btn = pn.widgets.Button(
-            name="Export config",
+            name="Export Config",
             button_type="success",
+            width=130,
             visible=False,
         )
         self.export_config_btn.on_click(self.on_click_export_config)
@@ -60,160 +188,154 @@ class TrainerDashboard(SubDash):
 
         self.layout = pn.Column(
             pn.Row(
-                pn.Column(
-                    pn.pane.HTML("Syn training:"),
-                    self.syn_indicator,
-                    self.syn_status,
-                    sizing_mode="stretch_width",
-                    align="center",
-                ),
-                pn.Column(
-                    pn.pane.HTML("NSyn training:"),
-                    self.nsyn_indicator,
-                    self.nsyn_status,
-                    sizing_mode="stretch_width",
-                    align="center",
-                ),
+                _spinner_col("Syn — train",     self.syn_train_indicator,  self.syn_train_status),
+                _spinner_col("NSyn — train",    self.nsyn_train_indicator, self.nsyn_train_status),
+                _spinner_col("Syn — annotate",  self.syn_annot_indicator,  self.syn_annot_status),
+                _spinner_col("NSyn — annotate", self.nsyn_annot_indicator, self.nsyn_annot_status),
+                _spinner_col("Ensemble — annotate", self.ens_annot_indicator, self.ens_annot_status),
                 sizing_mode="stretch_width",
             ),
             self.train_btn,
-            pn.layout.Divider(),
-            pn.pane.Markdown("### Hyperparameter Optimization"),
-            pn.Row(self.optimize_btn, self.opt_indicator, sizing_mode="stretch_width"),
-            self.opt_status,
-            self.params_display,
-            self.export_config_btn,
-            self.export_config_status,
+            css_classes=["train-card"],
             sizing_mode="stretch_width",
-            margin=(20, 30),
-            min_width=280,
+            min_width=400,
         )
 
-    def switch_status(self, obj, status, duration=0.0):
-        if status == "training":
-            obj.object = "<h2>Training...</h2>"
-            obj.style = {"color": "blue"}
-        elif status == "optimizing":
-            obj.object = "<b>Running hyperparameters search...</b>"
-            obj.style = {"color": "orange"}
-        elif status == "done":
-            obj.object = f"<h2>Done !</h2> in {round(duration, 2)} sec."
-            obj.style = {"color": "green"}
-        elif status == "opt_done":
-            obj.object = f"<b>Optimization Finished!</b> ({round(duration, 2)} sec)"
-            obj.style = {"color": "green"}
-
-    def on_click_optimize(self, events):
+    def on_click_optimize(self, event):
         self.optimize_btn.disabled = True
+        self.optimize_btn.loading = True
         self.export_config_btn.visible = False
         self.export_config_status.visible = False
-        self.switch_status(self.opt_status, "optimizing")
+        self.opt_status.object = (
+            "<span style='color:#d97706; font-size:13px;'><b>Running hyperparameter search...</b></span>"
+        )
         self.opt_indicator.value = True
+        self.opt_progress.value = 0
+        self.opt_progress.visible = True
+        self.opt_progress_text.object = "Trial 0 / ?"
+        self.opt_progress_text.visible = True
         tic = time.time()
-        try:
-            best_params = self.controler.optimize_models()
-            if best_params is None:
-                self.opt_status.object = (
-                    "<span style='color:red'><b>Optimization failed or was interrupted.</b> "
-                    "Check the logs for details.</span>"
-                )
-            else:
-                lines = []
-                for k, v in best_params.items():
-                    lines.append(f"  {k}: {v:.4g}" if isinstance(v, float) else f"  {k}: {v}")
-                self.params_display.object = "**Best parameters found:**\n```\n" + "\n".join(lines) + "\n```"
-                self.switch_status(self.opt_status, "opt_done", duration=time.time() - tic)
-                self.export_config_btn.visible = True
-        except Exception as e:
-            self.opt_status.object = f"<span style='color:red'>Error: {e}</span>"
-        self.opt_indicator.value = False
-        self.optimize_btn.disabled = False
 
-    def on_click_export_config(self, events):
+        def _on_progress(done, total):
+            pct = int(done / total * 100) if total > 0 else 0
+            with pn.io.unlocked():
+                self.opt_progress.value = pct
+                self.opt_progress_text.object = f"Trial {done} / {total}"
+
+        def run():
+            try:
+                best_params = self.controler.optimize_models(progress_callback=_on_progress)
+                duration = time.time() - tic
+                if best_params is None:
+                    self.opt_status.object = (
+                        "<span style='color:#dc2626; font-size:13px;'>"
+                        "<b>Optimization failed or was interrupted.</b> Check logs.</span>"
+                    )
+                else:
+                    lines = []
+                    for k, v in best_params.items():
+                        lines.append(f"  {k}: {v:.4g}" if isinstance(v, float) else f"  {k}: {v}")
+                    self.params_display.object = (
+                        "**Best params found:**\n```\n" + "\n".join(lines) + "\n```"
+                    )
+                    self.opt_status.object = (
+                        f"<span style='color:#16a34a; font-size:13px;'>"
+                        f"<b>Done</b> in {round(duration, 1)} s</span>"
+                    )
+                    self.export_config_btn.visible = True
+            except Exception as e:
+                self.opt_status.object = (
+                    f"<span style='color:#dc2626; font-size:13px;'>Error: {e}</span>"
+                )
+            finally:
+                self.opt_indicator.value = False
+                self.optimize_btn.disabled = False
+                self.optimize_btn.loading = False
+                self.opt_progress.visible = False
+                self.opt_progress_text.visible = False
+
+        threading.Thread(target=run, daemon=True).start()
+
+    def on_click_export_config(self, event):
         try:
             path = self.controler.export_config()
             self.export_config_status.object = (
-                f"<span style='color:green'>Config saved to <code>{path}</code></span>"
+                f"<span style='color:#16a34a; font-size:12px;'>Saved to <code>{path}</code></span>"
             )
         except Exception as e:
             self.export_config_status.object = (
-                f"<span style='color:red'>Export failed: {e}</span>"
+                f"<span style='color:#dc2626; font-size:12px;'>Export failed: {e}</span>"
             )
         self.export_config_status.visible = True
 
-    def on_click_train(self, events):
+    def on_click_train(self, event):
         self.train_btn.disabled = True
-        self.switch_status(self.syn_status, "training")
-        self.syn_indicator.value = True
+        self.train_btn.loading = True
+
+        _set(self.syn_train_status, "running")
+        self.syn_train_indicator.value = True
         tic = time.time()
         self.controler.train_syn()
-        self.switch_status(self.syn_status, "done", duration=time.time() - tic)
-        self.syn_indicator.value = False
+        _set(self.syn_train_status, "done", time.time() - tic)
+        self.syn_train_indicator.value = False
 
-        self.switch_status(self.nsyn_status, "training")
-        self.nsyn_indicator.value = True
+        _set(self.nsyn_train_status, "running")
+        self.nsyn_train_indicator.value = True
         tic = time.time()
         self.controler.train_nsyn()
-        self.switch_status(self.nsyn_status, "done", duration=time.time() - tic)
-        self.nsyn_indicator.value = False
+        _set(self.nsyn_train_status, "done", time.time() - tic)
+        self.nsyn_train_indicator.value = False
 
         logger.info("Trained!")
-        self.train_btn.disabled = False
+        self.train_btn.loading = False
         self.parent.annotdash.begin()
+
 
 class AnnotatorDashboard(SubDash):
     def __init__(self, parent):
         super().__init__(parent)
 
-        self.syn_indicator = pn.indicators.LoadingSpinner(value=False, width=100, height=100)
-        self.nsyn_indicator = pn.indicators.LoadingSpinner(value=False, width=100, height=100)
-        self.ens_indicator = pn.indicators.LoadingSpinner(value=False, width=100, height=100)
-
-        self.syn_status = pn.pane.HTML("<h2>Idle</h2>")
-        self.nsyn_status = pn.pane.HTML("<h2>Idle</h2>")
-        self.ens_status = pn.pane.HTML("<h2>Idle</h2>")
-
-        self.layout = pn.Row(
-            pn.Column(pn.pane.HTML("Syn annotation:"), self.syn_indicator, self.syn_status,
-                      sizing_mode="stretch_width", align="center"),
-            pn.Column(pn.pane.HTML("NSyn annotations:"), self.nsyn_indicator, self.nsyn_status,
-                      sizing_mode="stretch_width", align="center"),
-            pn.Column(pn.pane.HTML("Ensemble annotations:"), self.ens_indicator, self.ens_status,
-                      sizing_mode="stretch_width", align="center"),
-            sizing_mode="stretch_width",
-            margin=(20, 30),
-            min_width=280,
-        )
-
-    def switch_status(self, obj, status, duration=0.0):
-        if status == "annotating":
-            obj.object = "<h2>Annotating...</h2>"
-            obj.style = {"color": "blue"}
-        if status == "done":
-            obj.object = f"<h2>Done !</h2> in {round(duration, 2)} sec."
-            obj.style = {"color": "green"}
-
     def begin(self):
-        self.switch_status(self.syn_status, "annotating")
-        self.syn_indicator.value = True
+        td = self.parent.traindash
+
+        _set(td.syn_annot_status, "running")
+        td.syn_annot_indicator.value = True
         tic = time.time()
         self.controler.annotate_syn()
-        self.switch_status(self.syn_status, "done", duration=time.time() - tic)
-        self.syn_indicator.value = False
+        _set(td.syn_annot_status, "done", time.time() - tic)
+        td.syn_annot_indicator.value = False
 
-        self.switch_status(self.nsyn_status, "annotating")
-        self.nsyn_indicator.value = True
+        _set(td.nsyn_annot_status, "running")
+        td.nsyn_annot_indicator.value = True
         tic = time.time()
         self.controler.annotate_nsyn()
-        self.switch_status(self.nsyn_status, "done", duration=time.time() - tic)
-        self.nsyn_indicator.value = False
+        _set(td.nsyn_annot_status, "done", time.time() - tic)
+        td.nsyn_annot_indicator.value = False
 
-        self.switch_status(self.ens_status, "annotating")
-        self.ens_indicator.value = True
+        _set(td.ens_annot_status, "running")
+        td.ens_annot_indicator.value = True
         tic = time.time()
         self.controler.annotate_ensemble()
-        self.switch_status(self.ens_status, "done", duration=time.time() - tic)
-        self.ens_indicator.value = False
+        _set(td.ens_annot_status, "done", time.time() - tic)
+        td.ens_annot_indicator.value = False
 
         logger.info("Annotated!")
+        td.train_btn.name = "Trained !"
+        td.train_btn.disabled = True
         self.parent.sidebar.enable_next()
+
+
+# --- helpers ---
+
+def _idle():
+    return "<p style='margin:4px 0 0 0; color:#9ca3af; font-size:12px;'>Idle</p>"
+
+
+def _set(obj, status, duration=0.0):
+    if status == "running":
+        obj.object = "<p style='color:#2563eb; font-weight:600; margin:4px 0 0 0; font-size:12px;'>Running...</p>"
+    elif status == "done":
+        obj.object = (
+            f"<p style='color:#16a34a; font-weight:600; margin:4px 0 0 0; font-size:12px;'>"
+            f"Done {round(duration, 1)} s</p>"
+        )

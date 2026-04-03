@@ -340,7 +340,7 @@ class AnnotateDashboard(SubDash):
                     d = librosa.get_duration(path=str(p))
                     durations.append(d)
                     valid_files.append(p)
-                except:
+                except Exception:
                     pass
 
         if not valid_files:

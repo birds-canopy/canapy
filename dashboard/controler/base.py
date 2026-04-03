@@ -86,6 +86,7 @@ class Controler:
     opt_max_percentage: float = attr.field(default=0.3)
     opt_n_jobs: int = attr.field(default=4)
     opt_max_evals: int = attr.field(default=100)
+    opt_hp_val_ratio: float = attr.field(default=0.2)
 
     def __attrs_post_init__(self):
         if (
@@ -99,48 +100,20 @@ class Controler:
             self._is_ready = False
             return
 
-        self.model_root = None
-
+        # config_path is always a file (TOML/YAML); model_root is always a directory.
         config_path = Path(self.config_path) if self.config_path is not None else None
+        if config_path is not None and not config_path.is_file():
+            raise ValueError(f"Invalid -c value: expected a config file, got: {config_path}")
 
-        if config_path is not None and config_path.exists():
-            if config_path.is_file():
-                self.corpus = Corpus.from_directory(
-                    audio_directory=self.audio_directory,
-                    spec_directory=self.spec_directory,
-                    annots_directory=self.annots_directory,
-                    config_path=config_path,
-                    annot_format=self.annot_format,
-                    audio_ext=self.audio_ext,
-                )
-                self.config = self.corpus.config
-
-            elif config_path.is_dir():
-                self.model_root = config_path
-
-                self.corpus = Corpus.from_directory(
-                    audio_directory=self.audio_directory,
-                    spec_directory=self.spec_directory,
-                    annots_directory=self.annots_directory,
-                    config_path=None,
-                    annot_format=self.annot_format,
-                    audio_ext=self.audio_ext,
-                )
-                self.config = self.corpus.config
-
-            else:
-                raise ValueError(f"Invalid --config-path: {config_path}")
-
-        else:
-            self.corpus = Corpus.from_directory(
-                audio_directory=self.audio_directory,
-                spec_directory=self.spec_directory,
-                annots_directory=self.annots_directory,
-                config_path=None,
-                annot_format=self.annot_format,
-                audio_ext=self.audio_ext,
-            )
-            self.config = self.corpus.config
+        self.corpus = Corpus.from_directory(
+            audio_directory=self.audio_directory,
+            spec_directory=self.spec_directory,
+            annots_directory=self.annots_directory,
+            config_path=config_path,
+            annot_format=self.annot_format,
+            audio_ext=self.audio_ext,
+        )
+        self.config = self.corpus.config
 
         self.corrector = Corrector(
             self.output_directory / "checkpoints",
@@ -397,6 +370,7 @@ class Controler:
             self._step = "train"
             self.apply_corrections()
             self.clean_corpus_pre_training()
+            self.compute_classes()
             self.preprocess_done = True
             logger.info('Setting current dashboard to "train".')
 
@@ -496,6 +470,20 @@ class Controler:
         self.annotate("nsyn-esn", split="test")
 
     def annotate_ensemble(self):
+        # Sync ensemble vocab with the preprocessed vocab from a trained sub-annotator.
+        # Ensemble._vocab is set at initialize_models() time from the raw corpus, but
+        # SynAnnotator._vocab is set after preprocessing (remove_short_labels may drop
+        # classes). If they diverge, hard_vote maps argmax indices to wrong labels.
+        ensemble = self._annotators.get("ensemble")
+        if ensemble is not None:
+            for ref_name in ("syn-esn", "nsyn-esn"):
+                ref = self._annotators.get(ref_name)
+                if ref is not None and ref.trained:
+                    ensemble._vocab = list(ref.vocab)
+                    logger.info(
+                        f"Ensemble vocab synced from '{ref_name}': {ensemble._vocab}"
+                    )
+                    break
         self.annotate("ensemble", split="train")
         self.annotate("ensemble", split="test")
 
@@ -623,6 +611,7 @@ class Controler:
         logger.info(f"Processing models: {all_names}")
 
         results = {}
+        _sub_annot_vocab = None  # vocab from first successful sub-annotator (for ensemble sync)
 
         for name in all_names:
             if name == "ensemble":
@@ -659,6 +648,8 @@ class Controler:
                 results[name] = pred_corpus
                 self._external_accum[name] = pred_corpus
                 logger.info(f"Stored {name} in persistent accumulator.")
+                if _sub_annot_vocab is None and annot.vocab:
+                    _sub_annot_vocab = list(annot.vocab)
 
         if any("ensemble" in n.lower() for n in all_names):
             ens_name = [n for n in all_names if "ensemble" in n.lower()][0]
@@ -681,6 +672,11 @@ class Controler:
                 raw_inputs = list(self._external_accum.values())
                 logger.info(f"Ensemble voting with {len(raw_inputs)} accumulated corpora.")
                 if len(raw_inputs) >= 2:
+                    # Sync ensemble vocab with the preprocessed vocab from a sub-annotator
+                    # so hard_vote uses the correct label→index mapping.
+                    if _sub_annot_vocab is not None:
+                        ens_annot._vocab = _sub_annot_vocab
+                        logger.info(f"Ensemble (external) vocab synced: {_sub_annot_vocab}")
                     results[ens_name] = ens_annot.predict(raw_inputs)
                     logger.info("Ensemble prediction successful.")
                     self._external_accum = {}
@@ -768,6 +764,15 @@ class Controler:
         # --- Output directories ---
         trimmed_audio_dir = self.output_directory / "audio_trimmed"
         trimmed_annots_dir = self.output_directory / "annots_trimmed"
+
+        # Clear any leftover files from a previous dataset before writing new ones
+        if trimmed_audio_dir.exists():
+            for f in trimmed_audio_dir.glob("*"):
+                f.unlink(missing_ok=True)
+        if trimmed_annots_dir.exists():
+            for f in trimmed_annots_dir.glob("*"):
+                f.unlink(missing_ok=True)
+
         trimmed_audio_dir.mkdir(parents=True, exist_ok=True)
         trimmed_annots_dir.mkdir(parents=True, exist_ok=True)
 
@@ -812,8 +817,10 @@ class Controler:
                     if keep_n == 0:
                         chunk = chunk[0:0]
                     elif keep_n < n:
-                        remove_each = (n - keep_n) // 2
-                        chunk = chunk[remove_each:remove_each + keep_n]
+                        # Keep start & end, trim middle
+                        keep_start = keep_n // 2
+                        keep_end = keep_n - keep_start
+                        chunk = np.concatenate([chunk[:keep_start], chunk[n - keep_end:]])
 
                 chunk_dur_s = len(chunk) / sr
 
@@ -887,7 +894,7 @@ class Controler:
 
         logger.info(f"trim_silences_hard complete. Corpus reloaded from {trimmed_audio_dir}.")
 
-    def optimize_models(self):
+    def optimize_models(self, progress_callback=None):
         logger.info("Starting optimization from Controller...")
 
         target_name = "syn-esn"
@@ -932,20 +939,23 @@ class Controler:
             logger.error("Critical: 'syn_mfcc' still missing from resources!")
             return
 
-        logger.info("Step 3: Launching optimization (isolated subprocess)...")
-        best_params = optimize_hyperparameters_isolated(
-            c,
-            syn_annotator.config,
-            annotator_type="syn",
-            n_iter=self.opt_max_evals,
-            max_percentage=self.opt_max_percentage,
-            parallel=self.opt_parallel,
-            n_jobs=self.opt_n_jobs,
-        )
-
-        # Cleanup temp files
         import shutil
-        shutil.rmtree(optim_spec_dir, ignore_errors=True)
+        logger.info("Step 3: Launching optimization (isolated subprocess)...")
+        try:
+            best_params = optimize_hyperparameters_isolated(
+                c,
+                syn_annotator.config,
+                annotator_type="syn",
+                n_iter=self.opt_max_evals,
+                max_percentage=self.opt_max_percentage,
+                parallel=self.opt_parallel,
+                n_jobs=self.opt_n_jobs,
+                hp_val_ratio=self.opt_hp_val_ratio,
+                progress_callback=progress_callback,
+            )
+        finally:
+            # Always clean up temp MFCC files, even if optimization raised.
+            shutil.rmtree(optim_spec_dir, ignore_errors=True)
 
         if not best_params:
             logger.warning(

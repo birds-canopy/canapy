@@ -27,6 +27,7 @@ class CanapyDashboard(pn.viewable.Viewer):
     output_directory: Optional[Path] = attr.field(default=None, converter=as_path)
     spec_directory: Optional[Path] = attr.field(default=None, converter=as_path)
     config_path: Optional[Path] = attr.field(default=None, converter=as_path)
+    model_path: Optional[Path] = attr.field(default=None, converter=as_path)
     port: Optional[int] = attr.field(default=None)
     annot_format: str = attr.field(default="marron1csv")
     audio_ext: str = attr.field(default=".wav")
@@ -48,6 +49,7 @@ class CanapyDashboard(pn.viewable.Viewer):
             output_directory=self.output_directory,
             spec_directory=self.spec_directory,
             config_path=self.config_path,
+            model_root=self.model_path,
             dashboard=self,
             annot_format=self.annot_format,
             audio_ext=self.audio_ext,
