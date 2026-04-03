@@ -17,7 +17,7 @@ packages = [
 include = ["**/*.config.toml"]
 
 [tool.poetry.dependencies]
-python = ">=3.9,<3.12"
+python = ">=3.11,<3.12"
 numba = "^0.58"
 librosa = "0.10.2.post1"
 scikit-learn = "1.7.2"
@@ -27,6 +27,7 @@ matplotlib = "3.10.7"
 joblib = "1.5.2"
 pandas = "2.3.3"
 crowsetta = "5.1.0"
+multimethod = "<2.0"
 attrs = "23.2.0"
 pandera = "0.15.2"
 PyYAML = "6.0.3"
