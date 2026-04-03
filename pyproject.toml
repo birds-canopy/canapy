@@ -53,6 +53,11 @@ notebook = "7.5.0"
 canapy = "dashboard.__main__:cli"
 canapy-audacity-convert = "audacity.main:main"
 
+[tool.pytest.ini_options]
+markers = [
+    "slow: tests complets avec entraînement des annotateurs (SynAnnotator, NSynAnnotator, Ensemble)",
+]
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
