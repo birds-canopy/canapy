@@ -5,7 +5,7 @@ import logging
 import math
 from pathlib import Path
 import panel as pn
-from ..helpers import SubDash, SideBar
+from ..helpers import SubDash, SideBar, pick_file
 
 _PRESETS_DIR = Path(__file__).parents[3] / "config" / "presets"
 
@@ -532,16 +532,10 @@ class SettingsDashboard(SubDash):
             )
 
     def _browse_config(self, _):
-        import tkinter as tk
-        from tkinter import filedialog
-        root = tk.Tk()
-        root.withdraw()
-        root.attributes("-topmost", True)
-        path = filedialog.askopenfilename(
+        path = pick_file(
             title="Select Config File",
             filetypes=[("TOML files", "*.toml"), ("All files", "*.*")],
         )
-        root.destroy()
         if path:
             self.config_path_input.value = path
 

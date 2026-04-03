@@ -1,5 +1,54 @@
+import subprocess
+import sys
+
 import panel as pn
 from ..controler import Controler
+
+
+def pick_directory(title="Select Directory"):
+    """Open a folder picker dialog. Uses osascript on macOS to avoid the
+    NSWindow-must-be-on-main-thread crash when called from a Panel callback."""
+    if sys.platform == "darwin":
+        script = f'POSIX path of (choose folder with prompt "{title}")'
+        result = subprocess.run(
+            ["osascript", "-e", script],
+            capture_output=True, text=True
+        )
+        if result.returncode == 0:
+            return result.stdout.strip().rstrip("/")
+        return None
+    else:
+        import tkinter as tk
+        from tkinter import filedialog
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        directory = filedialog.askdirectory(title=title)
+        root.destroy()
+        return directory or None
+
+
+def pick_file(title="Select File", filetypes=None):
+    """Open a file picker dialog. Uses osascript on macOS to avoid the
+    NSWindow-must-be-on-main-thread crash when called from a Panel callback."""
+    if sys.platform == "darwin":
+        script = f'POSIX path of (choose file with prompt "{title}")'
+        result = subprocess.run(
+            ["osascript", "-e", script],
+            capture_output=True, text=True
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+        return None
+    else:
+        import tkinter as tk
+        from tkinter import filedialog
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        path = filedialog.askopenfilename(title=title, filetypes=filetypes or [])
+        root.destroy()
+        return path or None
 
 SIDEBAR_CSS = """
 .sidebar-container {

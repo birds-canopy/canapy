@@ -4,7 +4,7 @@
 import logging
 from pathlib import Path
 import panel as pn
-from ..helpers import SubDash, SideBar
+from ..helpers import SubDash, SideBar, pick_directory
 from canapy.corpus import Corpus
 from canapy.correction import Corrector
 from canapy.transforms.commons.training import split_train_test
@@ -385,64 +385,34 @@ class LoadDataDashboard(SubDash):
         self.audio_block.visible = is_separate
     
     def _browse_combined(self, event):
-        import tkinter as tk
-        from tkinter import filedialog
-        root = tk.Tk()
-        root.withdraw()
-        root.attributes('-topmost', True)
-        directory = filedialog.askdirectory(title="Select Data Directory")
+        directory = pick_directory("Select Data Directory")
         if directory:
             self.combined_input.value = directory
             logger.info(f"Selected combined directory: {directory}")
-        root.destroy()
-    
+
     def _browse_annots(self, event):
-        import tkinter as tk
-        from tkinter import filedialog
-        root = tk.Tk()
-        root.withdraw()
-        root.attributes('-topmost', True)
-        directory = filedialog.askdirectory(title="Select Annotations Directory")
+        directory = pick_directory("Select Annotations Directory")
         if directory:
             self.annots_input.value = directory
             logger.info(f"Selected annotations directory: {directory}")
-        root.destroy()
-    
+
     def _browse_audio(self, event):
-        import tkinter as tk
-        from tkinter import filedialog
-        root = tk.Tk()
-        root.withdraw()
-        root.attributes('-topmost', True)
-        directory = filedialog.askdirectory(title="Select Audio Directory")
+        directory = pick_directory("Select Audio Directory")
         if directory:
             self.audio_input.value = directory
             logger.info(f"Selected audio directory: {directory}")
-        root.destroy()
-    
+
     def _browse_model(self, event):
-        import tkinter as tk
-        from tkinter import filedialog
-        root = tk.Tk()
-        root.withdraw()
-        root.attributes('-topmost', True)
-        directory = filedialog.askdirectory(title="Select Model Directory (-m)")
+        directory = pick_directory("Select Model Directory (-m)")
         if directory:
             self.model_input.value = directory
             logger.info(f"Selected model directory: {directory}")
-        root.destroy()
-    
+
     def _browse_output(self, event):
-        import tkinter as tk
-        from tkinter import filedialog
-        root = tk.Tk()
-        root.withdraw()
-        root.attributes('-topmost', True)
-        directory = filedialog.askdirectory(title="Select Output Directory")
+        directory = pick_directory("Select Output Directory")
         if directory:
             self.output_input.value = directory
             logger.info(f"Selected output directory: {directory}")
-        root.destroy()
 
     def _validate_path(self, path_str, must_exist=True):
         if not path_str or path_str.strip() == "":
