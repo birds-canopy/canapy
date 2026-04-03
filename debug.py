@@ -28,7 +28,12 @@ parser.add_argument(
 )
 parser.add_argument(
     "-c", "--config_path", type=str,
-    )
+    help="Path to a TOML/YAML config file.",
+)
+parser.add_argument(
+    "-m", "--model_path", type=str,
+    help="Path to a directory containing pre-trained models to load.",
+)
 
 parser.add_argument(
     "--port",
@@ -71,8 +76,9 @@ if __name__ == "__main__":
     args = parser.parse_args(
         ["/home/nathan/Documents/Code/canapy-test/data",
          "/home/nathan/Documents/Code/canapy-test/output_new",
-         "-c",
-         "/home/nathan/Documents/Code/canapy-reborn/canapy/config.toml"])
+         # "-c", "/path/to/config.toml",   # optional: config file
+         # "-m", "/path/to/model_dir/",    # optional: pre-trained models
+        ])
 
     # print("Starting...")
     display_dashboard(**vars(args))

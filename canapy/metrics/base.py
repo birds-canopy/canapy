@@ -11,7 +11,15 @@ from .utils import as_frame_comparison
 
 def _check_corpus_comparison(gold_corpus, corpus):
     gold_notated = set(gold_corpus.dataset["notated_path"].unique())
-    df_notated = set(corpus.dataset["notated_path"].unique())
+    # Use frames_predictions to determine annotated files: files predicted as
+    # entirely silent are absent from corpus.dataset (silence rows are removed
+    # during post-processing) but are still present in frames_predictions.
+    if "frames_predictions" in corpus.data_resources:
+        df_notated = set(
+            corpus.data_resources["frames_predictions"]["notated_path"].unique()
+        )
+    else:
+        df_notated = set(corpus.dataset["notated_path"].unique())
 
     if gold_notated != df_notated:
         raise ValueError(
@@ -62,7 +70,11 @@ def segment_error_rate(gold_corpus, corpus):
 
     ser = []
     for seqid, gold_seq in gold_sequences:
-        pred_seq = pred_sequences.get_group(seqid)
+        if seqid in pred_sequences.groups:
+            pred_seq = pred_sequences.get_group(seqid)
+        else:
+            # File was predicted as entirely silent: no annotations in pred corpus.
+            pred_seq = pred_df.iloc[0:0]  # empty df, SER = 1.0
 
         notated_path = gold_seq["notated_path"].unique()[0]
 

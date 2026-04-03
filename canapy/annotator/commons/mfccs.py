@@ -121,14 +121,14 @@ def load_mfccs_for_annotation(corpus):
     for row in mfcc_paths.itertuples():
         spec_path = row.feature_path
 
-        if row.notated_path == np.nan:
+        if pd.isna(row.notated_path):
             notated_path = spec_path
         else:
             notated_path = row.notated_path
 
         # We might not want to load all data, but only the subset
         # actually present in the corpus
-        if notated_path not in selected_paths:
+        if len(selected_paths) > 0 and notated_path not in selected_paths:
            continue
 
         mfcc = np.load(spec_path)

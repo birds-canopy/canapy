@@ -93,8 +93,8 @@ class Corrector:
     def checkpoint(self, corrections):
         self.correction_history.append(corrections)
 
-        cktp_step = str(len(self.correction_history))
-        ckpt_correction_file = self.checkpoint_directory / ("correction-" + cktp_step)
+        ckpt_step = str(len(self.correction_history))
+        ckpt_correction_file = self.checkpoint_directory / ("correction-" + ckpt_step)
         self.checkpoint_directory.mkdir(parents=True, exist_ok=True)
 
         corr = copy.deepcopy(corrections)

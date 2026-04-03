@@ -51,7 +51,7 @@ def remove_short_labels(corpus, **kwargs):
 
     too_short = df[durations < config.min_label_duration].index
 
-    df = df.drop(too_short, axis=0).reset_index()
+    df = df.drop(too_short, axis=0).reset_index(drop=True)
 
     return corpus.clone_with_df(df)
 

@@ -21,6 +21,9 @@ def _noisify(audio, config, rs):
     mu = audio.mean()
     sigma = audio.std()
 
+    if sigma == 0:
+        return audio
+
     audio = (audio - mu) / sigma
 
     # additive noise
@@ -72,7 +75,7 @@ def balance_labels_duration(corpus, *, resource_name, **kwargs):
 
     # resample the dataset with replace. Maximum probability weight is
     # given to underrepresented samples regarding min_duration
-    resampled = underrepresented
+    resampled = underrepresented.copy()
     N = len(underrepresented)
     while resampled.groupby("label")["duration"].sum().min() < min_duration:
         resampled = underrepresented.sample(
@@ -88,7 +91,7 @@ def balance_labels_duration(corpus, *, resource_name, **kwargs):
     weights = [durations.loc[s, "weights"] for s in overrepresented.label]
 
     # Same but with over-represented samples (downsampling)
-    subsampled = overrepresented
+    subsampled = overrepresented.copy()
     N = len(overrepresented)
     while subsampled.groupby("label")["duration"].sum().min() < min_duration:
         subsampled = overrepresented.sample(

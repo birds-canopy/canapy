@@ -43,7 +43,7 @@ class _Registry:
         return self._registry[item]
 
     def register_annotator(self, name, cls):
-        if name in cls:
+        if name in self._registry:
             logger.warning(f"'{name}' is already registered. Skipping.")
             return
         self._registry[name] = cls

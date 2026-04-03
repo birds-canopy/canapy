@@ -16,7 +16,7 @@ def maximum_a_posteriori(logits, classes=None):
         predictions = np.take(classes, predictions)
     return predictions
 
-def init_esn_model(model_config, input_dim, audio_features, seed=None, workers=None, **overrides):
+def init_esn_model(model_config, input_dim, audio_features, seed=None, workers=None, dtype=np.float64, **overrides):
     rpy.set_seed(seed)
 
     def get_p(key, default_attr, default_val):
@@ -28,8 +28,8 @@ def init_esn_model(model_config, input_dim, audio_features, seed=None, workers=N
     leak = get_p("leak", "leak", 0.1)
     iss_val = get_p("iss", "iss", 0.0005)
     ridge = get_p("ridge", "ridge", 1e-8)
-    isd_val = get_p("isd", "isd", 0.02) 
-    isd2_val = get_p("isd2", "isd2", 0.002) 
+    isd_val = get_p("isd", "isd", 0.02)
+    isd2_val = get_p("isd2", "isd2", 0.002)
     n_units = get_p("units", "units", 1000)
 
     # Construction du scaling block par block
@@ -45,14 +45,15 @@ def init_esn_model(model_config, input_dim, audio_features, seed=None, workers=N
         input_scaling = iss_val
     else:
         input_scaling = np.concatenate(scalings, axis=0)
-        
+
     reservoir = Reservoir(
         n_units,
         sr=sr,
         lr=leak,
         input_scaling=input_scaling,
-        bias=iss_val, 
+        bias=iss_val,
         W=fast_spectral_initialization,
+        dtype=dtype,
     )
 
     readout = Ridge(ridge=ridge)

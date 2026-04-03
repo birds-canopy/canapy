@@ -82,14 +82,14 @@ class Config(_BaseConfig):
         msg = ""
         try:
             with open(config_path, "r") as fp:
-                config = yaml.load(fp, yaml.Loader)
+                config = yaml.safe_load(fp)
         except Exception as e:
             msg += "\nYAML:" + str(e)
             try:
                 with open(config_path, "r") as fp:
                     config = toml.load(fp)
             except Exception as e:
-                msg += "\nTOML" + str(e)
+                msg += "\nTOML: " + str(e)
                 try:
                     with open(config_path, "r") as fp:
                         config = json.load(fp)
@@ -122,7 +122,7 @@ class Config(_BaseConfig):
             data["schema"] = self.schema
         
         if format not in _FORMATTERS:
-            logger.warn("Unkown format: {format}. Falling back on YAML.")
+            logger.warning(f"Unknown format: {format}. Falling back on YAML.")
             format = "yaml"
         
         formatter = _FORMATTERS[format]

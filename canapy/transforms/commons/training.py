@@ -135,13 +135,7 @@ def split_train_test(corpus, *, redo=False, **kwargs):
         f"\nTest  : {len(test_df.groupby('seqid'))} ({len(test_df)} labels - "
         f"{test_time:.3f} s - {test_nosilence_time:.3f} s w/o silence)"
     )
-    print("==========================================================================")
-    print(        f"Final repartition of data - "
-        f"\nTrain : {len(train_df['seqid'].unique())} ({len(train_df)} labels - "
-        f"{train_time:.3f} s - {train_nosilence_time:.3f} s w/o silence)"
-        f"\nTest  : {len(test_df.groupby('seqid'))} ({len(test_df)} labels - "
-        f"{test_time:.3f} s - {test_nosilence_time:.3f} s w/o silence)")
-    print("==========================================================================")
+
     df.drop("seqid", axis=1, inplace=True)
     return corpus
 
