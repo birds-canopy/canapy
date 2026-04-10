@@ -3,11 +3,14 @@ import logging
 import multiprocessing
 import os
 import shutil
+import sys
 import tempfile
 import time
 import traceback
 import json
 import threading
+
+_IS_WINDOWS = sys.platform == "win32"
 from typing import Dict
 import numpy as np
 
@@ -655,18 +658,21 @@ def _subprocess_target(queue, corpus, config, annotator_type, n_iter, max_percen
     Entry point for the isolated optimization subprocess.
     Must be a module-level function so multiprocessing can pickle it.
 
-    Immediately calls os.setpgrp() to create a new process group whose ID
-    equals this process's PID. Every child spawned from here (loky workers,
-    etc.) inherits that PGID. The parent can therefore kill the entire group
-    with a single os.killpg() call — even after this process has exited and
-    its children have been reparented to init.
+    On Unix: calls os.setpgrp() to create a new process group whose ID equals
+    this process's PID. Every child spawned from here (loky workers, etc.)
+    inherits that PGID. The parent can therefore kill the entire group with a
+    single os.killpg() call.
+    On Windows: process groups are not supported; the parent tracks the tree
+    via psutil instead.
     """
-    # Own process group — all descendants inherit this PGID.
-    os.setpgrp()
+    # Own process group — all descendants inherit this PGID (Unix only).
+    if not _IS_WINDOWS:
+        os.setpgrp()
 
     # Lower priority so the UI stays responsive during a long search.
     try:
-        os.nice(10)
+        if not _IS_WINDOWS:
+            os.nice(10)
     except OSError:
         pass
 
@@ -701,24 +707,56 @@ def _subprocess_target(queue, corpus, config, annotator_type, n_iter, max_percen
 
 
 def _killpg_safe(pgid):
-    """Send SIGKILL to an entire process group, ignoring errors if already gone."""
-    import signal
-    try:
-        os.killpg(pgid, signal.SIGKILL)
-    except (ProcessLookupError, OSError):
-        pass  # process group already gone — clean exit
+    """Kill all processes in the group (Unix) or tree (Windows), ignoring errors if already gone."""
+    if _IS_WINDOWS:
+        import psutil
+        try:
+            root = psutil.Process(pgid)
+            children = root.children(recursive=True)
+            for child in children:
+                try:
+                    child.kill()
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+            try:
+                root.kill()
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+    else:
+        import signal
+        try:
+            os.killpg(pgid, signal.SIGKILL)
+        except (ProcessLookupError, OSError):
+            pass  # process group already gone — clean exit
 
 
 def _rss_of_group(pgid):
-    """Return total RSS (bytes) of all processes in a process group."""
+    """Return total RSS (bytes) of the subprocess and all its descendants.
+
+    On Unix: sums all processes sharing the process group ID (pgid == subprocess PID).
+    On Windows: walks the process tree rooted at pgid (== subprocess PID) via psutil.
+    """
     import psutil
     total = 0
-    for proc in psutil.process_iter(["pid", "memory_info"]):
+    if _IS_WINDOWS:
         try:
-            if os.getpgid(proc.pid) == pgid:
-                total += proc.memory_info().rss
-        except (OSError, psutil.NoSuchProcess, psutil.AccessDenied):
+            root = psutil.Process(pgid)
+            for proc in [root] + root.children(recursive=True):
+                try:
+                    total += proc.memory_info().rss
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
             pass
+    else:
+        for proc in psutil.process_iter(["pid", "memory_info"]):
+            try:
+                if os.getpgid(proc.pid) == pgid:
+                    total += proc.memory_info().rss
+            except (OSError, psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
     return total
 
 
