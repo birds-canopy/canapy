@@ -1,0 +1,64 @@
+[misc]
+seed = 42
+
+[correction]
+min_segment_proportion_agreement = 0.66
+
+[transforms.annots]
+time_precision = 0.001
+min_label_duration = 0.02
+lonely_labels = [ "cri", "TRASH",]
+min_silence_gap = 0.001
+silence_tag = "SIL"
+merge_consecutive_labels = false
+
+[transforms.audio]
+audio_features = [ "mfcc", "delta", "delta2",]
+sampling_rate = 44100
+n_mfcc = 13
+hop_length = 0.005
+win_length = 0.01
+n_fft = 512
+fmin = 500
+fmax = 15000
+lifter = 40
+
+[transforms.training]
+max_sequences = -1
+test_ratio = 0.2
+
+[model.syn]
+units = 1000
+sr = "0.004843565937774922"
+leak = "0.049528118993442"
+iss = "0.02137596673271396"
+isd = "0.041035419504258916"
+isd2 = "0.6601109698999343"
+ridge = "1.0162805132309571e-05"
+backend = "multiprocessing"
+workers = -1
+seed = 9201
+
+[model.nsyn]
+units = 1000
+sr = 0.4
+leak = 0.1
+iss = 0.0005
+isd = 0.02
+isd2 = 0.002
+ridge = 1e-8
+backend = "multiprocessing"
+workers = -1
+
+[transforms.audio.delta]
+padding = "wrap"
+
+[transforms.audio.delta2]
+padding = "wrap"
+
+[transforms.training.balance]
+min_class_total_duration = 2
+min_silence_duration = 0.2
+
+[transforms.training.balance.data_augmentation]
+noise_std = 0.01

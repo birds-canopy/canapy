@@ -1,0 +1,64 @@
+[misc]
+seed = 42
+
+[correction]
+min_segment_proportion_agreement = 0.66
+
+[transforms.annots]
+time_precision = 0.001
+min_label_duration = 0.02
+lonely_labels = [ "cri", "TRASH",]
+min_silence_gap = 0.001
+silence_tag = "SIL"
+merge_consecutive_labels = false
+
+[transforms.audio]
+audio_features = [ "mfcc", "delta", "delta2",]
+sampling_rate = 44100
+n_mfcc = 13
+hop_length = 0.005
+win_length = 0.01
+n_fft = 512
+fmin = 500
+fmax = 8000
+lifter = 40
+
+[transforms.training]
+max_sequences = -1
+test_ratio = 0.2
+
+[model.syn]
+units = 1000
+sr = "0.34096216895216436"
+leak = "0.23711003548207676"
+iss = "0.0005739271403168003"
+isd = "0.003401971882322098"
+isd2 = "0.004939931642166526"
+ridge = "0.001329477896056149"
+backend = "multiprocessing"
+workers = -1
+seed = 741
+
+[model.nsyn]
+units = 1000
+sr = 0.9402495084488627
+leak = 0.3864950912977031
+iss = 0.0006859926385786435
+isd = 0.0007886996954944534
+isd2 = 0.007152535314351129
+ridge = 8.14447618173617e-6
+backend = "multiprocessing"
+workers = -1
+
+[transforms.audio.delta]
+padding = "wrap"
+
+[transforms.audio.delta2]
+padding = "wrap"
+
+[transforms.training.balance]
+min_class_total_duration = 2
+min_silence_duration = 0.2
+
+[transforms.training.balance.data_augmentation]
+noise_std = 0.01
