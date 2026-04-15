@@ -42,8 +42,13 @@ def fetch_misclassified_samples(
         gold_df["offset_s"], seconds_to_audio(hop_length, sampling_rate), sampling_rate
     )
 
+    frames_by_file = {path: grp for path, grp in frames.groupby("notated_path")}
+
     bad_ones = {}
     for notated_path, annots in gold_df.groupby("notated_path"):
+        file_frames = frames_by_file.get(notated_path)
+        if file_frames is None:
+            continue
         for one_annot in annots.itertuples():
             if one_annot.label == silence_tag:
                 continue
@@ -51,9 +56,7 @@ def fetch_misclassified_samples(
             onset_frame = one_annot.onset_frame
             offset_frame = one_annot.offset_frame
 
-            annot_frames = frames.query("notated_path == @notated_path").loc[
-                onset_frame:offset_frame
-            ]
+            annot_frames = file_frames.loc[onset_frame:offset_frame]
 
             preds = annot_frames.filter(regex="pred_.*")
             # Correction minimale 4/12 pour les annotations de trance
