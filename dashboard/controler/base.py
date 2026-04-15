@@ -18,6 +18,7 @@ from canapy.metrics import (
     sklearn_confusion_matrix,
     sklearn_classification_report,
     segment_error_rate,
+    compute_sklearn_metrics,
 )
 from canapy.plots import plot_segment_melspectrogram
 from canapy.utils import as_path
@@ -87,6 +88,7 @@ class Controler:
     opt_n_jobs: int = attr.field(default=4)
     opt_max_evals: int = attr.field(default=100)
     opt_hp_val_ratio: float = attr.field(default=0.2)
+    opt_seed: int = attr.field(default=42)
 
     def __attrs_post_init__(self):
         if (
@@ -510,10 +512,7 @@ class Controler:
 
                 self._classes = classes
 
-                cm = sklearn_confusion_matrix(gold_corpus, pred_corpus, classes=classes)
-                report = sklearn_classification_report(
-                    gold_corpus, pred_corpus, classes=classes
-                )
+                cm, report = compute_sklearn_metrics(gold_corpus, pred_corpus, classes=classes)
                 ser = segment_error_rate(gold_corpus, pred_corpus)
 
                 def float_format(x):
@@ -951,6 +950,7 @@ class Controler:
                 parallel=self.opt_parallel,
                 n_jobs=self.opt_n_jobs,
                 hp_val_ratio=self.opt_hp_val_ratio,
+                seed=self.opt_seed,
                 progress_callback=progress_callback,
             )
         finally:

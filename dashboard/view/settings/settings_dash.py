@@ -123,6 +123,11 @@ PARAM_HELP = {
         "Higher values improve the chance of finding the best configuration "
         "but increase total search time. Recommended: 50–200."
     ),
+    "opt_seed": (
+        "Random seed for the hyperparameter search. "
+        "Fixing this value makes the search reproducible: two runs with the same seed "
+        "and parameters will explore the same configurations."
+    ),
     "merge_consecutive_labels": (
         "If enabled, consecutive annotations with the same label separated by a silence "
         "shorter than min_silence_gap are merged into a single annotation. "
@@ -280,6 +285,12 @@ class SettingsDashboard(SubDash):
             step=10,
             sizing_mode="stretch_width",
         )
+        self.opt_seed_input = pn.widgets.IntInput(
+            value=self.controler.opt_seed,
+            start=0,
+            step=1,
+            sizing_mode="stretch_width",
+        )
 
         self.advanced_toggle = pn.widgets.Toggle(
             name="Show advanced parameters",
@@ -376,6 +387,7 @@ class SettingsDashboard(SubDash):
             _make_param_row("Max evaluations", self.opt_max_evals_input, "opt_max_evals"),
             _make_param_row("Data fraction", self.opt_percentage_input, "opt_max_percentage"),
             _make_param_row("Parallel workers (n_jobs)", self.opt_n_jobs_input, "opt_n_jobs"),
+            _make_param_row("Search seed", self.opt_seed_input, "opt_seed"),
             css_classes=["settings-card"],
             sizing_mode="stretch_width",
         )
@@ -632,6 +644,7 @@ class SettingsDashboard(SubDash):
         self.controler.opt_max_percentage = self.opt_percentage_input.value
         self.controler.opt_n_jobs = self.opt_n_jobs_input.value
         self.controler.opt_max_evals = self.opt_max_evals_input.value
+        self.controler.opt_seed = self.opt_seed_input.value
 
         logger.info("Settings applied to config.")
         sr = cfg.data["transforms"]["audio"].get("sampling_rate", 0)
