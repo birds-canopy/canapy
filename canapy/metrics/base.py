@@ -29,6 +29,33 @@ def _check_corpus_comparison(gold_corpus, corpus):
         )
 
 
+def compute_sklearn_metrics(gold_corpus, corpus, classes=None):
+    """Compute confusion matrix and classification report in a single pass.
+
+    Calling sklearn_confusion_matrix and sklearn_classification_report separately
+    triggers two identical as_frame_comparison expansions. This function computes
+    gold_frames once and shares it across both metrics.
+    """
+    _check_corpus_comparison(gold_corpus, corpus)
+
+    gold_frames = as_frame_comparison(gold_corpus, corpus)
+    pred_frames = corpus.data_resources["frames_predictions"]
+
+    gold_labels = gold_frames.sort_values(by=["notated_path", "onset_s"])["label"]
+    pred_labels = pred_frames.sort_values(by=["notated_path", "onset_s"])["label"]
+
+    cm = confusion_matrix(gold_labels, pred_labels, labels=classes, normalize="true")
+    report = classification_report(
+        gold_labels,
+        pred_labels,
+        target_names=classes,
+        labels=classes,
+        zero_division=0,
+        output_dict=True,
+    )
+    return cm, report
+
+
 def sklearn_classification_report(gold_corpus, corpus, classes=None):
     _check_corpus_comparison(gold_corpus, corpus)
 

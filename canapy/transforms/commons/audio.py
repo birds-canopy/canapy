@@ -2,6 +2,7 @@
 # Licence: MIT License
 # Copyright: Nathan Trouvain
 import logging
+import os
 from pathlib import Path
 
 import numpy as np
@@ -131,12 +132,23 @@ def compute_mfcc(corpus, *, output_directory, resource_name, redo=False, **kwarg
         if len(audio_paths) > 0:
             audio_names = set(get_filenames(audio_paths))
             if audio_names <= cep_names:
-                resource = cepstrum_df.query("notated_path in @audio_paths")
-                corpus.register_data_resource(resource_name, resource)
-                logger.info(
-                    "Found matching spectrograms and audio. Will use spectrograms."
+                # Use case-insensitive path comparison (os.path.normcase is a
+                # no-op on Linux/case-sensitive FS, lowercases on Mac/Windows).
+                norm_audio = {os.path.normcase(str(p)) for p in audio_paths}
+                mask = cepstrum_df["notated_path"].apply(
+                    lambda p: os.path.normcase(str(p)) in norm_audio
                 )
-                return corpus
+                resource = cepstrum_df[mask]
+                if len(resource) == 0:
+                    logger.warning(
+                        "Path case mismatch between spec files and audio paths. Recomputing."
+                    )
+                else:
+                    corpus.register_data_resource(resource_name, resource)
+                    logger.info(
+                        "Found matching spectrograms and audio. Will use spectrograms."
+                    )
+                    return corpus
             else:
                 logger.warning("Spectrograms do not match audio files. Recomputing.")
 

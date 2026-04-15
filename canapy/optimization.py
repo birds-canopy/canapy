@@ -459,6 +459,7 @@ def optimize_hyperparameters(
     parallel: bool = False,
     n_jobs: int = 4,
     hp_val_ratio: float = 0.2,
+    seed: int = 42,
     progress_file: str = None,
     progress_queue=None,
 ):
@@ -535,7 +536,7 @@ def optimize_hyperparameters(
             "hp_method": "random" if parallel else "tpe",
             "hp_space": hp_space,
             "instances_per_trial": 1,
-            "seed": 42,
+            "seed": seed,
         }
 
         fd, config_path = tempfile.mkstemp(suffix=".json", prefix="canapy_opt_")
@@ -653,7 +654,7 @@ def optimize_hyperparameters(
 # 8. ISOLATED SUBPROCESS WRAPPER
 # =============================================================================
 
-def _subprocess_target(queue, corpus, config, annotator_type, n_iter, max_percentage, parallel, n_jobs, hp_val_ratio=0.2, progress_queue=None):
+def _subprocess_target(queue, corpus, config, annotator_type, n_iter, max_percentage, parallel, n_jobs, hp_val_ratio=0.2, seed=42, progress_queue=None):
     """
     Entry point for the isolated optimization subprocess.
     Must be a module-level function so multiprocessing can pickle it.
@@ -693,6 +694,7 @@ def _subprocess_target(queue, corpus, config, annotator_type, n_iter, max_percen
             parallel=parallel,
             n_jobs=n_jobs,
             hp_val_ratio=hp_val_ratio,
+            seed=seed,
             progress_queue=progress_queue,
         )
         queue.put(("ok", result))
@@ -769,6 +771,7 @@ def optimize_hyperparameters_isolated(
     parallel: bool = False,
     n_jobs: int = 4,
     hp_val_ratio: float = 0.2,
+    seed: int = 42,
     progress_callback=None,
     timeout : int = None,
 ):
@@ -810,7 +813,7 @@ def optimize_hyperparameters_isolated(
 
     p = ctx.Process(
         target=_subprocess_target,
-        args=(queue, corpus, config, annotator_type, n_iter, max_percentage, parallel, n_jobs, hp_val_ratio, progress_queue),
+        args=(queue, corpus, config, annotator_type, n_iter, max_percentage, parallel, n_jobs, hp_val_ratio, seed, progress_queue),
         daemon=False,
     )
     p.start()

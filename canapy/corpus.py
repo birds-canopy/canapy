@@ -531,9 +531,9 @@ class Corpus:
         new_corpus.spec_ext = self.spec_ext
 
         notated_paths = df.notated_path.unique()
-        # Do not copy data_resources! All clones should be able to access
-        # heavy transformed data without redoing the transform.
-        filtered_resources = self.data_resources
+        # Shallow copy so mutations (deletions, filtered updates) do NOT
+        # propagate back to the original corpus's data_resources dict.
+        filtered_resources = dict(self.data_resources)
         delete_list = []
         for name, resource in self.data_resources.items():
             if (

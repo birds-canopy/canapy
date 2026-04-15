@@ -9,6 +9,7 @@ from .commons.esn import init_esn_model, predict_with_esn
 from .commons.mfccs import load_mfccs_and_repeat_labels
 from .commons.postprocess import predictions_to_corpus, extract_vocab
 from ..transforms.synesn import SynESNTransform
+from ..transforms.commons.audio import compute_mfcc
 from ..timings import seconds_to_audio
 from config import default_config
 
@@ -131,6 +132,20 @@ class SynAnnotator(Annotator):
                 purpose="training",
                 output_directory=corpus.spec_directory,
             )
+
+            # Defensive guard: if syn_mfcc was lost during the transform chain
+            # (e.g. clone_with_df deleted it due to a path mismatch on Mac),
+            # recompute it unconditionally before trying to load it.
+            if "syn_mfcc" not in corpus.data_resources:
+                logger.warning(
+                    "'syn_mfcc' missing after transforms — recomputing (redo=True)."
+                )
+                corpus = compute_mfcc(
+                    corpus,
+                    output_directory=corpus.spec_directory,
+                    resource_name="syn_mfcc",
+                    redo=True,
+                )
 
             _, _, train_mfcc, train_labels = load_mfccs_and_repeat_labels(
                 corpus, purpose="training"
