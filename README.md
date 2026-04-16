@@ -11,7 +11,7 @@ Canapy trains automatic annotators for animal vocalizations using [Reservoir Com
 ## Installation
 
 ```bash
-git clone git@github.com:birds-canopy/canapy.git
+git clone -b canapy_2026 git@github.com:birds-canopy/canapy.git
 pip install -e canapy/.
 ```
 
@@ -32,7 +32,15 @@ song_dataset/
     ├── song1.wav
     └── song2.wav
 ```
+or 
 
+```text
+song_dataset/
+├── song1.wav
+└── song1.csv
+└── song2.wav
+└── song2.csv
+```
 Aim for 30 min–1 hour of annotated data (10 min can already give good results on canary songs).
 
 ### 2. Launch the dashboard
@@ -41,13 +49,13 @@ Aim for 30 min–1 hour of annotated data (10 min can already give good results 
 canapy dash -a song_dataset/annotations -s song_dataset/audio -o output
 ```
 
-Or launch without arguments and use the **Load data** page in the dashboard:
+Or launch without arguments and use the **Load data** page in the dashboard (recommanded):
 
 ```bash
 canapy dash
 ```
 
-The dashboard opens at [localhost:9321](http://localhost:9321).
+The dashboard automatically opens at [localhost:9321](http://localhost:9321).
 
 ---
 
@@ -64,7 +72,7 @@ Load data → Preprocess → Train → Eval → (iterate) → Export
 On the **Load data** page, specify where your data lives:
 
 - **Source selection**: choose *combined folders* if audio and annotations are in the same directory, or *separate folders* otherwise.
-- **Model directory**: if you want to annotate unlabeled data, point to a folder containing already-trained models.
+- **Model directory**: if you want to annotate unlabeled data, point to a folder containing already-trained models (exported after using the training pipeline).
 - **Output directory**: where models and annotations will be saved (defaults to `output/`).
 - **Annotation format** and **audio extension**: set these to match your files.
 - The **sampling rate** is auto-detected from your audio files. Enable *Downsample* if you want audio resampled to that rate at load time.
@@ -77,7 +85,8 @@ Use this page to clean your dataset before training. It has three sections:
 
 **2. Sample correction** — review individual samples per class. After clicking *Calculate stats*, you can see the distribution of duration, frequency centroid, and mean slope for each class. Select a class to listen to its samples one by one and correct any mislabeled ones. Click *Save all* when done.
 
-**3. Trim silences** — balance the proportion of silence in your dataset. Use the **target silence ratio** slider (e.g. 0.2 = 20% silence) and Canapy will center-crop silence segments that exceed this ratio. Silence percentage below 50% are best. Trimmed files are saved to `output/audio_trimmed/` and `output/annots_trimmed/`.
+**3. Trim silences** — balance the proportion of silence in your dataset. Use the **target silence ratio** slider (e.g. 0.2 = 20% silence) and Canapy will center-crop silence segments that exceed this ratio. Silence percentage below 50% are best. You should consider silences as an annotation label that Canapy will annotate, so rule of thumb : desired percentage of silence = 100/(number of annotation classes + 1) (except if you don't want Canapy to annotate silences). 
+Trimmed files are saved to `output/audio_trimmed/` and `output/annots_trimmed/`.
 
 You can then export corrected annotations and/or go back to the Home page and use these in training as corrected annotations are kept in memory.
 
@@ -138,9 +147,10 @@ Click *Validate* to apply changes to the current session.
 
 #### Presets
 
-The **Presets** section in Setting provides pre-configured profiles for specific species (canary, dolphin, human, zebra finch). 
-**WARNING :** These are currently placeholders and will be expanded in future releases.
-If you have used Canapy on a new species, You are welcomed to send us your config so we can add it to the preset folder. 
+The **Presets** section in Setting provides pre-configured profiles for specific species (canary, bengalese finch, zebra finch, mouse, infant marmoset). 
+By default, the parameters loaded in Canapy are those from the canary preset.
+
+If you have used Canapy on a new species, You are welcomed to send us your configuration so we can add it to the preset folder. 
 
 You can also load your own configuration by clicking on **Load config**.
 
