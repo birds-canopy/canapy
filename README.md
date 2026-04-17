@@ -68,6 +68,7 @@ Load data → Preprocess → Train → Eval → (iterate) → Export
 ```
 
 ### Load data
+<img width="404" height="413" alt="image" src="https://github.com/user-attachments/assets/458edafc-3ea8-4e3f-a36e-9a616b13db86" />
 
 On the **Load data** page, specify where your data lives:
 
@@ -78,6 +79,7 @@ On the **Load data** page, specify where your data lives:
 - The **sampling rate** is auto-detected from your audio files. Enable *Downsample* if you want audio resampled to that rate at load time.
 
 ### Pipeline 1: Preprocess (Edit dataset)
+<img width="955" height="474" alt="image" src="https://github.com/user-attachments/assets/01e2926e-6722-482d-a4d7-8eac07dc8a9f" />
 
 Use this page to clean your dataset before training. It has three sections:
 
@@ -96,6 +98,7 @@ You can then export corrected annotations and/or go back to the Home page and us
 Same page as Pipeline 1. Apply any corrections you need, or skip directly to the next step.
 
 #### Train step
+<img width="961" height="234" alt="image" src="https://github.com/user-attachments/assets/5e02f7b1-8737-4b4a-a525-751119b75165" />
 
 **Hyperparameter search (optional):** Before training, you can run an automatic HP search to find better ESN parameters for your dataset. It uses TPE (sequential) or parallel random search. Key settings (on the **Settings** page): `opt_max_evals`, `opt_n_jobs`, `opt_max_percentage`. Optimized parameters are preserved across training iterations — no need to re-run the search each time.
 
