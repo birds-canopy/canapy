@@ -46,7 +46,13 @@ class EvalDashboard(SubDash):
 
         self.header = pn.Column(
             pn.pane.Markdown("# Model Evaluation", css_classes=['page-title'], margin=0),
-            pn.pane.Markdown("Analyze performance and correct annotations.", css_classes=['page-subtitle'], margin=0)
+            pn.pane.Markdown(
+                "Analyze performance and correct annotations. "
+                "Once you have evaluated the performances, you can either **fit again** "
+                "if you modified classes or samples, or directly **export** if you are "
+                "satisfied with the performances.",
+                css_classes=['page-subtitle'], margin=0
+            )
         )
 
         self.pane_selection = pn.widgets.RadioButtonGroup(

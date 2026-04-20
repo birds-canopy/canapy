@@ -4,7 +4,7 @@ from pathlib import Path
 import panel as pn
 import pandas as pd
 import soundfile as sf
-from ..helpers import SubDash, SideBar
+from ..helpers import SubDash, SideBar, pick_directory
 from canapy.corpus import Corpus
 
 logger = logging.getLogger("canapy-dashboard")
@@ -68,17 +68,50 @@ class AnnotateDashboard(SubDash):
         self._validate_audio_on_init()
 
     def _build_config_panel(self):
-        audio_dir = self.controler.audio_directory or Path.cwd()
-        
-        # Affichage simple du chemin (Texte brut, pas de fond gris)
-        path_label = pn.pane.Markdown(f"**Source:** {audio_dir}")
+        # --- Dataset loader ---
+        self.dataset_input = pn.widgets.TextInput(
+            placeholder="/path/to/audio/folder",
+            sizing_mode="stretch_width",
+            height=38,
+            margin=0,
+        )
+        self.dataset_browse_btn = pn.widgets.Button(
+            name="Browse", button_type="default", width=90, height=38, margin=0
+        )
+        self.dataset_browse_btn.on_click(self._browse_dataset)
+
+        self.dataset_load_btn = pn.widgets.Button(
+            name="Load Dataset",
+            button_type="primary",
+            sizing_mode="stretch_width",
+            height=38,
+        )
+        self.dataset_load_btn.on_click(self._load_external_dataset)
+
+        self.dataset_status = pn.pane.HTML(
+            "<span style='color:#6b7280;font-size:13px;'>No dataset loaded.</span>",
+            sizing_mode="stretch_width",
+        )
+
+        dataset_section = pn.Column(
+            pn.pane.HTML("<div class='section-header'>Dataset to Annotate</div>"),
+            pn.Row(self.dataset_input, self.dataset_browse_btn,
+                   sizing_mode="stretch_width", align="center", margin=0),
+            pn.Spacer(height=6),
+            self.dataset_load_btn,
+            self.dataset_status,
+            sizing_mode="stretch_width",
+        )
+
+        # Pre-fill if audio_directory already set
+        if self.controler.audio_directory:
+            self.dataset_input.value = str(self.controler.audio_directory)
 
         # Toggles pour sélectionner les modèles
         self.toggle_syn = pn.widgets.Toggle(name="Syn-ESN", value=False, button_type="default", sizing_mode="stretch_width")
         self.toggle_nsyn = pn.widgets.Toggle(name="NSyn-ESN", value=False, button_type="default", sizing_mode="stretch_width")
         self.toggle_ens = pn.widgets.Toggle(name="Ensemble", value=False, button_type="default", sizing_mode="stretch_width")
-        
-        # Callbacks pour changer la couleur des boutons quand actifs
+
         for t in [self.toggle_syn, self.toggle_nsyn, self.toggle_ens]:
             t.param.watch(self._on_toggle_change, 'value')
 
@@ -92,7 +125,7 @@ class AnnotateDashboard(SubDash):
 
         return pn.Column(
             pn.pane.HTML("<div class='title-text'>Configuration</div>"),
-            path_label,
+            dataset_section,
             pn.pane.HTML("<div class='section-header'>Select Models</div>"),
             self.toggle_syn,
             self.toggle_nsyn,
@@ -168,6 +201,65 @@ class AnnotateDashboard(SubDash):
         elif status == "idle":
             obj.object = "<h2>Idle</h2>"
             obj.style = {"color": "black"}
+
+    def _browse_dataset(self, event):
+        directory = pick_directory("Select Audio Folder to Annotate")
+        if directory:
+            self.dataset_input.value = directory
+
+    def _load_external_dataset(self, event):
+        folder_str = self.dataset_input.value.strip()
+        if not folder_str:
+            self.dataset_status.object = "<span style='color:#dc2626;font-size:13px;'>Please enter or browse a folder path.</span>"
+            return
+        folder_path = Path(folder_str)
+        if not folder_path.exists():
+            self.dataset_status.object = f"<span style='color:#dc2626;font-size:13px;'>Folder not found: {folder_str}</span>"
+            return
+
+        self.dataset_status.object = "<span style='color:#d97706;font-size:13px;'>Loading...</span>"
+
+        audio_files = sorted([f for f in folder_path.rglob("*") if f.suffix.lower() in AUDIO_EXTENSIONS])
+        if not audio_files:
+            self.dataset_status.object = "<span style='color:#dc2626;font-size:13px;'>No audio files found in folder.</span>"
+            return
+
+        durations = []
+        valid_files = []
+        for p in audio_files:
+            try:
+                info = sf.info(str(p))
+                durations.append(info.duration)
+                valid_files.append(p)
+            except Exception:
+                pass
+
+        if not valid_files:
+            self.dataset_status.object = "<span style='color:#dc2626;font-size:13px;'>No readable audio files found.</span>"
+            return
+
+        data = pd.DataFrame({
+            "label": ["UNLABELED"] * len(valid_files),
+            "onset_s": [0.0] * len(valid_files),
+            "offset_s": durations,
+            "notated_path": [str(p.resolve()) for p in valid_files],
+            "annot_path": [str(p.with_suffix('.csv').resolve()) for p in valid_files],
+            "sequence": [0] * len(valid_files),
+            "annotation": [p.stem for p in valid_files],
+        })
+        self._external_corpus = Corpus.from_df(
+            df=data, annots_directory=None, config=self.controler.config, seq_ids=data['notated_path']
+        )
+        self._external_corpus.audio_directory = str(folder_path.resolve())
+        self._external_corpus.spec_directory = str(folder_path.resolve())
+        self._external_corpus.spec_ext = ".mfcc.npz"
+
+        total_s = sum(durations)
+        self.dataset_status.object = (
+            f"<span style='color:#16a34a;font-weight:600;font-size:13px;'>"
+            f"✓ {len(valid_files)} file(s) loaded — {total_s:.1f} s total</span>"
+        )
+        logger.info(f"External corpus loaded: {len(valid_files)} files from {folder_path}")
 
     def _on_toggle_change(self, event):
         if event.new:
@@ -309,59 +401,8 @@ class AnnotateDashboard(SubDash):
         return found
 
     def _validate_audio_on_init(self):
-        folder_path = Path(self.controler.audio_directory or Path.cwd())
-        
-        if not folder_path.exists():
-            self.info_msg.object = "Folder not found."
-            return
-            
-        audio_files = sorted([f for f in folder_path.iterdir() if f.suffix.lower() in AUDIO_EXTENSIONS])
-        if not audio_files:
-            self.info_msg.object = "No audio files found."
-            return
-        
-        durations = []
-        valid_files = []
-        
-        # Fast load check
-        try:
-            for p in audio_files:
-                try:
-                    info = sf.info(str(p))
-                    durations.append(info.duration)
-                    valid_files.append(p)
-                except Exception:
-                    pass
-        except Exception:
-            # Fallback librosa
-            import librosa
-            for p in audio_files:
-                try:
-                    d = librosa.get_duration(path=str(p))
-                    durations.append(d)
-                    valid_files.append(p)
-                except Exception:
-                    pass
-
-        if not valid_files:
-            self.info_msg.object = "No readable audio."
-            return
-
-        data = pd.DataFrame({
-            "label": ["UNLABELED"] * len(valid_files),
-            "onset_s": [0.0] * len(valid_files),
-            "offset_s": durations,
-            "notated_path": [str(p.resolve()) for p in valid_files],
-            "annot_path": [str(p.with_suffix('.csv').resolve()) for p in valid_files],
-            "sequence": [0] * len(valid_files),
-            "annotation": [p.stem for p in valid_files],
-        })
-        
-        self._external_corpus = Corpus.from_df(
-            df=data, annots_directory=None, config=self.controler.config, seq_ids=data['notated_path']
-        )
-        self._external_corpus.audio_directory = str(folder_path.resolve())
-        self._external_corpus.spec_directory = str(folder_path.resolve())
-        self._external_corpus.spec_ext = ".mfcc.npz"
-        
-        self.info_msg.object = f"Loaded {len(valid_files)} files ({sum(durations):.1f}s)"
+        """Auto-load if audio_directory is already set (e.g. from a previous session)."""
+        audio_dir = self.controler.audio_directory
+        if audio_dir and Path(audio_dir).exists():
+            self.dataset_input.value = str(audio_dir)
+            self._load_external_dataset(None)

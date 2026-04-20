@@ -516,6 +516,7 @@ class LoadDataDashboard(SubDash):
             
             self.controler._is_ready = True
             self.controler._step = "home"
+            self.sidebar.on_data_loaded()
 
             # Check for audio files that are too long to be processed safely.
             # Loading a 3h file at 96 kHz requires ~4 GB of RAM peak (raw audio

@@ -76,7 +76,7 @@ class ExportDashboard(SubDash):
         self.switch_status(self.nsyn_status, "done", duration=toc - tic)
         self.nsyn_indicator.value = False
 
-        self.sidebar.enable_next()
+        self.sidebar.on_export_done()
 
     def switch_status(self, obj, status, duration=None):
         if status == "training":

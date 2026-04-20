@@ -83,6 +83,9 @@ class Controler:
     _classes: Optional[List[str]] = attr.field(alias="_classes", default=None)
     _external_accum: Optional[Dict[str, Corpus]] = attr.field(factory=dict, init=False)
     _settings_return_step: Optional[str] = attr.field(alias="_settings_return_step", default="home")
+    fit_done: bool = attr.field(default=False)
+    eval_done: bool = attr.field(default=False)
+    export_done: bool = attr.field(default=False)
     opt_parallel: bool = attr.field(default=False)
     opt_max_percentage: float = attr.field(default=0.3)
     opt_n_jobs: int = attr.field(default=4)
@@ -229,6 +232,9 @@ class Controler:
         self.corpus = split_train_test(self.corpus, redo=True)
 
         self._iter += 1
+        self.fit_done = False
+        self.eval_done = False
+        self.export_done = False
         logger.info(f"Current training iteration : {self.iter}")
 
     def checkpoint(self):
@@ -389,6 +395,7 @@ class Controler:
 
             self._step = "eval"
             self.get_metrics()
+            self.eval_done = True
             logger.info('Setting current dashboard to "eval".')
 
         elif self.step == "eval" and not export:

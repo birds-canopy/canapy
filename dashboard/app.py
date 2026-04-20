@@ -81,7 +81,7 @@ class CanapyDashboard(pn.viewable.Viewer):
         self.subdash = self.views[self.controler.step](self)
         self.current_view[0] = self.subdash.layout
 
-        if self.controler.step == "export":
+        if self.controler.step == "export" and not self.controler.export_done:
             self.subdash.begin()
 
     def switch_to_load_data(self):
