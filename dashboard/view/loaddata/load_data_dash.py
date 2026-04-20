@@ -47,7 +47,8 @@ FORM_CSS = """
     height: 100%;
     width: 100%;
     box-sizing: border-box;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
 }
 .form-card {
     background-color: var(--card-bg);
@@ -60,7 +61,8 @@ FORM_CSS = """
     margin: 0 auto;
     box-sizing: border-box;
     max-height: 100%;
-    overflow-y: auto;
+    overflow-y: visible;
+    max-height: none;
 }
 @media (max-width: 768px) {
     .form-card {
@@ -138,6 +140,10 @@ FORM_CSS = """
 }
 .form-card .action-button .bk-btn-primary:hover {
     background-color: #4338ca !important;
+}
+
+:host, .bk, .bk-root {
+    overflow: visible !important;
 }
 """
 
@@ -375,7 +381,7 @@ class LoadDataDashboard(SubDash):
                 card_content,
                 pn.Spacer(height=20),
                 css_classes=['main-dashboard-area'],
-                sizing_mode="stretch_both",
+                sizing_mode="stretch_width",
                 height_policy="max",
             ),
             sizing_mode="stretch_both",
