@@ -2,11 +2,20 @@ import panel as pn
 from ..helpers import SubDash, SideBar
 
 TUTORIAL_TEXT = """
-*(À compléter — écrivez ici le tutoriel d'utilisation de Canapy.)*
+*Welcome to Canapy* - a user friendly auto annotator for animal vocalizations. 
+Here you can .....
+- Décrire le fonctionnement rapidement (syn-nsyn)
+Schéma ? (utiliser celui qu'on utilisera pour l'article)
+- Comment annoter automatiquement (entrainer sur un dataset du meme animal/ type d'animal si pas de variété inter individu)
+...
 """
 
 FAQ_TEXT = """
-*(À compléter — répondez ici aux questions fréquentes.)*
+*Question 1*
+réponse 1
+*Question 2*
+réponse 2
+...
 """
 
 HOME_CSS = """
