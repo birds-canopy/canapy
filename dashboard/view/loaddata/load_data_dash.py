@@ -281,7 +281,7 @@ class LoadDataDashboard(SubDash):
         )
         
         self.btn_load = pn.widgets.Button(
-            name="Initialize Dataset", button_type="primary", 
+            name="Apply", button_type="primary", 
             sizing_mode="stretch_width", height=45, css_classes=['action-button']
         )
         self.btn_load.on_click(self._load_data)
