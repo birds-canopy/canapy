@@ -514,10 +514,8 @@ class SettingsDashboard(SubDash):
         self._selected_preset_path = path
         for i, (btn, color) in enumerate(zip(self._preset_btns, self._preset_colors)):
             btn.stylesheets = [_preset_btn_stylesheet(color, selected=(i == idx))]
-        name = path.stem.replace("_", " ").title()
-        self._preset_status.object = (
-            f"<span style='font-size:12px;color:#059669;'><b>{name}</b> selected.</span>"
-        )
+        # name = path.stem.replace("_", " ").title()
+
 
     def _apply_preset(self, _):
         if self._selected_preset_path is None:
