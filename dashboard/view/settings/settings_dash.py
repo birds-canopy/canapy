@@ -260,7 +260,7 @@ class SettingsDashboard(SubDash):
         self.merge_labels_input.param.watch(_on_merge_toggle, "value")
 
         self.opt_parallel_input = pn.widgets.Select(
-            options={"Normal (TPE)": False, "Parallel (Random)": True},
+            options={"Bayesian sequential optimization": False, "Fast random parallel optimization": True},
             value=self.controler.opt_parallel,
             sizing_mode="stretch_width",
         )
