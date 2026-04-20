@@ -233,14 +233,15 @@ class PreprocessDashboard(SubDash):
             sizing_mode="stretch_width",
         )
 
-        # --- Expanded state: full panel ---
         max_ratio = max(int(ratio * 100) - 1, 1)
+        default_value_trim_silences = min(20,max_ratio)
+
         self.trim_target_input = pn.widgets.IntSlider(
             name="Target silence ratio (%)",
             start=0,
             end=max_ratio,
             step=1,
-            value=20,
+            value=default_value_trim_silences,
             sizing_mode="stretch_width",
         )
         self.trim_confirm_btn = pn.widgets.Button(
