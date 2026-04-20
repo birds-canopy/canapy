@@ -549,11 +549,10 @@ class CorrectionTool(SubDash):
         )
         self.build_class_selectors()
         self.stats_table = pn.widgets.Tabulator(
-            pd.DataFrame(columns=["Class", "Count", "Med Dur", "Med Centroid", "Med Slope"]),
+            self._initial_stats_data(),
             show_index=False,
             disabled=True,
             height=200,
-            width=320,
             sizing_mode="stretch_width",
             configuration={"columnDefaults": {"headerSort": False}},
         )
@@ -573,9 +572,14 @@ class CorrectionTool(SubDash):
             align="center",
         )
         self.compute_btn.on_click(self.run_global_stats_calculation)
-        self.compute_status = pn.pane.Markdown(
-            "<i>Click to compute global stats</i>",
-            styles={"font-size": "11px", "color": "grey"},
+        self.stats_progress = pn.widgets.Progress(
+            value=0, max=100,
+            sizing_mode="stretch_width",
+            visible=False,
+            bar_color="primary",
+        )
+        self.stats_status = pn.pane.Markdown(
+            "", styles={"font-size": "11px", "color": "#6b7280"}, visible=False
         )
         self.stats_dashboard = self.build_stats_layout()
         self.save_btn = pn.widgets.Button(
@@ -595,33 +599,21 @@ class CorrectionTool(SubDash):
         )
         self.layout = pn.Column(
             pn.Column(
-                pn.pane.Markdown(
-                    "### 1. Global Analysis & Selection",
-                    margin=(0, 0, 10, 0),
-                ),
+                pn.pane.Markdown("### 1. Global Analysis & Selection", margin=(0, 0, 10, 0)),
                 self.stats_dashboard,
+                pn.pane.Markdown("### 2. Correct Samples", margin=(10, 0, 6, 0)),
                 self.selector_area,
-                sizing_mode="stretch_width",
-                margin=(0, 0, 20, 0),
-            ),
-            pn.Column(
-                pn.pane.Markdown(
-                    "### 2. Correct Samples",
-                    margin=(0, 0, 10, 0),
+                pn.Row(
+                    self.save_msg,
+                    self.save_btn,
+                    sizing_mode="stretch_width",
+                    align="center",
+                    margin=(8, 0, 0, 0),
                 ),
-                self.sample_container,
-                sizing_mode="stretch_both",
-                min_height=300,
-            ),
-            pn.Column(
-                pn.pane.Markdown(
-                    "### 3. Save corrections",
-                    margin=(10, 0, 5, 0),
-                ),
-                self.save_msg,
-                self.save_btn,
                 sizing_mode="stretch_width",
+                margin=(0, 0, 10, 0),
             ),
+            self.sample_container,
             sizing_mode="stretch_both",
         )
 
@@ -629,226 +621,286 @@ class CorrectionTool(SubDash):
         self.registry["class"] = {}
         self.build_class_selectors()
 
+    def _initial_stats_data(self):
+        df = self.controler.corpus.dataset
+        classes = sorted([c for c in df["label"].unique() if c != "SIL"])
+        rows = []
+        for c in classes:
+            sub = df[df["label"] == c]
+            dur = (sub["offset_s"] - sub["onset_s"]).median()
+            rows.append({
+                "Class": c,
+                "Count": len(sub),
+                "Med Dur": f"{dur:.2f}s",
+                "Med Centroid": "—",
+                "Med Slope": "—",
+            })
+        return pd.DataFrame(rows)
+
     def build_stats_layout(self):
-        df = self.controler.corpus.dataset.copy()
-        if "duration" not in df.columns:
-            df["duration"] = df["offset_s"] - df["onset_s"]
-        all_classes = sorted([c for c in df["label"].unique() if c != "SIL"])
+        df = self.controler.corpus.dataset
+        self.all_classes = sorted([c for c in df["label"].unique() if c != "SIL"])
+        self._updating_view = False
         MAX_PER_PAGE = 40
-        self.class_chunks = [
-            all_classes[i : i + MAX_PER_PAGE]
-            for i in range(0, len(all_classes), MAX_PER_PAGE)
-        ]
+        n_pages = max(1, -(-len(self.all_classes) // MAX_PER_PAGE))  # ceil div
+
         self.plot_pane = pn.pane.Matplotlib(
             tight=True, sizing_mode="stretch_width", min_height=250
         )
         self.stat_selector = pn.widgets.RadioButtonGroup(
             name="Metric",
-            options=["Duration", "Centroid", "Slope"],
-            value="Duration",
+            options=["Count", "Duration", "Centroid", "Slope"],
+            value="Count",
             button_type="light",
             button_style="solid",
             styles={"font-size": "12px"},
         )
         self.stat_selector.param.watch(self.update_boxplot_view, "value")
+        self.sort_btn = pn.widgets.RadioButtonGroup(
+            name="Sort",
+            options=["A→Z", "sorted by ↑"],
+            value="A→Z",
+            button_type="default",
+            button_style="outline",
+            styles={"font-size": "11px"},
+        )
+        self.sort_btn.param.watch(self.update_boxplot_view, "value")
         self.plot_pager = pn.widgets.RadioButtonGroup(
             name="Page",
-            options=list(range(1, len(self.class_chunks) + 1)),
+            options=list(range(1, n_pages + 1)),
             value=1,
             button_style="outline",
             button_type="default",
-            visible=(len(self.class_chunks) > 1),
+            visible=(n_pages > 1),
         )
         self.plot_pager.param.watch(self.update_boxplot_view, "value")
         self.update_boxplot_view()
-        right_panel = pn.Column(
+
+        table_section = pn.Column(
             pn.Row(
                 pn.pane.Markdown(
                     "**Class Statistics**",
                     styles={"font-size": "13px", "font-weight": "bold"},
                 ),
                 self.stats_tooltip,
-                self.compute_status,
                 sizing_mode="stretch_width",
             ),
             self.stats_table,
-            self.compute_btn,
-            sizing_mode="stretch_width",
-            max_width=430,
-            margin=(0, 0, 0, 15),
-        )
-        return pn.Row(
-            pn.Column(
-                pn.Row(pn.Spacer(), self.stat_selector, pn.Spacer()),
-                self.plot_pane,
-                pn.Row(pn.Spacer(), self.plot_pager, pn.Spacer()),
+            pn.Row(
+                self.compute_btn,
+                pn.Column(
+                    self.stats_progress,
+                    self.stats_status,
+                    sizing_mode="stretch_width",
+                    margin=(0, 0, 0, 10),
+                ),
+                align="center",
                 sizing_mode="stretch_width",
             ),
-            right_panel,
+            sizing_mode="stretch_width",
+            margin=(0, 0, 10, 0),
+        )
+        histogram_section = pn.Column(
+            pn.Row(
+                self.sort_btn,
+                pn.Spacer(),
+                self.stat_selector,
+                align="center",
+                sizing_mode="stretch_width",
+            ),
+            self.plot_pane,
+            pn.Row(pn.Spacer(), self.plot_pager, pn.Spacer()),
+            sizing_mode="stretch_width",
+        )
+        return pn.Column(
+            table_section,
+            histogram_section,
             sizing_mode="stretch_width",
             css_classes=["stats-container"],
             margin=(0, 0, 15, 0),
         )
 
-    def update_boxplot_view(self, event=None):
-        page_index = self.plot_pager.value - 1
-        current_classes = self.class_chunks[page_index] if self.class_chunks else []
-        metric = self.stat_selector.value
+    def _sorted_classes(self, metric):
+        """Return all_classes ordered according to sort_btn + metric."""
         df = self.controler.corpus.dataset
-        temp_df = df[df["label"].isin(current_classes)].copy()
-        if "duration" not in temp_df.columns:
-            temp_df["duration"] = temp_df["offset_s"] - temp_df["onset_s"]
-        data_to_plot = []
-        y_label = ""
+        if self.sort_btn.value == "A→Z":
+            return list(self.all_classes)
+        # Par valeur ↑
+        if metric == "Count":
+            counts = df[df["label"].isin(self.all_classes)].groupby("label").size()
+            return counts.reindex(self.all_classes, fill_value=0).sort_values().index.tolist()
         if metric == "Duration":
-            data_to_plot = [
-                temp_df[temp_df["label"] == c]["duration"].values
-                for c in current_classes
-            ]
-            y_label = "Time (s)"
-        elif metric == "Centroid":
-            y_label = "Frequency (Hz)"
-            if "centroid" in temp_df.columns:
-                for c in current_classes:
-                    vals = (
-                        temp_df[temp_df["label"] == c]["centroid"]
-                        .dropna()
-                        .values
-                    )
-                    data_to_plot.append(vals if len(vals) > 0 else [])
-            else:
-                data_to_plot = [[] for _ in current_classes]
-        elif metric == "Slope":
-            y_label = "Mean Slope (Hz/s)"
-            if "slope" in temp_df.columns:
-                for c in current_classes:
-                    vals = (
-                        temp_df[temp_df["label"] == c]["slope"]
-                        .dropna()
-                        .values
-                    )
-                    data_to_plot.append(vals if len(vals) > 0 else [])
-            else:
-                data_to_plot = [[] for _ in current_classes]
-        fig, ax = plt.subplots(figsize=(6, 4))
-        has_data = any(len(d) > 0 for d in data_to_plot)
-        if has_data:
-            ax.boxplot(
-                data_to_plot,
-                labels=current_classes,
-                patch_artist=True,
-                boxprops=dict(facecolor="#3b82f6", color="#1f2937"),
-                medianprops=dict(color="white"),
-            )
-        else:
-            if metric != "Duration":
-                ax.text(
-                    0.5,
-                    0.5,
-                    "Click 'Calculate Stats' to view data",
-                    ha="center",
-                    va="center",
-                    transform=ax.transAxes,
-                    color="gray",
+            meds = (df[df["label"].isin(self.all_classes)]
+                    .assign(dur=lambda d: d["offset_s"] - d["onset_s"])
+                    .groupby("label")["dur"].median())
+            return meds.reindex(self.all_classes, fill_value=0).sort_values().index.tolist()
+        col = "centroid" if metric == "Centroid" else "slope"
+        if col in df.columns:
+            meds = df[df["label"].isin(self.all_classes)].groupby("label")[col].median()
+            return meds.reindex(self.all_classes, fill_value=0).sort_values().index.tolist()
+        return list(self.all_classes)
+
+    def update_boxplot_view(self, event=None):
+        if self._updating_view:
+            return
+        self._updating_view = True
+        try:
+            MAX_PER_PAGE = 40
+            metric = self.stat_selector.value
+            ordered = self._sorted_classes(metric)
+            chunks = [ordered[i:i + MAX_PER_PAGE] for i in range(0, len(ordered), MAX_PER_PAGE)]
+            n_pages = len(chunks) or 1
+
+            # Sync pager options without triggering re-entry
+            new_opts = list(range(1, n_pages + 1))
+            if self.plot_pager.options != new_opts:
+                self.plot_pager.options = new_opts
+                self.plot_pager.value = 1
+            self.plot_pager.visible = n_pages > 1
+
+            page_index = min(self.plot_pager.value - 1, n_pages - 1)
+            current_classes = chunks[page_index] if chunks else []
+            df = self.controler.corpus.dataset
+
+            title_suffix = f" (page {page_index + 1}/{n_pages})" if n_pages > 1 else ""
+            fig, ax = plt.subplots(figsize=(6, 4))
+
+            if metric == "Count":
+                counts = (df[df["label"].isin(current_classes)]
+                          .groupby("label").size()
+                          .reindex(current_classes, fill_value=0))
+                ax.bar(current_classes, counts.values, color="#3b82f6")
+                MIN_COUNT = 10
+                ax.axhline(
+                    y=MIN_COUNT, color="red", linestyle="--", linewidth=1.5,
+                    label=f"Minimal fitting treshold ({MIN_COUNT} samples)",
                 )
-            ax.set_xticklabels(current_classes)
-        title_suffix = (
-            f" (Page {self.plot_pager.value}/{len(self.class_chunks)})"
-            if len(self.class_chunks) > 1
-            else ""
-        )
-        ax.set_title(f"{metric} Distribution{title_suffix}", fontsize=10)
-        ax.set_ylabel(y_label, fontsize=9)
-        ax.tick_params(
-            axis="x",
-            rotation=90 if len(current_classes) > 10 else 45,
-            labelsize=8,
-        )
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
-        plt.tight_layout()
-        self.plot_pane.object = fig
+                ax.legend(fontsize=8, loc="upper right")
+                ax.set_ylabel("Count", fontsize=9)
+                ax.set_title(f"Count by classes {title_suffix}", fontsize=10)
+            else:
+                temp_df = df[df["label"].isin(current_classes)].copy()
+                if metric == "Duration":
+                    if "duration" not in temp_df.columns:
+                        temp_df["duration"] = temp_df["offset_s"] - temp_df["onset_s"]
+                    data = [temp_df[temp_df["label"] == c]["duration"].values for c in current_classes]
+                    y_label = "Time (s)"
+                elif metric == "Centroid":
+                    col = "centroid"
+                    data = [temp_df[temp_df["label"] == c][col].dropna().values
+                            if col in temp_df.columns else []
+                            for c in current_classes]
+                    y_label = "Frequency (Hz)"
+                else:  # Slope
+                    col = "slope"
+                    data = [temp_df[temp_df["label"] == c][col].dropna().values
+                            if col in temp_df.columns else []
+                            for c in current_classes]
+                    y_label = "Mean Slope (Hz/s)"
+
+                has_data = any(len(d) > 0 for d in data)
+                if has_data:
+                    ax.boxplot(
+                        data, labels=current_classes, patch_artist=True,
+                        boxprops=dict(facecolor="#3b82f6", color="#1f2937"),
+                        medianprops=dict(color="white"),
+                    )
+                else:
+                    if metric != "Duration":
+                        ax.text(0.5, 0.5, "Click on 'Calculate Stats' to display",
+                                ha="center", va="center", transform=ax.transAxes, color="gray")
+                    ax.set_xticks(range(len(current_classes)))
+                    ax.set_xticklabels(current_classes)
+                ax.set_ylabel(y_label, fontsize=9)
+                ax.set_title(f"{metric} Distribution{title_suffix}", fontsize=10)
+
+            ax.tick_params(axis="x", rotation=90 if len(current_classes) > 10 else 45, labelsize=8)
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
+            plt.tight_layout()
+            self.plot_pane.object = fig
+        finally:
+            self._updating_view = False
 
     def run_global_stats_calculation(self, event):
+        self.compute_btn.disabled = True
         self.compute_btn.loading = True
-        self.compute_status.object = "Calculating Centroid & Slope..."
-        sampling_rate = self.controler.config.transforms.audio.sampling_rate
-        unique_labels = self.controler.corpus.dataset["label"].unique()
-        classes = sorted([c for c in unique_labels if c != "SIL"])
-        if "centroid" not in self.controler.corpus.dataset.columns:
-            self.controler.corpus.dataset["centroid"] = np.nan
-        if "slope" not in self.controler.corpus.dataset.columns:
-            self.controler.corpus.dataset["slope"] = np.nan
-        stats_data = []
-        try:
-            if "duration" not in self.controler.corpus.dataset.columns:
-                self.controler.corpus.dataset["duration"] = (
-                    self.controler.corpus.dataset["offset_s"]
-                    - self.controler.corpus.dataset["onset_s"]
-                )
-            for c in classes:
-                full_class_df = self.controler.corpus.dataset.query("label == @c")
-                count = len(full_class_df)
-                
-                avg_dur = (
-                    full_class_df["duration"].median()
-                    if not full_class_df.empty
-                    else 0
-                )
-                
-                sub_df = full_class_df.sample(frac=1).head(200)
-                centroid_list = []
-                slope_list = []
-                if not sub_df.empty:
-                    try:
-                        repertoire = self.controler.load_repertoire(sub_df)
-                        for (idx, row), item in zip(
-                            sub_df.iterrows(), repertoire
-                        ):
-                            audio_data = item[1]
-                            if not isinstance(audio_data, np.ndarray):
-                                audio_data = np.array(audio_data)
-                            audio_float = audio_data.astype(np.float32)
-                            max_val = np.max(np.abs(audio_float))
-                            if max_val > 1.0:
-                                audio_float /= 32768.0
-                            if len(audio_float) > 0:
-                                gated_cent, gated_slope = compute_gated_stats(
-                                    audio_float, sampling_rate
-                                )
-                                if gated_cent > 0:
-                                    centroid_list.append(gated_cent)
-                                    self.controler.corpus.dataset.at[
-                                        idx, "centroid"
-                                    ] = gated_cent
-                                    slope_list.append(gated_slope)
-                                    self.controler.corpus.dataset.at[
-                                        idx, "slope"
-                                    ] = gated_slope
-                    except Exception as e:
-                        logger.error(f"Stats Error Class {c}: {e}")
-                
-                avg_centroid = (
-                    int(np.median(centroid_list)) if centroid_list else 0
-                )
-                avg_slope = int(np.median(slope_list)) if slope_list else 0
-                
-                stats_data.append(
-                    {
+        self.stats_progress.value = 0
+        self.stats_progress.visible = True
+        self.stats_status.visible = True
+        self.stats_status.object = "Starting..."
+
+        target_sr = int(self.controler.config.transforms.audio.sampling_rate)
+        df = self.controler.corpus.dataset
+        if "duration" not in df.columns:
+            df["duration"] = df["offset_s"] - df["onset_s"]
+        if "centroid" not in df.columns:
+            df["centroid"] = np.nan
+        if "slope" not in df.columns:
+            df["slope"] = np.nan
+        classes = sorted([c for c in df["label"].unique() if c != "SIL"])
+        total = len(classes)
+
+        def run():
+            stats_data = []
+            try:
+                for i, c in enumerate(classes):
+                    self.stats_status.object = f"Class {i + 1}/{total}: {c}"
+                    self.stats_progress.value = int(i / total * 100)
+
+                    class_df = df[df["label"] == c]
+                    count = len(class_df)
+                    med_dur = (class_df["offset_s"] - class_df["onset_s"]).median()
+
+                    sub_df = class_df.sample(frac=1, random_state=42).head(200)
+                    centroid_list, slope_list = [], []
+                    for s in sub_df.itertuples():
+                        try:
+                            duration = s.offset_s - s.onset_s
+                            if duration <= 0:
+                                continue
+                            y, sr = librosa.load(
+                                s.notated_path, sr=None,
+                                offset=float(s.onset_s), duration=float(duration),
+                                mono=True,
+                            )
+                            if sr != target_sr:
+                                y = librosa.resample(y, orig_sr=sr, target_sr=target_sr)
+                            if len(y) == 0:
+                                continue
+                            gated_cent, gated_slope = compute_gated_stats(y, target_sr)
+                            if gated_cent > 0:
+                                centroid_list.append(gated_cent)
+                                slope_list.append(gated_slope)
+                                df.at[s.Index, "centroid"] = gated_cent
+                                df.at[s.Index, "slope"] = gated_slope
+                        except Exception as e:
+                            logger.debug(f"Stats sample error ({c}): {e}")
+
+                    avg_centroid = int(np.median(centroid_list)) if centroid_list else 0
+                    avg_slope = int(np.median(slope_list)) if slope_list else 0
+                    stats_data.append({
                         "Class": c,
                         "Count": count,
-                        "Med Dur": f"{avg_dur:.2f}s",
-                        "Med Centroid": f"{avg_centroid / 1000:.2f} kHz",
-                        "Med Slope": f"{avg_slope / 1000:.2f} kHz/s",
-                    }
-                )
-            self.stats_table.value = pd.DataFrame(stats_data)
-            self.compute_status.object = "Done."
-            self.update_boxplot_view()
-        except Exception as e:
-            self.compute_status.object = f"Error: {str(e)}"
-        finally:
-            self.compute_btn.loading = False
+                        "Med Dur": f"{med_dur:.2f}s",
+                        "Med Centroid": f"{avg_centroid / 1000:.2f} kHz" if avg_centroid else "—",
+                        "Med Slope": f"{avg_slope / 1000:.2f} kHz/s" if avg_slope else "—",
+                    })
+                    self.stats_table.value = pd.DataFrame(stats_data)
+
+                self.stats_progress.value = 100
+                self.stats_status.object = f"Done — {total} classes computed."
+                self.update_boxplot_view()
+                self.stats_progress.visible = False
+                self.stats_status.visible = False
+            except Exception as e:
+                logger.error(f"Stats calculation error: {e}")
+                self.stats_status.object = f"Error: {e}"
+            finally:
+                self.compute_btn.loading = False
+                self.compute_btn.disabled = False
+
+        threading.Thread(target=run, daemon=True).start()
 
     def build_class_selectors(self):
         grid = pn.FlexBox(justify_content="start", gap=10, align_items="center")
@@ -877,6 +929,11 @@ class CorrectionTool(SubDash):
 
     def listen_class_selection(self, label):
         self.highlight_selection(label)
+        with pn.io.unlocked():
+            self.sample_container.objects = [pn.Column(
+                pn.indicators.LoadingSpinner(value=True, width=36, height=36, color="primary"),
+                align="center", margin=(20, 0),
+            )]
         view_layout = self.get_sample_list_view(label)
         self.sample_container.objects = [view_layout]
 
@@ -910,18 +967,16 @@ class ClassSelectionView(SubDash):
             sizing_mode="stretch_width",
         )
         self.select_btn.on_click(self.on_click_notify_display)
-        self.corrected_msg = pn.pane.Markdown(
-            f"**{self.num_corrected}** / {self.total_count}",
-            styles={
-                "text-align": "center",
-                "font-size": "11px",
-                "color": "#6b7280",
-            },
-            margin=(5, 0),
+        self.count_btn = pn.widgets.Button(
+            name=f"0 / {total_count}",
+            button_type="light",
+            sizing_mode="stretch_width",
+            height=25,
         )
+        self.count_btn.on_click(self.on_click_notify_display)
         self.layout = pn.Column(
             self.select_btn,
-            self.corrected_msg,
+            self.count_btn,
             width=110,
             css_classes=["selector-card"],
         )
@@ -931,18 +986,55 @@ class ClassSelectionView(SubDash):
 
     def receive_correction(self, increment):
         self.num_corrected += increment
-        color = "green" if self.num_corrected > 0 else "#6b7280"
-        self.corrected_msg.object = f"**{self.num_corrected}** / {self.total_count}"
-        self.corrected_msg.styles["color"] = color
+        self.count_btn.name = f"{self.num_corrected} / {self.total_count}"
+        self.count_btn.button_type = "success" if self.num_corrected > 0 else "light"
 
 class SampleListView(SubDash):
+    PAGE_SIZE = 25
+
     def __init__(self, parent, label):
         super().__init__(parent)
         self.label = label
-        self.dataset_slice = self.controler.corpus.dataset.query("label==@label")
-        self.sliced_df = self.dataset_slice
+        self.sliced_df = self.controler.corpus.dataset.query("label==@label")
         self.registry = Registry()
-        self.layout = self.build_display()
+        self._current_page = 0
+        n = len(self.sliced_df)
+        self._n_pages = max(1, -(-n // self.PAGE_SIZE))
+        self._container = pn.Column(sizing_mode="stretch_width")
+        self._pager = pn.widgets.RadioButtonGroup(
+            options=list(range(1, self._n_pages + 1)),
+            value=1,
+            button_style="outline",
+            button_type="default",
+            visible=self._n_pages > 1,
+        )
+        self._pager.param.watch(self._on_page_change, "value")
+        self.layout = pn.Column(
+            self._container,
+            pn.Row(pn.Spacer(), self._pager, pn.Spacer(), sizing_mode="stretch_width"),
+            sizing_mode="stretch_width",
+        )
+        if self.sliced_df.empty:
+            self._container.objects = [pn.pane.Markdown("_No samples found._")]
+        else:
+            self._render_page(0)
+
+    def _render_page(self, page_index):
+        start = page_index * self.PAGE_SIZE
+        batch = self.sliced_df.iloc[start:start + self.PAGE_SIZE]
+        if batch.empty:
+            return
+        segments = self.controler.load_repertoire(batch)
+        rows = []
+        for i, (segment, (idx, row)) in enumerate(zip(segments, batch.iterrows())):
+            display_num = start + i + 1
+            if self.registry.get(idx) is None:
+                self.registry[idx] = SingleSampleRow(row, segment, self.parent, idx, display_num)
+            rows.append(self.registry[idx].layout)
+        self._container.objects = rows
+
+    def _on_page_change(self, event):
+        self._render_page(event.new - 1)
 
     @property
     def corrections(self):
@@ -951,25 +1043,6 @@ class SampleListView(SubDash):
             for i, display in self.registry.items()
             if display.correction != ""
         }
-
-    def build_display(self):
-        if self.sliced_df.empty:
-            return pn.pane.Markdown("_No samples found._")
-        segments = self.controler.load_repertoire(self.sliced_df)
-        container = pn.Column(sizing_mode="stretch_width")
-        for i, (segment, (idx, row)) in enumerate(
-            zip(segments, self.sliced_df.iterrows())
-        ):
-            display_num = i + 1
-            if self.registry.get(idx) is None:
-                display = SingleSampleRow(
-                    row, segment, self.parent, idx, display_num
-                )
-                self.registry[idx] = display
-            else:
-                display = self.registry[idx]
-            container.append(display.layout)
-        return container
 
 class SingleSampleRow(SubDash):
     def __init__(self, row_data, spec, parent, idx, display_num):
