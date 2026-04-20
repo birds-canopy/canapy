@@ -47,7 +47,7 @@ FORM_CSS = """
     height: 100%;
     width: 100%;
     box-sizing: border-box;
-    overflow-y: auto;
+    overflow: hidden;
 }
 .form-card {
     background-color: var(--card-bg);
@@ -59,6 +59,8 @@ FORM_CSS = """
     max-width: 850px;
     margin: 0 auto;
     box-sizing: border-box;
+    max-height: 100%;
+    overflow-y: auto;
 }
 @media (max-width: 768px) {
     .form-card {
@@ -363,6 +365,7 @@ class LoadDataDashboard(SubDash):
             css_classes=['form-card'],
             sizing_mode="stretch_width",
             max_width=850,
+            heigth_policy="max",
         )
 
         self.layout = pn.Row(
@@ -373,6 +376,7 @@ class LoadDataDashboard(SubDash):
                 pn.Spacer(height=20),
                 css_classes=['main-dashboard-area'],
                 sizing_mode="stretch_both",
+                height_policy="max",
             ),
             sizing_mode="stretch_both",
             margin=0
