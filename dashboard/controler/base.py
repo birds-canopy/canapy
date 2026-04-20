@@ -82,6 +82,7 @@ class Controler:
     )
     _classes: Optional[List[str]] = attr.field(alias="_classes", default=None)
     _external_accum: Optional[Dict[str, Corpus]] = attr.field(factory=dict, init=False)
+    _repertoire_cache: Dict = attr.field(factory=dict, init=False)
     _settings_return_step: Optional[str] = attr.field(alias="_settings_return_step", default="home")
     fit_done: bool = attr.field(default=False)
     eval_done: bool = attr.field(default=False)
@@ -564,26 +565,35 @@ class Controler:
         self._metrics_store["misclass"] = misclassified
 
     def load_repertoire(self, selected_samples):
+        if selected_samples.empty:
+            return []
+        cache_key = (
+            selected_samples["label"].iloc[0],
+            tuple(selected_samples.index.tolist()),
+        )
+        if cache_key in self._repertoire_cache:
+            logger.info(f"Repertoire cache hit: {cache_key[0]}")
+            return self._repertoire_cache[cache_key]
         logger.info(
             f"Loading repertoire samples for label(s): {selected_samples.label.unique()}"
         )
         audio_conf = self.config.transforms.audio
-        with joblib.Parallel(backend="multiprocessing", n_jobs=-1) as parallel:
-            specs = parallel(
-                joblib.delayed(plot_segment_melspectrogram)(
-                    s.notated_path,
-                    s.onset_s,
-                    s.offset_s,
-                    sampling_rate=audio_conf.sampling_rate,
-                    hop_length=audio_conf.hop_length,
-                    n_fft=audio_conf.n_fft,
-                    win_length=audio_conf.win_length,
-                    fmin=audio_conf.fmin,
-                    fmax=audio_conf.fmax,
-                    return_audio=True,
-                )
-                for s in selected_samples.itertuples()
+        specs = [
+            plot_segment_melspectrogram(
+                s.notated_path,
+                s.onset_s,
+                s.offset_s,
+                sampling_rate=audio_conf.sampling_rate,
+                hop_length=audio_conf.hop_length,
+                n_fft=audio_conf.n_fft,
+                win_length=audio_conf.win_length,
+                fmin=audio_conf.fmin,
+                fmax=audio_conf.fmax,
+                return_audio=True,
             )
+            for s in selected_samples.itertuples()
+        ]
+        self._repertoire_cache[cache_key] = specs
         return specs
 
     def load_external_corpus(self, folder: str) -> "Corpus":

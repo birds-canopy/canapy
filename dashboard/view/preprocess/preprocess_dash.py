@@ -408,7 +408,6 @@ class RepertoireView(SubDash):
             options=[lbl for lbl in self.controler.classes if lbl != "SIL"],
             sizing_mode="stretch_width",
         )
-        self.sample_left = SampleView(self, label=self.select_left.value, orientation=self.orientation)
         self.select_left.param.watch(self.on_select_left, "value")
         if num_panel == 2:
             self.select_right = pn.widgets.Select(
@@ -416,19 +415,26 @@ class RepertoireView(SubDash):
                 options=[lbl for lbl in self.controler.classes if lbl != "SIL"],
                 sizing_mode="stretch_width",
             )
-            self.sample_right = SampleView(self, label=self.select_right.value, orientation=self.orientation)
             self.select_right.param.watch(self.on_select_right, "value")
             self.layout = pn.Row(
-                pn.Column(self.select_left, pn.Spacer(height=5), self.sample_left, sizing_mode="stretch_both"),
+                pn.Column(self.select_left, pn.Spacer(height=5), self._placeholder(), sizing_mode="stretch_both"),
                 pn.Spacer(width=10),
-                pn.Column(self.select_right, pn.Spacer(height=5), self.sample_right, sizing_mode="stretch_both"),
+                pn.Column(self.select_right, pn.Spacer(height=5), self._placeholder(), sizing_mode="stretch_both"),
                 sizing_mode="stretch_both",
             )
         else:
-            self.layout = pn.Column(self.select_left, self.sample_left, sizing_mode="stretch_both")
+            self.layout = pn.Column(self.select_left, self._placeholder(), sizing_mode="stretch_both")
+
+    @staticmethod
+    def _placeholder():
+        return pn.pane.HTML(
+            "<div style='color:#9ca3af;font-size:13px;padding:20px;text-align:center;'>"
+            "Select a class above to load samples."
+            "</div>"
+        )
 
     def on_select_left(self, events):
-        label = self.select_left.value
+        label = events.new
         if self.registry.get(label) is None:
             if len(self.registry) > 10:
                 self.registry.popitem()
@@ -441,7 +447,7 @@ class RepertoireView(SubDash):
         self.layout[0][2] = self.registry[label].layout
 
     def on_select_right(self, events):
-        label = self.select_right.value
+        label = events.new
         if self.registry.get(label) is None:
             if len(self.registry) > 10:
                 self.registry.popitem()
