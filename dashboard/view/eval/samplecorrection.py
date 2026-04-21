@@ -190,28 +190,26 @@ class ClassSelectionView(SubDash):
         self.num_corrected = 0
 
         self.select_btn = pn.widgets.Button(
-            name=label, 
+            name=label,
             button_type="default",
             height=35,
-            sizing_mode="stretch_width"
+            sizing_mode="stretch_width",
         )
         self.select_btn.on_click(self.on_click_notify_display)
-        
-        self.corrected_msg = pn.pane.Markdown(
-            f"**{self.num_corrected}/{num_error}**",
-            styles={
-                "text-align": "center",
-                "font-size": "11px",
-                "color": "#6b7280"
-            },
-            margin=(5, 0)
+
+        self.count_btn = pn.widgets.Button(
+            name=f"0 / {num_error}",
+            button_type="light",
+            sizing_mode="stretch_width",
+            height=25,
         )
+        self.count_btn.on_click(self.on_click_notify_display)
 
         self.layout = pn.Column(
-            self.select_btn, 
-            self.corrected_msg,
+            self.select_btn,
+            self.count_btn,
             width=110,
-            css_classes=['selector-card']
+            css_classes=['selector-card'],
         )
 
     def on_click_notify_display(self, events):
@@ -219,16 +217,8 @@ class ClassSelectionView(SubDash):
 
     def receive_correction(self, increment):
         self.num_corrected += increment
-        color = "#6b7280"
-        if self.num_corrected == self.num_error:
-            color = "green"
-
-        self.corrected_msg.object = f"**{self.num_corrected}/{self.num_error}**"
-        self.corrected_msg.styles = {
-            "text-align": "center",
-            "font-size": "11px",
-            "color": color
-        }
+        self.count_btn.name = f"{self.num_corrected} / {self.num_error}"
+        self.count_btn.button_type = "success" if self.num_corrected > 0 else "light"
 
 
 class SampleCorrectorView(SubDash):

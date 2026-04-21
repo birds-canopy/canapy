@@ -36,10 +36,6 @@ MERGE_CSS = """
     border: 1px solid #e5e7eb;
     border-radius: 6px;
     padding: 10px;
-    height: 100%;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
 }
 .col-header {
     font-size: 16px;
@@ -93,6 +89,7 @@ class ClassMergeDashboard(SubDash):
                     "padding": "15px",
                     "border": "1px solid #e5e7eb",
                     "box-sizing": "border-box",
+                    "height": "fit-content",
                 },
                 sizing_mode="stretch_width",
             ),
@@ -119,22 +116,36 @@ class ClassMergeDashboard(SubDash):
         )
 
 
-def format_score_df(styler):
+_REPORT_TOOLTIP = (
+    "<b>How to read:</b> Precision = of all predicted as X, how many were really X. "
+    "Recall = of all real X, how many were found. F1 = balance between the two.<br><br>"
+    "<b>Summary</b>: Accuracy = overall correct predictions. "
+    "Macro avg = mean across classes (ignores class size). "
+    "Weighted avg = mean weighted by number of samples per class.<br>"
+    "<b>Per class</b>: same metrics broken down for each label. "
+    "Colours go from red (0%) to green (100%)."
+)
+
+_SUMMARY_ROWS = {"accuracy", "macro avg", "weighted avg"}
+
+
+def _make_score_table(df):
+    table = pn.widgets.Tabulator(df, disabled=True, theme='site')
+    table.style.pipe(_format_score_df)
+    return table
+
+
+def _format_score_df(styler):
     styler.format(
         {
-            "recall": "{:.1%}",
-            "precision": "{:.1%}",
+            "recall": lambda v: f"{v:.1%}" if v == v else "—",
+            "precision": lambda v: f"{v:.1%}" if v == v else "—",
             "f1-score": "{:.1%}",
-            "support": "{:,d}",
+            "support": "{:,.0f}",
         }
     )
-    styler.background_gradient(
-        axis=None,
-        vmin=0.0,
-        vmax=1.0,
-        cmap="RdYlGn",
-        subset=["recall", "precision", "f1-score"],
-    )
+    cols = [c for c in ["recall", "precision", "f1-score"] if c in styler.data.columns]
+    styler.background_gradient(axis=None, vmin=0.0, vmax=1.0, cmap="RdYlGn", subset=cols)
     styler.set_properties(**{'font-size': '12px', 'text-align': 'center'})
     return styler
 
@@ -147,45 +158,44 @@ class MetricsView(SubDash):
     def build_tabs(self):
         tabs = pn.Tabs(dynamic=True, sizing_mode="stretch_width")
         for split, metrics in self.controler.metrics.items():
-            sub_tabs = pn.Tabs(dynamic=True)
+            sub_tabs = pn.Tabs(dynamic=True, sizing_mode="stretch_width")
             for name, cm in metrics["cm"].items():
-                
                 p = plot_bokeh_confusion_matrix(cm, self.controler.classes, title=None)
-                p.sizing_mode = "stretch_both"
                 p.min_border = 10
-                
-                fig_pane = pn.pane.Bokeh(
-                    p, 
-                    sizing_mode="stretch_both",
-                    max_width=650,
-                    max_height=650
-                )
-                
+
                 heatmap_card = pn.Column(
-                    fig_pane,
+                    pn.pane.Bokeh(p),
                     css_classes=['inner-metric-card'],
-                    sizing_mode="stretch_both",
-                    max_width=680,
-                    max_height=680
+                    width=620,
+                    height=540,
                 )
 
                 df = pd.DataFrame(metrics["report"][name]).T
-                score_table = pn.widgets.Tabulator(
-                    df, 
-                    disabled=True, 
-                    theme='site', 
-                    sizing_mode="stretch_both",
-                    max_width=650,
-                    max_height=650
-                )
-                score_table.style.pipe(format_score_df)
+                summary_idx = [i for i in df.index if i in _SUMMARY_ROWS]
+                class_idx   = [i for i in df.index if i not in _SUMMARY_ROWS]
+
+                _header_style = "font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;"
+                tooltip = pn.widgets.TooltipIcon(value=_REPORT_TOOLTIP, margin=(0, 0, 0, 6), align='center')
 
                 stats_card = pn.Column(
-                    score_table,
+                    pn.Row(
+                        pn.Column(
+                            pn.Row(
+                                pn.pane.HTML(f"<span style='{_header_style}'>Summary</span>"),
+                                tooltip,
+                                align='center',
+                                margin=(0, 0, 4, 0),
+                            ),
+                            _make_score_table(df.loc[summary_idx]),
+                        ),
+                        pn.Spacer(width=15),
+                        pn.Column(
+                            pn.pane.HTML(f"<span style='{_header_style}'>Per class</span>"),
+                            _make_score_table(df.loc[class_idx]),
+                        ),
+                        align='start',
+                    ),
                     css_classes=['inner-metric-card'],
-                    sizing_mode="stretch_both",
-                    max_width=680,
-                    max_height=680
                 )
 
                 sub_tabs.append(
@@ -196,8 +206,6 @@ class MetricsView(SubDash):
                             pn.Spacer(width=15),
                             stats_card,
                             sizing_mode="stretch_width",
-                            min_height=500,
-                            max_height=700,
                         ),
                     ),
                 )
