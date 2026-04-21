@@ -388,6 +388,14 @@ class CorrectorView(SubDash):
             sizing_mode="stretch_both",
         )
 
+    def rebuild_grid(self):
+        silence_tag = self.controler.config.transforms.annots.silence_tag
+        self.grid.objects = [
+            pn.widgets.TextInput(name=l, placeholder=l, width=120, css_classes=["corrector-input"])
+            for l in self.controler.classes
+            if l != silence_tag
+        ]
+
     def on_click_save(self, events):
         new_corrections = {
             text.name: text.value
@@ -396,7 +404,9 @@ class CorrectorView(SubDash):
         }
         if new_corrections:
             self.controler.apply_live_corrections(new_corrections, "class")
-            self.save_msg.object = "Saved & Memory Updated!"
+            self.rebuild_grid()
+            self.parent.repertoire.update_classes()
+            self.save_msg.object = "Applied!"
             self.save_msg.visible = True
 
 class RepertoireView(SubDash):
@@ -404,6 +414,7 @@ class RepertoireView(SubDash):
         super().__init__(parent)
         self.orientation = orientation
         self.num_samples = num_samples
+        self.num_panel = num_panel
         self.registry = Registry()
         self.select_left = pn.widgets.Select(
             name="Class A",
@@ -434,6 +445,18 @@ class RepertoireView(SubDash):
             "Select a class above to load samples."
             "</div>"
         )
+
+    def update_classes(self):
+        new_classes = [lbl for lbl in self.controler.classes if lbl != "SIL"]
+        self.registry.clean()
+        self.controler._repertoire_cache.clear()
+        self.select_left.options = new_classes
+        if self.num_panel == 2:
+            self.select_right.options = new_classes
+            self.layout[0][2] = self._placeholder()
+            self.layout[2][2] = self._placeholder()
+        else:
+            self.layout[1] = self._placeholder()
 
     def on_select_left(self, events):
         label = events.new

@@ -248,6 +248,16 @@ class RepertoireView(SubDash):
             "</div>"
         )
 
+    def update_classes(self):
+        new_classes = [lbl for lbl in self.controler.classes if lbl != "SIL"]
+        self.registry.clean()
+        self.controler._repertoire_cache.clear()
+        self.select_left.options = new_classes
+        self._left_col[2] = self._placeholder()
+        if hasattr(self, 'select_right'):
+            self.select_right.options = new_classes
+            self._right_col[2] = self._placeholder()
+
     def on_select_left(self, events):
         label = events.new
         if self.registry.get(label) is None:
@@ -380,8 +390,18 @@ class CorrectorView(SubDash):
             sizing_mode="stretch_both"
         )
 
+    def rebuild_grid(self):
+        silence_tag = self.controler.config.transforms.annots.silence_tag
+        self.grid.objects = [
+            pn.widgets.TextInput(name=l, placeholder=l, width=120, css_classes=['corrector-input'])
+            for l in self.controler.classes
+            if l != silence_tag
+        ]
+
     def on_click_save(self, events):
         new_corrections = {text.name: text.value for text in self.grid if isinstance(text, pn.widgets.TextInput) and text.value != ""}
         if new_corrections:
-            self.controler.upload_corrections(new_corrections, "class")
-            self.save_msg.object = "Saved!"; self.save_msg.visible = True
+            self.controler.apply_live_corrections(new_corrections, "class")
+            self.rebuild_grid()
+            self.parent.repertoire.update_classes()
+            self.save_msg.object = "Applied!"; self.save_msg.visible = True
