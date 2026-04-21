@@ -175,13 +175,47 @@ class PreprocessDashboard(SubDash):
         super().__init__(parent)
         pn.config.raw_css.append(PREPROCESS_CSS)
         self.sidebar = SideBar(self, "Preprocessing", disabled=False)
-        self.header = pn.Column(
-            pn.pane.Markdown("# Preprocessing", css_classes=["page-title"], margin=0),
-            pn.pane.Markdown(
-                "Inspect dataset, merge classes, and correct labels.",
-                css_classes=["page-subtitle"],
-                margin=0,
+        self.export_btn = pn.widgets.Button(
+            name="Export Annotations",
+            width=180,
+            align="end",
+            stylesheets=["""
+                button.bk-btn {
+                    background-color: #dcfce7 !important;
+                    color: #166534 !important;
+                    border: 1px solid #86efac !important;
+                    font-weight: bold !important;
+                    border-radius: 6px !important;
+                    font-size: 13px !important;
+                }
+                button.bk-btn:hover {
+                    background-color: #bbf7d0 !important;
+                }
+            """],
+        )
+        self.export_msg = pn.pane.Markdown(
+            "", styles={"font-size": "12px", "color": "#166534"}, visible=False, align="end"
+        )
+        self.export_btn.on_click(self._on_click_export)
+
+        self.header = pn.Row(
+            pn.Column(
+                pn.pane.Markdown("# Preprocessing", css_classes=["page-title"], margin=0),
+                pn.pane.Markdown(
+                    "Inspect dataset, merge classes, and correct labels.",
+                    css_classes=["page-subtitle"],
+                    margin=0,
+                ),
+                sizing_mode="stretch_width",
             ),
+            pn.Column(
+                self.export_btn,
+                self.export_msg,
+                align="end",
+                margin=(0, 0, 0, 10),
+            ),
+            sizing_mode="stretch_width",
+            align="start",
         )
         self.pane_selection = pn.widgets.RadioButtonGroup(
             name="Pane Selection",
@@ -286,6 +320,17 @@ class PreprocessDashboard(SubDash):
             sizing_mode="stretch_width",
             styles={"margin-bottom": "15px"},
         )
+
+    def _on_click_export(self, event):
+        try:
+            self.controler.export_corpus()
+            self.export_msg.object = "Exported!"
+            self.export_msg.visible = True
+        except Exception as e:
+            logger.error(f"Export failed: {e}")
+            self.export_msg.object = f"Error: {e}"
+            self.export_msg.styles = {"font-size": "12px", "color": "#be123c"}
+            self.export_msg.visible = True
 
     def _on_toggle_trim_panel(self, event):
         self.trim_expanded.visible = not self.trim_expanded.visible
