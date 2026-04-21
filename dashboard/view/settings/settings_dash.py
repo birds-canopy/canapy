@@ -581,9 +581,12 @@ class SettingsDashboard(SubDash):
             )
 
     def _browse_config(self, _):
+        config_dir = Path(__file__).parents[3] / "config"
+        initialdir = str(config_dir) if config_dir.exists() else None
         path = pick_file(
             title="Select Config File",
             filetypes=[("TOML files", "*.toml"), ("All files", "*.*")],
+            initialdir=initialdir,
         )
         if path:
             self.config_path_input.value = path

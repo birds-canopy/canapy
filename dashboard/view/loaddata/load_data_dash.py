@@ -413,7 +413,13 @@ class LoadDataDashboard(SubDash):
             logger.info(f"Selected audio directory: {directory}")
 
     def _browse_model(self, event):
-        directory = pick_directory("Select Model Directory (-m)")
+        output_val = self.output_input.value.strip()
+        output_path = Path(output_val) if output_val else None
+        if output_path and output_path.exists():
+            initialdir = str(output_path)
+        else:
+            initialdir = str(Path(__file__).parents[3])
+        directory = pick_directory("Select Model Directory (-m)", initialdir=initialdir)
         if directory:
             self.model_input.value = directory
             logger.info(f"Selected model directory: {directory}")

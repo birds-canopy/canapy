@@ -5,11 +5,17 @@ import panel as pn
 from ..controler import Controler
 
 
-def pick_directory(title="Select Directory"):
+def pick_directory(title="Select Directory", initialdir=None):
     """Open a folder picker dialog. Uses osascript on macOS to avoid the
     NSWindow-must-be-on-main-thread crash when called from a Panel callback."""
     if sys.platform == "darwin":
-        script = f'POSIX path of (choose folder with prompt "{title}")'
+        if initialdir:
+            script = (
+                f'POSIX path of (choose folder with prompt "{title}" '
+                f'default location (POSIX file "{initialdir}"))'
+            )
+        else:
+            script = f'POSIX path of (choose folder with prompt "{title}")'
         result = subprocess.run(
             ["osascript", "-e", script],
             capture_output=True, text=True
@@ -23,16 +29,22 @@ def pick_directory(title="Select Directory"):
         root = tk.Tk()
         root.withdraw()
         root.attributes("-topmost", True)
-        directory = filedialog.askdirectory(title=title)
+        directory = filedialog.askdirectory(title=title, initialdir=initialdir or "")
         root.destroy()
         return directory or None
 
 
-def pick_file(title="Select File", filetypes=None):
+def pick_file(title="Select File", filetypes=None, initialdir=None):
     """Open a file picker dialog. Uses osascript on macOS to avoid the
     NSWindow-must-be-on-main-thread crash when called from a Panel callback."""
     if sys.platform == "darwin":
-        script = f'POSIX path of (choose file with prompt "{title}")'
+        if initialdir:
+            script = (
+                f'POSIX path of (choose file with prompt "{title}" '
+                f'default location (POSIX file "{initialdir}"))'
+            )
+        else:
+            script = f'POSIX path of (choose file with prompt "{title}")'
         result = subprocess.run(
             ["osascript", "-e", script],
             capture_output=True, text=True
@@ -46,7 +58,9 @@ def pick_file(title="Select File", filetypes=None):
         root = tk.Tk()
         root.withdraw()
         root.attributes("-topmost", True)
-        path = filedialog.askopenfilename(title=title, filetypes=filetypes or [])
+        path = filedialog.askopenfilename(
+            title=title, filetypes=filetypes or [], initialdir=initialdir or ""
+        )
         root.destroy()
         return path or None
 
