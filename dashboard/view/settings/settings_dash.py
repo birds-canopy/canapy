@@ -133,6 +133,19 @@ PARAM_HELP = {
         "shorter than min_silence_gap are merged into a single annotation. "
         "Disable if your protocol distinguishes repeated identical labels."
     ),
+    "lonely_labels": (
+        "Labels that are never merged, even when merge is enabled and two identical "
+        "annotations are very close in time. Useful for isolated vocalisations (calls, "
+        "noise) that should remain distinct occurrences. "
+        "Enter labels separated by commas, e.g.: cri, TRASH, call. "
+        "Has no effect when 'Merge consecutive labels' is disabled."
+    ),
+    "silence_tag": (
+        "Label used to represent silence intervals between annotations. "
+        "Silence segments are inserted automatically during pre-processing and are "
+        "excluded from training metrics. Must match the tag used in your annotation files "
+        "if you already have silence labels."
+    ),
 }
 
 
@@ -256,8 +269,25 @@ class SettingsDashboard(SubDash):
         def _on_merge_toggle(event):
             self.merge_labels_input.name = "Enabled" if event.new else "Disabled"
             self.merge_labels_input.button_type = "success" if event.new else "default"
+            self.lonely_labels_input.disabled = not event.new
 
         self.merge_labels_input.param.watch(_on_merge_toggle, "value")
+
+        _lonely_raw = cfg.transforms.annots.data.get("lonely_labels", [])
+        _lonely_str = ", ".join(_lonely_raw) if _lonely_raw else ""
+        self.lonely_labels_input = pn.widgets.TextInput(
+            value=_lonely_str,
+            placeholder="e.g. cri, TRASH, call",
+            disabled=not _merge_val,
+            sizing_mode="stretch_width",
+        )
+
+        _silence_tag = cfg.transforms.annots.data.get("silence_tag", "SIL")
+        self.silence_tag_input = pn.widgets.TextInput(
+            value=str(_silence_tag),
+            placeholder="e.g. SIL",
+            sizing_mode="stretch_width",
+        )
 
         self.opt_parallel_input = pn.widgets.Select(
             options={"Bayesian sequential optimization": False, "Fast random parallel optimization": True},
@@ -338,6 +368,13 @@ class SettingsDashboard(SubDash):
             sizing_mode="stretch_width",
         )
 
+        self.advanced_annots_block = pn.Column(
+            _make_param_row("Lonely labels", self.lonely_labels_input, "lonely_labels"),
+            _make_param_row("Silence tag", self.silence_tag_input, "silence_tag"),
+            visible=False,
+            sizing_mode="stretch_width",
+        )
+
         self.reservoir_block = pn.Column(
             pn.pane.HTML("<div class='settings-subsection-header'>Reservoir (syn & nsyn)</div>"),
             _make_param_row("Spectral radius (sr)", self.sr_input, "sr"),
@@ -353,6 +390,7 @@ class SettingsDashboard(SubDash):
         def _on_advanced_toggle(event):
             self.advanced_toggle.button_type = "primary" if event.new else "default"
             self.advanced_audio_block.visible = event.new
+            self.advanced_annots_block.visible = event.new
             self.reservoir_block.visible = event.new
 
         self.advanced_toggle.param.watch(_on_advanced_toggle, "value")
@@ -374,6 +412,7 @@ class SettingsDashboard(SubDash):
 
             pn.pane.HTML("<div class='settings-subsection-header'>Annotations</div>"),
             _make_param_row("Merge consecutive labels", self.merge_labels_input, "merge_consecutive_labels"),
+            self.advanced_annots_block,
 
             self.reservoir_block,
 
@@ -602,6 +641,10 @@ class SettingsDashboard(SubDash):
         self.merge_labels_input.value = merge
         self.merge_labels_input.name = "Enabled" if merge else "Disabled"
         self.merge_labels_input.button_type = "success" if merge else "default"
+        lonely_raw = cfg.transforms.annots.data.get("lonely_labels", [])
+        self.lonely_labels_input.value = ", ".join(lonely_raw) if lonely_raw else ""
+        self.lonely_labels_input.disabled = not merge
+        self.silence_tag_input.value = str(cfg.transforms.annots.data.get("silence_tag", "SIL"))
 
     def _on_win_length_change(self, event):
         win = event.new
@@ -637,6 +680,10 @@ class SettingsDashboard(SubDash):
             model_data["ridge"] = self.ridge_input.value
 
         cfg.data["transforms"]["annots"]["merge_consecutive_labels"] = self.merge_labels_input.value
+        cfg.data["transforms"]["annots"]["lonely_labels"] = [
+            x.strip() for x in self.lonely_labels_input.value.split(",") if x.strip()
+        ]
+        cfg.data["transforms"]["annots"]["silence_tag"] = self.silence_tag_input.value.strip() or "SIL"
 
         self.controler.opt_parallel = self.opt_parallel_input.value
         self.controler.opt_max_percentage = self.opt_percentage_input.value
