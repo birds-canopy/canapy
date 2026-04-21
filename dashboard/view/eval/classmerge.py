@@ -220,6 +220,14 @@ class RepertoireView(SubDash):
         )
         self.select_left.param.watch(self.on_select_left, "value")
 
+        _desc = pn.pane.HTML(
+            "<div style='color:#6b7280; font-size:12px; margin-bottom:8px;'>"
+            "Browse audio examples per class. The spectrogram shows the segment in context "
+            "(dashed lines mark onset/offset). Two players per sample: "
+            "<b>context window</b> (~1s around the segment), then <b>exact segment</b> only."
+            "</div>"
+        )
+
         if num_panel == 2:
             self.select_right = pn.widgets.Select(
                 name="Class B",
@@ -230,15 +238,14 @@ class RepertoireView(SubDash):
 
             self._left_col = pn.Column(self.select_left, pn.Spacer(height=5), self._placeholder(), sizing_mode="stretch_width")
             self._right_col = pn.Column(self.select_right, pn.Spacer(height=5), self._placeholder(), sizing_mode="stretch_width")
-            self.layout = pn.Row(
-                self._left_col,
-                pn.Spacer(width=10),
-                self._right_col,
+            self.layout = pn.Column(
+                _desc,
+                pn.Row(self._left_col, pn.Spacer(width=10), self._right_col, sizing_mode="stretch_width"),
                 sizing_mode="stretch_width",
             )
         else:
             self._left_col = pn.Column(self.select_left, pn.Spacer(height=5), self._placeholder(), sizing_mode="stretch_width")
-            self.layout = self._left_col
+            self.layout = pn.Column(_desc, self._left_col, sizing_mode="stretch_width")
 
     @staticmethod
     def _placeholder():
@@ -323,17 +330,27 @@ class SampleView(SubDash):
             display_num = start + i + 1
             visual_block = pn.Row(
                 pn.pane.Markdown(f"**#{display_num}**", styles={'font-size': '11px', 'color': '#6b7280'}, width=30, align='center'),
-                pn.pane.Matplotlib(sp[0], format="png", tight=True, sizing_mode="stretch_width", height=50),
+                pn.pane.Matplotlib(sp[0], format="png", tight=True, sizing_mode="stretch_width", height=100),
                 sizing_mode="stretch_width",
                 styles={"min-width": "120px", "max-width": "320px"},
                 margin=(0, 10, 0, 0),
             )
-            audio_block = pn.Column(
-                pn.pane.Audio(sp[1], sample_rate=round(sampling_rate), height=35, sizing_mode="stretch_width"),
-                pn.Spacer(height=5),
-                pn.pane.Audio(sp[2], sample_rate=round(sampling_rate), height=35, sizing_mode="stretch_width"),
-                sizing_mode="stretch_width",
-            )
+            if start == 0 and i == 0:
+                audio_block = pn.Column(
+                    pn.pane.HTML("<span style='font-size:10px;color:#6b7280;'>🔊 Context window (~1s around segment)</span>"),
+                    pn.pane.Audio(sp[1], sample_rate=round(sampling_rate), height=35, sizing_mode="stretch_width"),
+                    pn.Spacer(height=3),
+                    pn.pane.HTML("<span style='font-size:10px;color:#6b7280;'>🎯 Exact segment only</span>"),
+                    pn.pane.Audio(sp[2], sample_rate=round(sampling_rate), height=35, sizing_mode="stretch_width"),
+                    sizing_mode="stretch_width",
+                )
+            else:
+                audio_block = pn.Column(
+                    pn.pane.Audio(sp[1], sample_rate=round(sampling_rate), height=35, sizing_mode="stretch_width"),
+                    pn.Spacer(height=5),
+                    pn.pane.Audio(sp[2], sample_rate=round(sampling_rate), height=35, sizing_mode="stretch_width"),
+                    sizing_mode="stretch_width",
+                )
             card_content = pn.FlexBox(
                 visual_block, audio_block,
                 align_items='center', justify_content='start',

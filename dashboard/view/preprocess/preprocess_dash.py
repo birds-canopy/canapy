@@ -467,6 +467,15 @@ class RepertoireView(SubDash):
             sizing_mode="stretch_width",
         )
         self.select_left.param.watch(self.on_select_left, "value")
+
+        _desc = pn.pane.HTML(
+            "<div style='color:#6b7280; font-size:12px; margin-bottom:8px;'>"
+            "Browse audio examples per class. The spectrogram shows the segment in context "
+            "(dashed lines mark onset/offset). Two players per sample: "
+            "<b>context window</b> (~1s around the segment), then <b>exact segment</b> only."
+            "</div>"
+        )
+
         if num_panel == 2:
             self.select_right = pn.widgets.Select(
                 name="Class B",
@@ -474,14 +483,16 @@ class RepertoireView(SubDash):
                 sizing_mode="stretch_width",
             )
             self.select_right.param.watch(self.on_select_right, "value")
-            self.layout = pn.Row(
-                pn.Column(self.select_left, pn.Spacer(height=5), self._placeholder(), sizing_mode="stretch_both"),
-                pn.Spacer(width=10),
-                pn.Column(self.select_right, pn.Spacer(height=5), self._placeholder(), sizing_mode="stretch_both"),
+            self._left_col = pn.Column(self.select_left, pn.Spacer(height=5), self._placeholder(), sizing_mode="stretch_both")
+            self._right_col = pn.Column(self.select_right, pn.Spacer(height=5), self._placeholder(), sizing_mode="stretch_both")
+            self.layout = pn.Column(
+                _desc,
+                pn.Row(self._left_col, pn.Spacer(width=10), self._right_col, sizing_mode="stretch_both"),
                 sizing_mode="stretch_both",
             )
         else:
-            self.layout = pn.Column(self.select_left, self._placeholder(), sizing_mode="stretch_both")
+            self._left_col = pn.Column(self.select_left, pn.Spacer(height=5), self._placeholder(), sizing_mode="stretch_both")
+            self.layout = pn.Column(_desc, self._left_col, sizing_mode="stretch_both")
 
     @staticmethod
     def _placeholder():
@@ -496,12 +507,10 @@ class RepertoireView(SubDash):
         self.registry.clean()
         self.controler._repertoire_cache.clear()
         self.select_left.options = new_classes
+        self._left_col[2] = self._placeholder()
         if self.num_panel == 2:
             self.select_right.options = new_classes
-            self.layout[0][2] = self._placeholder()
-            self.layout[2][2] = self._placeholder()
-        else:
-            self.layout[1] = self._placeholder()
+            self._right_col[2] = self._placeholder()
 
     def on_select_left(self, events):
         label = events.new
@@ -514,7 +523,7 @@ class RepertoireView(SubDash):
                 orientation=self.orientation,
                 num_samples=self.num_samples,
             )
-        self.layout[0][2] = self.registry[label].layout
+        self._left_col[2] = self.registry[label].layout
 
     def on_select_right(self, events):
         label = events.new
@@ -527,7 +536,7 @@ class RepertoireView(SubDash):
                 orientation=self.orientation,
                 num_samples=self.num_samples,
             )
-        self.layout[2][2] = self.registry[label].layout
+        self._right_col[2] = self.registry[label].layout
 
 class SampleView(SubDash):
     def __init__(self, parent, label=None, orientation="column", num_samples=MAX_SAMPLE_DISPLAY):
@@ -557,28 +566,28 @@ class SampleView(SubDash):
                     format="png",
                     tight=True,
                     sizing_mode="stretch_width",
-                    height=50,
+                    height=100,
                 ),
                 sizing_mode="stretch_width",
                 styles={"min-width": "120px", "max-width": "320px"},
                 margin=(0, 10, 0, 0),
             )
-            audio_block = pn.Column(
-                pn.pane.Audio(
-                    sp[1],
-                    sample_rate=round(sampling_rate),
-                    height=35,
+            if i == 0:
+                audio_block = pn.Column(
+                    pn.pane.HTML("<span style='font-size:10px;color:#6b7280;'>🔊 Context window (~1s around segment)</span>"),
+                    pn.pane.Audio(sp[1], sample_rate=round(sampling_rate), height=35, sizing_mode="stretch_width"),
+                    pn.Spacer(height=3),
+                    pn.pane.HTML("<span style='font-size:10px;color:#6b7280;'>🎯 Exact segment only</span>"),
+                    pn.pane.Audio(sp[2], sample_rate=round(sampling_rate), height=35, sizing_mode="stretch_width"),
                     sizing_mode="stretch_width",
-                ),
-                pn.Spacer(height=5),
-                pn.pane.Audio(
-                    sp[2],
-                    sample_rate=round(sampling_rate),
-                    height=35,
+                )
+            else:
+                audio_block = pn.Column(
+                    pn.pane.Audio(sp[1], sample_rate=round(sampling_rate), height=35, sizing_mode="stretch_width"),
+                    pn.Spacer(height=5),
+                    pn.pane.Audio(sp[2], sample_rate=round(sampling_rate), height=35, sizing_mode="stretch_width"),
                     sizing_mode="stretch_width",
-                ),
-                sizing_mode="stretch_width",
-            )
+                )
             card_content = pn.FlexBox(
                 visual_block,
                 audio_block,
