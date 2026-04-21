@@ -52,15 +52,25 @@ def pick_file(title="Select File", filetypes=None):
 
 SIDEBAR_BASE_CSS = """
 .sidebar-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 210px;
+    height: 100vh;
+    overflow-y: auto;
+    z-index: 1000;
     background-color: #f8fafc;
     border-right: 2px solid #e2e8f0;
     padding: 10px 12px;
-    height: 100%;
     box-sizing: border-box;
 }
 .nav-divider {
     border-top: 1px solid #e2e8f0;
     margin: 8px 0;
+}
+body {
+    padding-left: 210px;
+    box-sizing: border-box;
 }
 """
 
@@ -251,8 +261,12 @@ class SideBar(SubDash):
             "annotate":   has_model,
         }
 
-        suggest_eval         = fit_done and not eval_done
-        suggest_train_export = eval_done and not export_done
+        if is_home:
+            accessible["eval"] = False
+            accessible["export"] = False
+
+        suggest_eval         = fit_done and not eval_done and not is_home
+        suggest_train_export = eval_done and not export_done and not is_home
 
         def _style(page_key):
             if not accessible[page_key]:
@@ -304,6 +318,10 @@ class SideBar(SubDash):
             if step in ("preprocess", "eval"):
                 self.controler.next_step()
             else:
+                if step == "home":
+                    self.controler.fit_done = False
+                    self.controler.eval_done = False
+                    self.controler.export_done = False
                 self.controler._step = "train"
                 self.controler.dashboard.switch_panel()
 
