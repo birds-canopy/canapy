@@ -706,6 +706,13 @@ def _subprocess_target(queue, corpus, config, annotator_type, n_iter, max_percen
         queue.put(("error", msg, traceback.format_exc()))
     except Exception as e:
         queue.put(("error", str(e), traceback.format_exc()))
+    finally:
+        # Bypass Python atexit handlers (notably joblib/loky worker pool teardown)
+        # which would block for minutes waiting for workers to exit gracefully.
+        # The parent process kills all survivors via _killpg_safe(pgid) anyway.
+        queue.close()
+        queue.join_thread()  # ensure pipe is flushed before exiting
+        os._exit(0)
 
 
 def _killpg_safe(pgid):
