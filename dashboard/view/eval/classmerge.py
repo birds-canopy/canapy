@@ -228,14 +228,17 @@ class RepertoireView(SubDash):
             )
             self.select_right.param.watch(self.on_select_right, "value")
 
+            self._left_col = pn.Column(self.select_left, pn.Spacer(height=5), self._placeholder(), sizing_mode="stretch_width")
+            self._right_col = pn.Column(self.select_right, pn.Spacer(height=5), self._placeholder(), sizing_mode="stretch_width")
             self.layout = pn.Row(
-                pn.Column(self.select_left, pn.Spacer(height=5), self._placeholder(), sizing_mode="stretch_both"),
+                self._left_col,
                 pn.Spacer(width=10),
-                pn.Column(self.select_right, pn.Spacer(height=5), self._placeholder(), sizing_mode="stretch_both"),
-                sizing_mode="stretch_both",
+                self._right_col,
+                sizing_mode="stretch_width",
             )
         else:
-            self.layout = pn.Column(self.select_left, self._placeholder(), sizing_mode="stretch_both")
+            self._left_col = pn.Column(self.select_left, pn.Spacer(height=5), self._placeholder(), sizing_mode="stretch_width")
+            self.layout = self._left_col
 
     @staticmethod
     def _placeholder():
@@ -250,66 +253,98 @@ class RepertoireView(SubDash):
         if self.registry.get(label) is None:
             if len(self.registry) > 10: self.registry.popitem()
             self.registry[label] = SampleView(self, label=label, orientation=self.orientation, num_samples=self.num_samples)
-        self.layout[0][2] = self.registry[label].layout
+        self._left_col[2] = self.registry[label].layout
 
     def on_select_right(self, events):
         label = events.new
         if self.registry.get(label) is None:
             if len(self.registry) > 10: self.registry.popitem()
             self.registry[label] = SampleView(self, label=label, orientation=self.orientation, num_samples=self.num_samples)
-        self.layout[2][2] = self.registry[label].layout
+        self._right_col[2] = self.registry[label].layout
 
 
 class SampleView(SubDash):
+    PAGE_SIZE = 4
+    WINDOW_SIZE = 20
+
     def __init__(self, parent, label=None, orientation="column", num_samples=MAX_SAMPLE_DISPLAY):
         super().__init__(parent)
-        self.num_samples = num_samples
         self.orientation = orientation
-        self.layout = self.build_display(label)
-
-    def build_display(self, label):
         selected_df = self.controler.corpus.dataset.query("label == @label")
-        selected_df = selected_df.iloc[: self.num_samples]
-        specs = self.controler.load_repertoire(selected_df)
-        sampling_rate = self.controler.config.transforms.audio.sampling_rate
+        self.selected_df = selected_df.iloc[:num_samples]
+        n = len(self.selected_df)
+        self._n_pages = max(1, -(-n // self.PAGE_SIZE))
+        self._updating_pager = False
 
+        self._content = pn.Column(sizing_mode="stretch_width")
+        self._pager = pn.widgets.RadioButtonGroup(
+            options=self._window(1),
+            value=1,
+            button_style="outline",
+            button_type="default",
+            visible=self._n_pages > 1,
+        )
+        self._pager.param.watch(self._on_page_change, "value")
+        self.layout = pn.Column(
+            self._content,
+            pn.Row(pn.Spacer(), self._pager, pn.Spacer(), sizing_mode="stretch_width"),
+            sizing_mode="stretch_width",
+        )
+        self._render_page(0)
+
+    def _window(self, current_page):
+        if self._n_pages <= self.WINDOW_SIZE:
+            return list(range(1, self._n_pages + 1))
+        half = self.WINDOW_SIZE // 2
+        start = max(1, current_page - half)
+        end = min(self._n_pages, start + self.WINDOW_SIZE - 1)
+        start = max(1, end - self.WINDOW_SIZE + 1)
+        return list(range(start, end + 1))
+
+    def _render_page(self, page_index):
+        start = page_index * self.PAGE_SIZE
+        batch = self.selected_df.iloc[start:start + self.PAGE_SIZE]
+        if batch.empty:
+            return
+        specs = self.controler.load_repertoire(batch)
+        sampling_rate = self.controler.config.transforms.audio.sampling_rate
         views = []
         for i, sp in enumerate(specs):
-            
+            display_num = start + i + 1
             visual_block = pn.Row(
-                pn.pane.Markdown(f"**#{i+1}**", styles={'font-size': '11px', 'color': '#6b7280'}, width=30, align='center'),
+                pn.pane.Markdown(f"**#{display_num}**", styles={'font-size': '11px', 'color': '#6b7280'}, width=30, align='center'),
                 pn.pane.Matplotlib(sp[0], format="png", tight=True, sizing_mode="stretch_width", height=50),
                 sizing_mode="stretch_width",
                 styles={"min-width": "120px", "max-width": "320px"},
-                margin=(0, 10, 0, 0)
+                margin=(0, 10, 0, 0),
             )
-            
             audio_block = pn.Column(
                 pn.pane.Audio(sp[1], sample_rate=round(sampling_rate), height=35, sizing_mode="stretch_width"),
                 pn.Spacer(height=5),
                 pn.pane.Audio(sp[2], sample_rate=round(sampling_rate), height=35, sizing_mode="stretch_width"),
                 sizing_mode="stretch_width",
             )
-            
             card_content = pn.FlexBox(
-                visual_block,
-                audio_block,
-                align_items='center',
-                justify_content='start',
-                flex_wrap='wrap',
-                gap=10,
-                sizing_mode="stretch_width"
+                visual_block, audio_block,
+                align_items='center', justify_content='start',
+                flex_wrap='wrap', gap=10, sizing_mode="stretch_width",
             )
+            views.append(pn.Column(card_content, css_classes=['sample-card'], padding=20, sizing_mode="stretch_width"))
+        self._content.objects = views
 
-            views.append(pn.Column(
-                card_content, 
-                css_classes=['sample-card'],
-                padding=20,  
-                sizing_mode="stretch_width"
-            ))
-
-        layout_cls = pn.Column if self.orientation == "column" else pn.Row
-        return layout_cls(*views, scroll=True, sizing_mode="stretch_both")
+    def _on_page_change(self, event):
+        if self._updating_pager:
+            return
+        page = event.new
+        self._render_page(page - 1)
+        if self._n_pages > self.WINDOW_SIZE:
+            new_opts = self._window(page)
+            if new_opts != self._pager.options:
+                self._updating_pager = True
+                try:
+                    self._pager.param.update(options=new_opts, value=page)
+                finally:
+                    self._updating_pager = False
 
 
 class CorrectorView(SubDash):

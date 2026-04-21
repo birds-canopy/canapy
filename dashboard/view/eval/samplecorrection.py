@@ -80,9 +80,7 @@ class SampleCorrectionDashboard(SubDash):
 
         repertoire_card = pn.Column(
             self.repertoire_view.layout,
-            scroll=True,
-            sizing_mode="stretch_both",
-            max_height=350,
+            sizing_mode="stretch_width",
             css_classes=['sample-card']
         )
 
