@@ -258,8 +258,8 @@ def _load_selected_seqids_to_memmap(
 
     x_path = os.path.join(tmpdir, f"X_{label}.dat")
     y_path = os.path.join(tmpdir, f"Y_{label}.dat")
-    X_mm = np.memmap(x_path, dtype=np.float32, mode="w+", shape=(alloc_frames, n_features))
-    Y_mm = np.memmap(y_path, dtype=np.float32, mode="w+", shape=(alloc_frames, n_classes))
+    X_mm = np.memmap(x_path, dtype=np.float64, mode="w+", shape=(alloc_frames, n_features))
+    Y_mm = np.memmap(y_path, dtype=np.float64, mode="w+", shape=(alloc_frames, n_classes))
 
     pos = 0
     seq_lengths = []  # actual frames written per sequence — used to rebuild list in objective
@@ -277,12 +277,10 @@ def _load_selected_seqids_to_memmap(
 
         seq_end = min(int(seq_annots["offset_spec"].max()), mfcc.shape[1])
 
-        # Build float32 MFCC slice (seq_end, n_features)
-        mfcc_slice = mfcc[:, :seq_end].T.astype(np.float32)
+        mfcc_slice = mfcc[:, :seq_end].T.astype(np.float64)
         del mfcc
 
-        # Build one-hot label array
-        repeated_labels = np.zeros((seq_end, n_classes), dtype=np.float32)
+        repeated_labels = np.zeros((seq_end, n_classes), dtype=np.float64)
         for row in seq_annots.itertuples():
             onset = row.onset_spec
             offset = min(row.offset_spec, seq_end)
@@ -401,7 +399,7 @@ def objective(dataset, config, **kwargs):
             input_dim,
             audio_features,
             workers=1 if sequential_esn else None,
-            dtype=np.float32,
+            dtype=np.float64,
             **kwargs
         )
 
