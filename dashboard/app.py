@@ -1,4 +1,5 @@
 import logging
+import os
 from pathlib import Path
 from typing import List, Optional
 
@@ -98,4 +99,4 @@ class CanapyDashboard(pn.viewable.Viewer):
 
     def stop(self):
         logger.info("Server shut down.")
-        exit()
+        os._exit(0)
