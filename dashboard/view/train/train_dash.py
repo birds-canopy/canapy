@@ -245,6 +245,7 @@ class TrainerDashboard(SubDash):
                 )
             finally:
                 self.opt_indicator.value = False
+                self.opt_indicator.visible = False
                 self.optimize_btn.disabled = False
                 self.optimize_btn.loading = False
                 self.opt_progress.visible = False
