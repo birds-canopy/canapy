@@ -44,15 +44,77 @@ class EvalDashboard(SubDash):
         self.merge_dashboard = ClassMergeDashboard(self)
         self.sample_dashboard = SampleCorrectionDashboard(self)
 
-        self.header = pn.Column(
-            pn.pane.Markdown("# Model Evaluation", css_classes=['page-title'], margin=0),
-            pn.pane.Markdown(
-                "Analyze performance and correct annotations. "
-                "Once you have evaluated the performances, you can either **fit again** "
-                "if you modified classes or samples, or directly **export** if you are "
-                "satisfied with the performances.",
-                css_classes=['page-subtitle'], margin=0
-            )
+        _EXPORT_CONFIG_CSS = """
+            button.bk-btn {
+                background-color: #dcfce7 !important;
+                color: #166534 !important;
+                border: 1px solid #86efac !important;
+                font-weight: bold !important;
+                border-radius: 6px !important;
+                font-size: 13px !important;
+            }
+            button.bk-btn:hover {
+                background-color: #bbf7d0 !important;
+            }
+        """
+        self._export_config_btn = pn.widgets.Button(
+            name="Export Config",
+            width=160,
+            align="end",
+            stylesheets=[_EXPORT_CONFIG_CSS],
+        )
+        self._export_config_tooltip = pn.pane.HTML("""
+            <div style="position:relative; display:inline-block; cursor:help;">
+                <span style="
+                    display:inline-flex; align-items:center; justify-content:center;
+                    width:18px; height:18px; border-radius:50%;
+                    background:#e5e7eb; color:#6b7280;
+                    font-size:11px; font-weight:700; font-family:sans-serif;
+                    border:1px solid #d1d5db;
+                ">?</span>
+                <div style="
+                    display:none; position:absolute;
+                    right:calc(100% + 8px); top:50%; transform:translateY(-50%);
+                    background:#1f2937; color:#f9fafb;
+                    font-size:12px; font-family:sans-serif; line-height:1.5;
+                    padding:8px 10px; border-radius:6px;
+                    width:240px; z-index:9999;
+                    box-shadow:0 4px 12px rgba(0,0,0,0.25);
+                ">
+                    Exports the current configuration (ESN hyperparameters, audio parameters, etc.)
+                    as a TOML file in <code style='background:#374151;padding:1px 4px;border-radius:3px;'>config/user/</code>.
+                    You can reload it next time via Settings.
+                </div>
+            </div>
+            <style>
+                div:hover > div { display:block !important; }
+            </style>
+        """, align="end")
+        self._export_config_msg = pn.pane.Markdown(
+            "", styles={"font-size": "12px", "color": "#166534"}, visible=False, align="end"
+        )
+        self._export_config_btn.on_click(self._on_click_export_config)
+
+        self.header = pn.Row(
+            pn.Column(
+                pn.pane.Markdown("# Model Evaluation", css_classes=['page-title'], margin=0),
+                pn.pane.Markdown(
+                    "Analyze performance and correct annotations. "
+                    "Once you have evaluated the performances, you can either **fit again** "
+                    "if you modified classes or samples, or directly **export** if you are "
+                    "satisfied with the performances.",
+                    css_classes=['page-subtitle'], margin=0
+                ),
+                sizing_mode="stretch_width",
+            ),
+            pn.Column(
+                pn.Row(self._export_config_tooltip, self._export_config_btn, align="end"),
+                self._export_config_msg,
+                align="end",
+                margin=(0, 0, 0, 10),
+            ),
+            sizing_mode="stretch_width",
+            align="start",
         )
 
         self.pane_selection = pn.widgets.RadioButtonGroup(
@@ -78,6 +140,16 @@ class EvalDashboard(SubDash):
             sizing_mode="stretch_both",
             background="#f8fafc" 
         )
+
+    def _on_click_export_config(self, event):
+        try:
+            path = self.controler.export_config()
+            self._export_config_msg.object = f"Saved to `{path}`"
+            self._export_config_msg.styles = {"font-size": "12px", "color": "#166534"}
+        except Exception as e:
+            self._export_config_msg.object = f"Error: {e}"
+            self._export_config_msg.styles = {"font-size": "12px", "color": "#be123c"}
+        self._export_config_msg.visible = True
 
     def on_switch_panel(self, events):
         if self.pane_selection.value == "Class merge":

@@ -1,6 +1,7 @@
 import logging
 import threading
 import time
+from pathlib import Path
 import panel as pn
 
 from ..helpers import SubDash
@@ -82,18 +83,19 @@ class TrainDashboard(SubDash):
             sizing_mode="stretch_width",
         )
 
+        self._hp_info_alert = pn.pane.Alert(
+            "Runs a hyperparameter search on the ESN reservoir. "
+            "This may take several minutes. Configure dataset percentage and number of jobs in Settings.",
+            alert_type="info",
+            margin=(0, 0, 10, 0),
+        )
+
         self._hp_expanded = pn.Column(
-            pn.pane.Alert(
-                "Runs a hyperparameter search on the ESN reservoir. "
-                "This may take several minutes. Configure dataset percentage and number of jobs in Settings.",
-                alert_type="info",
-                margin=(0, 0, 10, 0),
-            ),
+            self._hp_info_alert,
             pn.Row(td.optimize_btn, td.opt_indicator, align="center", margin=(0, 0, 6, 0)),
             td.opt_progress,
             td.opt_progress_text,
             td.opt_status,
-            pn.Row(td.export_config_btn, td.export_config_status, align="center", margin=(6, 0, 0, 0)),
             visible=False,
             sizing_mode="stretch_width",
             margin=(10, 0, 0, 0),
@@ -171,21 +173,16 @@ class TrainerDashboard(SubDash):
             styles={"font-size": "12px", "color": "#6b7280"},
             visible=False,
         )
+        _config_name = (
+            Path(self.controler.config_path).stem
+            if self.controler.config_path else "default"
+        )
         self.params_display = pn.pane.Markdown(
-            "**Current params:** default",
+            f"**Current params:** {_config_name}",
             styles={"font-size": "13px", "color": "#374151"},
             align="center",
             margin=(0, 0, 0, 16),
         )
-        self.export_config_btn = pn.widgets.Button(
-            name="Export Config",
-            button_type="success",
-            width=130,
-            visible=False,
-        )
-        self.export_config_btn.on_click(self.on_click_export_config)
-        self.export_config_status = pn.pane.HTML("", visible=False)
-
         self.layout = pn.Column(
             pn.Row(
                 _spinner_col("Syn — train",     self.syn_train_indicator,  self.syn_train_status),
@@ -204,8 +201,6 @@ class TrainerDashboard(SubDash):
     def on_click_optimize(self, event):
         self.optimize_btn.disabled = True
         self.optimize_btn.loading = True
-        self.export_config_btn.visible = False
-        self.export_config_status.visible = False
         self.opt_status.object = (
             "<span style='color:#d97706; font-size:13px;'><b>Running hyperparameter search...</b></span>"
         )
@@ -236,13 +231,14 @@ class TrainerDashboard(SubDash):
                     for k, v in best_params.items():
                         lines.append(f"  {k}: {v:.4g}" if isinstance(v, float) else f"  {k}: {v}")
                     self.params_display.object = (
-                        "**Best params found:**\n```\n" + "\n".join(lines) + "\n```"
+                        "🤓 **Best params found:**\n```\n" + "\n".join(lines) + "\n```"
                     )
                     self.opt_status.object = (
                         f"<span style='color:#16a34a; font-size:13px;'>"
                         f"<b>Done</b> in {round(duration, 1)} s</span>"
                     )
-                    self.export_config_btn.visible = True
+                    self.optimize_btn.visible = False
+                    self.parent._hp_info_alert.visible = False
             except Exception as e:
                 self.opt_status.object = (
                     f"<span style='color:#dc2626; font-size:13px;'>Error: {e}</span>"
@@ -255,18 +251,6 @@ class TrainerDashboard(SubDash):
                 self.opt_progress_text.visible = False
 
         threading.Thread(target=run, daemon=True).start()
-
-    def on_click_export_config(self, event):
-        try:
-            path = self.controler.export_config()
-            self.export_config_status.object = (
-                f"<span style='color:#16a34a; font-size:12px;'>Saved to <code>{path}</code></span>"
-            )
-        except Exception as e:
-            self.export_config_status.object = (
-                f"<span style='color:#dc2626; font-size:12px;'>Export failed: {e}</span>"
-            )
-        self.export_config_status.visible = True
 
     def on_click_train(self, event):
         self.train_btn.disabled = True
