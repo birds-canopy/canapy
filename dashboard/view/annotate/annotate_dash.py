@@ -9,66 +9,117 @@ from canapy.corpus import Corpus
 
 logger = logging.getLogger("canapy-dashboard")
 
-pn.extension()
-
 AUDIO_EXTENSIONS = (".wav", ".flac", ".mp3", ".ogg")
 KNOWN_ANNOTATORS = ["syn-esn", "nsyn-esn", "ensemble"]
 
-# CSS Minimaliste : Juste la police, pas de couleurs de fond bizarres
-MINIMAL_CSS = """
-:host {
-    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    background-color: white; 
+ANNOTATE_CSS = """
+.annotate-card {
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    padding: 18px 20px;
+    border: 1px solid #e5e7eb;
+    box-sizing: border-box;
 }
-.title-text {
+.page-title {
     font-size: 24px;
-    font-weight: bold;
-    color: #333;
-    margin-bottom: 20px;
+    font-weight: 700;
+    margin: 0;
+}
+.page-subtitle {
+    font-size: 14px;
+    color: #6b7280;
+    margin: 0;
 }
 .section-header {
-    font-size: 18px;
+    font-size: 11px;
     font-weight: 600;
-    color: #555;
-    margin-top: 20px;
-    border-bottom: 2px solid #eee;
-    padding-bottom: 5px;
-    margin-bottom: 15px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #6b7280;
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 6px;
+    margin-bottom: 10px;
 }
 """
+
+
+def _spinner_col(label, indicator, status):
+    return pn.Column(
+        pn.pane.HTML(f"<span style='font-size:12px; color:#6b7280;'>{label}</span>"),
+        indicator,
+        status,
+        sizing_mode="stretch_width",
+        align="center",
+    )
+
+
+def _idle():
+    return "<p style='margin:4px 0 0 0; color:#9ca3af; font-size:12px;'>Idle</p>"
+
+
+def _set_status(obj, status, duration=0.0):
+    if status == "annotating":
+        obj.object = (
+            "<p style='color:#2563eb; font-weight:600; margin:4px 0 0 0; font-size:12px;'>Annotating...</p>"
+        )
+    elif status == "done":
+        obj.object = (
+            f"<p style='color:#16a34a; font-weight:600; margin:4px 0 0 0; font-size:12px;'>"
+            f"Done {round(duration, 1)} s</p>"
+        )
+    elif status == "skipped":
+        obj.object = "<p style='margin:4px 0 0 0; color:#9ca3af; font-size:12px;'>Skipped</p>"
+    elif status == "idle":
+        obj.object = _idle()
+
 
 class AnnotateDashboard(SubDash):
     def __init__(self, parent):
         super().__init__(parent)
-        pn.config.raw_css.append(MINIMAL_CSS)
-        
+        pn.config.raw_css.append(ANNOTATE_CSS)
+
         self.sidebar = SideBar(self, "Annotation")
         self.parent = parent
         self.controler = self.parent.controler
 
-        # --- Partie Gauche : Configuration ---
-        self.config_panel = self._build_config_panel()
-
-        # --- Partie Droite : Visualisation (Spinners) ---
-        self.monitor_panel = self._build_monitor_panel()
-
-        self.layout = pn.Row(
-            self.sidebar,
-            self.config_panel,
-            pn.Spacer(width=20),
-            self.monitor_panel,
-            sizing_mode="stretch_both",
-            background="#ffffff",
-            margin=(20, 20, 20, 0),
-        )
-        
         self._external_corpus = None
         self._predictions = {}
         self._available_models = self._scan_models()
+
+        config_card = self._build_config_panel()
+        monitor_card = self._build_monitor_panel()
+
+        header = pn.Column(
+            pn.pane.Markdown("# Annotate", css_classes=["page-title"], margin=0),
+            pn.pane.Markdown(
+                "Annotate an external audio dataset using trained models.",
+                css_classes=["page-subtitle"],
+                margin=0,
+            ),
+            margin=(0, 0, 12, 0),
+        )
+
+        self.layout = pn.Row(
+            self.sidebar,
+            pn.Column(
+                header,
+                pn.Row(
+                    config_card,
+                    pn.Spacer(width=16),
+                    monitor_card,
+                    sizing_mode="stretch_width",
+                ),
+                sizing_mode="stretch_both",
+                margin=(20, 10),
+            ),
+            sizing_mode="stretch_both",
+            background="#f8fafc",
+        )
+
         self._validate_audio_on_init()
 
     def _build_config_panel(self):
-        # --- Dataset loader ---
         self.dataset_input = pn.widgets.TextInput(
             placeholder="/path/to/audio/folder",
             sizing_mode="stretch_width",
@@ -89,118 +140,96 @@ class AnnotateDashboard(SubDash):
         self.dataset_load_btn.on_click(self._load_external_dataset)
 
         self.dataset_status = pn.pane.HTML(
-            "<span style='color:#6b7280;font-size:13px;'>No dataset loaded.</span>",
+            "<span style='color:#6b7280;font-size:12px;'>No dataset loaded.</span>",
             sizing_mode="stretch_width",
         )
 
-        dataset_section = pn.Column(
-            pn.pane.HTML("<div class='section-header'>Dataset to Annotate</div>"),
-            pn.Row(self.dataset_input, self.dataset_browse_btn,
-                   sizing_mode="stretch_width", align="center", margin=0),
-            pn.Spacer(height=6),
-            self.dataset_load_btn,
-            self.dataset_status,
-            sizing_mode="stretch_width",
-        )
-
-        # Pre-fill if audio_directory already set
         if self.controler.audio_directory:
             self.dataset_input.value = str(self.controler.audio_directory)
 
-        # Toggles pour sélectionner les modèles
-        self.toggle_syn = pn.widgets.Toggle(name="Syn-ESN", value=False, button_type="default", sizing_mode="stretch_width")
-        self.toggle_nsyn = pn.widgets.Toggle(name="NSyn-ESN", value=False, button_type="default", sizing_mode="stretch_width")
-        self.toggle_ens = pn.widgets.Toggle(name="Ensemble", value=False, button_type="default", sizing_mode="stretch_width")
-
+        self.toggle_syn = pn.widgets.Toggle(
+            name="Syn-ESN", value=False, button_type="default", sizing_mode="stretch_width"
+        )
+        self.toggle_nsyn = pn.widgets.Toggle(
+            name="NSyn-ESN", value=False, button_type="default", sizing_mode="stretch_width"
+        )
+        self.toggle_ens = pn.widgets.Toggle(
+            name="Ensemble", value=False, button_type="default", sizing_mode="stretch_width"
+        )
         for t in [self.toggle_syn, self.toggle_nsyn, self.toggle_ens]:
-            t.param.watch(self._on_toggle_change, 'value')
+            t.param.watch(self._on_toggle_change, "value")
 
-        self.btn_run = pn.widgets.Button(name="START ANNOTATION", button_type="primary", height=60, sizing_mode="stretch_width")
+        self.btn_run = pn.widgets.Button(
+            name="Start Annotation",
+            button_type="primary",
+            height=45,
+            sizing_mode="stretch_width",
+            margin=(4, 0, 0, 0),
+        )
         self.btn_run.on_click(self._on_annotate)
 
-        self.btn_export = pn.widgets.Button(name="Export Results", button_type="success", height=40, sizing_mode="stretch_width", disabled=True)
+        self.btn_export = pn.widgets.Button(
+            name="Export Results",
+            button_type="success",
+            height=38,
+            sizing_mode="stretch_width",
+            disabled=True,
+            margin=(6, 0, 0, 0),
+        )
         self.btn_export.on_click(self._on_export)
 
         self.info_msg = pn.pane.HTML("", sizing_mode="stretch_width")
 
         return pn.Column(
-            pn.pane.HTML("<div class='title-text'>Configuration</div>"),
-            dataset_section,
+            pn.pane.HTML("<div class='section-header'>Dataset to Annotate</div>"),
+            pn.Row(
+                self.dataset_input,
+                self.dataset_browse_btn,
+                sizing_mode="stretch_width",
+                align="center",
+                margin=0,
+            ),
+            pn.Spacer(height=6),
+            self.dataset_load_btn,
+            self.dataset_status,
+            pn.Spacer(height=8),
             pn.pane.HTML("<div class='section-header'>Select Models</div>"),
             self.toggle_syn,
+            pn.Spacer(height=4),
             self.toggle_nsyn,
+            pn.Spacer(height=4),
             self.toggle_ens,
-            pn.Spacer(height=30),
+            pn.Spacer(height=12),
             self.btn_run,
-            pn.Spacer(height=10),
             self.btn_export,
-            pn.Spacer(height=20),
+            pn.Spacer(height=6),
             self.info_msg,
+            css_classes=["annotate-card"],
             sizing_mode="stretch_width",
-            min_width=220,
-            max_width=380,
+            min_width=240,
+            max_width=360,
         )
 
     def _build_monitor_panel(self):
-        # Création des spinners comme dans Train (Gros : 100x100)
-        self.syn_indicator = pn.indicators.LoadingSpinner(value=False, width=100, height=100, color='primary')
-        self.nsyn_indicator = pn.indicators.LoadingSpinner(value=False, width=100, height=100, color='primary')
-        self.ens_indicator = pn.indicators.LoadingSpinner(value=False, width=100, height=100, color='primary')
+        self.syn_indicator = pn.indicators.LoadingSpinner(value=False, width=60, height=60)
+        self.nsyn_indicator = pn.indicators.LoadingSpinner(value=False, width=60, height=60)
+        self.ens_indicator = pn.indicators.LoadingSpinner(value=False, width=60, height=60)
 
-        # Status HTML comme dans Train
-        self.syn_status = pn.pane.HTML("<h2>Idle</h2>")
-        self.nsyn_status = pn.pane.HTML("<h2>Idle</h2>")
-        self.ens_status = pn.pane.HTML("<h2>Idle</h2>")
+        self.syn_status = pn.pane.HTML(_idle())
+        self.nsyn_status = pn.pane.HTML(_idle())
+        self.ens_status = pn.pane.HTML(_idle())
 
-        # Layout en colonnes pour chaque modèle
         return pn.Column(
-            pn.pane.HTML("<div class='title-text'>Process Monitor</div>"),
-            pn.FlexBox(
-                pn.Column(
-                    pn.pane.HTML("<h3>Syn-ESN</h3>"),
-                    self.syn_indicator,
-                    self.syn_status,
-                    sizing_mode="stretch_width",
-                    align="center",
-                    min_width=150,
-                ),
-                pn.Column(
-                    pn.pane.HTML("<h3>NSyn-ESN</h3>"),
-                    self.nsyn_indicator,
-                    self.nsyn_status,
-                    sizing_mode="stretch_width",
-                    align="center",
-                    min_width=150,
-                ),
-                pn.Column(
-                    pn.pane.HTML("<h3>Ensemble</h3>"),
-                    self.ens_indicator,
-                    self.ens_status,
-                    sizing_mode="stretch_width",
-                    align="center",
-                    min_width=150,
-                ),
-                flex_wrap="wrap",
-                gap=20,
+            pn.pane.HTML("<div class='section-header'>Process Monitor</div>"),
+            pn.Row(
+                _spinner_col("Syn-ESN",  self.syn_indicator,  self.syn_status),
+                _spinner_col("NSyn-ESN", self.nsyn_indicator, self.nsyn_status),
+                _spinner_col("Ensemble", self.ens_indicator,  self.ens_status),
                 sizing_mode="stretch_width",
             ),
-            sizing_mode="stretch_width",
+            css_classes=["annotate-card"],
+            sizing_mode="stretch_both",
         )
-
-    def switch_status(self, obj, status, duration=0.0):
-        # Logique identique à TrainDashboard
-        if status == "annotating":
-            obj.object = "<h2>Annotating...</h2>"
-            obj.style = {"color": "blue"}
-        elif status == "done":
-            obj.object = f"<h2>Done !</h2><p>{round(duration, 2)} sec.</p>"
-            obj.style = {"color": "green"}
-        elif status == "skipped":
-            obj.object = "<h2>Skipped</h2>"
-            obj.style = {"color": "gray"}
-        elif status == "idle":
-            obj.object = "<h2>Idle</h2>"
-            obj.style = {"color": "black"}
 
     def _browse_dataset(self, event):
         directory = pick_directory("Select Audio Folder to Annotate")
@@ -210,18 +239,26 @@ class AnnotateDashboard(SubDash):
     def _load_external_dataset(self, event):
         folder_str = self.dataset_input.value.strip()
         if not folder_str:
-            self.dataset_status.object = "<span style='color:#dc2626;font-size:13px;'>Please enter or browse a folder path.</span>"
+            self.dataset_status.object = (
+                "<span style='color:#dc2626;font-size:12px;'>Please enter or browse a folder path.</span>"
+            )
             return
         folder_path = Path(folder_str)
         if not folder_path.exists():
-            self.dataset_status.object = f"<span style='color:#dc2626;font-size:13px;'>Folder not found: {folder_str}</span>"
+            self.dataset_status.object = (
+                f"<span style='color:#dc2626;font-size:12px;'>Folder not found: {folder_str}</span>"
+            )
             return
 
-        self.dataset_status.object = "<span style='color:#d97706;font-size:13px;'>Loading...</span>"
+        self.dataset_status.object = "<span style='color:#d97706;font-size:12px;'>Loading...</span>"
 
-        audio_files = sorted([f for f in folder_path.rglob("*") if f.suffix.lower() in AUDIO_EXTENSIONS])
+        audio_files = sorted(
+            [f for f in folder_path.rglob("*") if f.suffix.lower() in AUDIO_EXTENSIONS]
+        )
         if not audio_files:
-            self.dataset_status.object = "<span style='color:#dc2626;font-size:13px;'>No audio files found in folder.</span>"
+            self.dataset_status.object = (
+                "<span style='color:#dc2626;font-size:12px;'>No audio files found in folder.</span>"
+            )
             return
 
         durations = []
@@ -235,7 +272,9 @@ class AnnotateDashboard(SubDash):
                 pass
 
         if not valid_files:
-            self.dataset_status.object = "<span style='color:#dc2626;font-size:13px;'>No readable audio files found.</span>"
+            self.dataset_status.object = (
+                "<span style='color:#dc2626;font-size:12px;'>No readable audio files found.</span>"
+            )
             return
 
         data = pd.DataFrame({
@@ -243,12 +282,15 @@ class AnnotateDashboard(SubDash):
             "onset_s": [0.0] * len(valid_files),
             "offset_s": durations,
             "notated_path": [str(p.resolve()) for p in valid_files],
-            "annot_path": [str(p.with_suffix('.csv').resolve()) for p in valid_files],
+            "annot_path": [str(p.with_suffix(".csv").resolve()) for p in valid_files],
             "sequence": [0] * len(valid_files),
             "annotation": [p.stem for p in valid_files],
         })
         self._external_corpus = Corpus.from_df(
-            df=data, annots_directory=None, config=self.controler.config, seq_ids=data['notated_path']
+            df=data,
+            annots_directory=None,
+            config=self.controler.config,
+            seq_ids=data["notated_path"],
         )
         self._external_corpus.audio_directory = str(folder_path.resolve())
         self._external_corpus.spec_directory = str(folder_path.resolve())
@@ -256,117 +298,104 @@ class AnnotateDashboard(SubDash):
 
         total_s = sum(durations)
         self.dataset_status.object = (
-            f"<span style='color:#16a34a;font-weight:600;font-size:13px;'>"
-            f"✓ {len(valid_files)} file(s) loaded — {total_s:.1f} s total</span>"
+            f"<span style='color:#16a34a;font-weight:600;font-size:12px;'>"
+            f"✓ {len(valid_files)} file(s) — {total_s:.1f} s total</span>"
         )
         logger.info(f"External corpus loaded: {len(valid_files)} files from {folder_path}")
 
     def _on_toggle_change(self, event):
-        if event.new:
-            event.obj.button_type = "primary"
-        else:
-            event.obj.button_type = "default"
+        event.obj.button_type = "primary" if event.new else "default"
 
     def _on_annotate(self, event):
         if not self._external_corpus:
-            self.info_msg.object = "<span style='color:red'>Error: No corpus loaded. Check folder.</span>"
+            self.info_msg.object = (
+                "<span style='color:#dc2626;font-size:12px;'>No corpus loaded. Load a dataset first.</span>"
+            )
             return
-        
-        # Récupération des choix
+
         chosen = []
-        if self.toggle_syn.value: chosen.append("syn-esn")
+        if self.toggle_syn.value:  chosen.append("syn-esn")
         if self.toggle_nsyn.value: chosen.append("nsyn-esn")
-        if self.toggle_ens.value: chosen.append("ensemble")
+        if self.toggle_ens.value:  chosen.append("ensemble")
 
         if not chosen:
-            self.info_msg.object = "<span style='color:orange'>Please select a model.</span>"
+            self.info_msg.object = (
+                "<span style='color:#d97706;font-size:12px;'>Please select at least one model.</span>"
+            )
             return
 
         if "ensemble" in chosen:
-            # Force activation for ensemble
-            if not self.toggle_syn.value: self.toggle_syn.value = True
+            if not self.toggle_syn.value:  self.toggle_syn.value = True
             if not self.toggle_nsyn.value: self.toggle_nsyn.value = True
-            if "syn-esn" not in chosen: chosen.append("syn-esn")
+            if "syn-esn"  not in chosen: chosen.append("syn-esn")
             if "nsyn-esn" not in chosen: chosen.append("nsyn-esn")
 
         models_to_run = {k: v for k, v in self._available_models.items() if k in chosen}
-        
+
         self.btn_run.disabled = True
-        self.info_msg.object = "Running..."
-        
-        # Reset visual status
+        self.info_msg.object = "<span style='color:#6b7280;font-size:12px;'>Running...</span>"
+
         for stat_obj in [self.syn_status, self.nsyn_status, self.ens_status]:
-            self.switch_status(stat_obj, "idle")
+            _set_status(stat_obj, "idle")
 
         try:
             all_preds = {}
 
-            # --- SYN ---
             if "syn-esn" in chosen:
-                self.switch_status(self.syn_status, "annotating")
+                _set_status(self.syn_status, "annotating")
                 self.syn_indicator.value = True
                 tic = time.time()
-                
                 preds = self.controler.annotate_external(
                     self._external_corpus,
                     model_sources={"syn-esn": models_to_run["syn-esn"]},
-                    use_in_memory=False
+                    use_in_memory=False,
                 )
                 all_preds.update(preds)
-                
-                toc = time.time()
-                self.switch_status(self.syn_status, "done", duration=toc-tic)
+                _set_status(self.syn_status, "done", time.time() - tic)
                 self.syn_indicator.value = False
             else:
-                self.switch_status(self.syn_status, "skipped")
+                _set_status(self.syn_status, "skipped")
 
-            # --- NSYN ---
             if "nsyn-esn" in chosen:
-                self.switch_status(self.nsyn_status, "annotating")
+                _set_status(self.nsyn_status, "annotating")
                 self.nsyn_indicator.value = True
                 tic = time.time()
-                
                 preds = self.controler.annotate_external(
                     self._external_corpus,
                     model_sources={"nsyn-esn": models_to_run["nsyn-esn"]},
-                    use_in_memory=False
+                    use_in_memory=False,
                 )
                 all_preds.update(preds)
-                
-                toc = time.time()
-                self.switch_status(self.nsyn_status, "done", duration=toc-tic)
+                _set_status(self.nsyn_status, "done", time.time() - tic)
                 self.nsyn_indicator.value = False
             else:
-                self.switch_status(self.nsyn_status, "skipped")
+                _set_status(self.nsyn_status, "skipped")
 
-            # --- ENSEMBLE ---
             if "ensemble" in chosen:
-                self.switch_status(self.ens_status, "annotating")
+                _set_status(self.ens_status, "annotating")
                 self.ens_indicator.value = True
                 tic = time.time()
-                
                 ens_preds = self.controler.annotate_external(
                     self._external_corpus,
                     model_sources={"ensemble": models_to_run["ensemble"]},
-                    use_in_memory=False
+                    use_in_memory=False,
                 )
                 all_preds.update(ens_preds)
-                
-                toc = time.time()
-                self.switch_status(self.ens_status, "done", duration=toc-tic)
+                _set_status(self.ens_status, "done", time.time() - tic)
                 self.ens_indicator.value = False
             else:
-                self.switch_status(self.ens_status, "skipped")
+                _set_status(self.ens_status, "skipped")
 
             self._predictions = all_preds
             self.btn_export.disabled = False
-            self.info_msg.object = "<span style='color:green; font-weight:bold'>All tasks completed.</span>"
+            self.info_msg.object = (
+                "<span style='color:#16a34a;font-weight:600;font-size:12px;'>All tasks completed.</span>"
+            )
             logger.info("Annotation sequence finished.")
 
         except Exception as e:
             logger.exception("Annotation Error")
-            self.info_msg.object = f"<span style='color:red'>Error: {str(e)}</span>"
-            # Stop spinners in case of crash
+            self.info_msg.object = f"<span style='color:#dc2626;font-size:12px;'>Error: {str(e)}</span>"
             self.syn_indicator.value = False
             self.nsyn_indicator.value = False
             self.ens_indicator.value = False
@@ -374,26 +403,29 @@ class AnnotateDashboard(SubDash):
             self.btn_run.disabled = False
 
     def _on_export(self, event):
-        if not self._predictions: return
+        if not self._predictions:
+            return
         try:
             out_dir = Path(self.controler.output_directory) / "annotated_external"
             from datetime import datetime
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-            
             for name, pred in self._predictions.items():
                 target = out_dir / ts / name
                 self.controler.export_predictions(pred, target)
-            
-            self.info_msg.object = f"Exported to:<br>{out_dir.name}/{ts}"
+            self.info_msg.object = (
+                f"<span style='color:#16a34a;font-size:12px;'>Exported to: {out_dir.name}/{ts}</span>"
+            )
         except Exception as e:
-            self.info_msg.object = f"Export Error: {e}"
+            self.info_msg.object = f"<span style='color:#dc2626;font-size:12px;'>Export error: {e}</span>"
 
     def _scan_models(self):
         found = {}
         model_root = getattr(self.controler, "model_root", None)
-        if model_root is None: return found
+        if model_root is None:
+            return found
         model_root = Path(model_root)
-        if not model_root.exists(): return found
+        if not model_root.exists():
+            return found
         for name in KNOWN_ANNOTATORS:
             candidates = list(model_root.rglob(name))
             if candidates:
@@ -401,7 +433,6 @@ class AnnotateDashboard(SubDash):
         return found
 
     def _validate_audio_on_init(self):
-        """Auto-load if audio_directory is already set (e.g. from a previous session)."""
         audio_dir = self.controler.audio_directory
         if audio_dir and Path(audio_dir).exists():
             self.dataset_input.value = str(audio_dir)
