@@ -11,7 +11,7 @@ import matplotlib.figure
 
 from bokeh.plotting import figure
 from bokeh.models import ColumnDataSource
-from bokeh.models import LogColorMapper, LogTicker
+from bokeh.models import LinearColorMapper, BasicTicker
 from bokeh.models import ColorBar
 from bokeh.models import WheelZoomTool
 
@@ -33,7 +33,7 @@ def plot_bokeh_confusion_matrix(cm, classes=None, title=None):
         }
     )
 
-    colormap = LogColorMapper(palette="Magma256", low=max(cm.min(), 1e-6), high=cm.max())
+    colormap = LinearColorMapper(palette="Magma256", low=0.1, high=1)
 
     p = figure(
         title=title,
@@ -64,7 +64,7 @@ def plot_bokeh_confusion_matrix(cm, classes=None, title=None):
 
     color_bar = ColorBar(
         color_mapper=colormap,
-        ticker=LogTicker(),
+        ticker=BasicTicker(),
         label_standoff=12,
         border_line_color=None,
         location=(0, 0),
