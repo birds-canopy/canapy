@@ -240,7 +240,7 @@ class Controler:
 
     def checkpoint(self):
         try:
-            ckpt_dir = self.output_directory / "model" / str(self.iter)
+            ckpt_dir = self.output_directory / "model" / "checkpoints" / str(self.iter)
             ckpt_dir.mkdir(parents=True, exist_ok=True)
             for name, model in self._annotators.items():
                 model.to_disk(ckpt_dir / name)
@@ -437,8 +437,8 @@ class Controler:
 
         if save:
             try:
-                (self.output_directory / "model").mkdir(parents=True, exist_ok=True)
-                annotator.to_disk(self.output_directory / "model" / annotator_name)
+                (self.output_directory / "model" / "exported_models").mkdir(parents=True, exist_ok=True)
+                annotator.to_disk(self.output_directory / "model" / "exported_models" / annotator_name)
                 logger.info(
                     f"Saved Annotator '{annotator_name}' in file "
                     f"{self.output_directory / 'model' / annotator_name}."
