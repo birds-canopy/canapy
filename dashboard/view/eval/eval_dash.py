@@ -3,9 +3,7 @@ from pathlib import Path
 import panel as pn
 import pandas as pd
 
-from ..helpers import SubDash
-from ..helpers import SideBar
-from ..helpers import Registry
+from ..helpers import SubDash, SideBar, Registry, custom_tooltip
 
 from .classmerge import ClassMergeDashboard
 from .samplecorrection import SampleCorrectionDashboard
@@ -63,33 +61,14 @@ class EvalDashboard(SubDash):
             align="end",
             stylesheets=[_EXPORT_CONFIG_CSS],
         )
-        self._export_config_tooltip = pn.pane.HTML("""
-            <div style="position:relative; display:inline-block; cursor:help;">
-                <span style="
-                    display:inline-flex; align-items:center; justify-content:center;
-                    width:18px; height:18px; border-radius:50%;
-                    background:#e5e7eb; color:#6b7280;
-                    font-size:11px; font-weight:700; font-family:sans-serif;
-                    border:1px solid #d1d5db;
-                ">?</span>
-                <div style="
-                    display:none; position:absolute;
-                    right:calc(100% + 8px); top:50%; transform:translateY(-50%);
-                    background:#1f2937; color:#f9fafb;
-                    font-size:12px; font-family:sans-serif; line-height:1.5;
-                    padding:8px 10px; border-radius:6px;
-                    width:240px; z-index:9999;
-                    box-shadow:0 4px 12px rgba(0,0,0,0.25);
-                ">
-                    Exports the current configuration (ESN hyperparameters, audio parameters, etc.)
-                    as a TOML file in <code style='background:#374151;padding:1px 4px;border-radius:3px;'>config/user/</code>.
-                    You can reload it next time via Settings.
-                </div>
-            </div>
-            <style>
-                div:hover > div { display:block !important; }
-            </style>
-        """, align="end")
+        self._export_config_tooltip = custom_tooltip(
+            "Exports the current configuration (ESN hyperparameters, audio parameters, etc.)"
+            " as a TOML file in <code style='background:#374151;padding:1px 4px;border-radius:3px;'>config/user/</code>."
+            " You can reload it next time via Settings.",
+            direction="left",
+            align="end",
+            margin=(0, 0),
+        )
         self._export_config_msg = pn.pane.Markdown(
             "", styles={"font-size": "12px", "color": "#166534"}, visible=False, align="end"
         )

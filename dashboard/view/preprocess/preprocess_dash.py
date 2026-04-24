@@ -8,7 +8,7 @@ matplotlib.use("agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import librosa
-from ..helpers import SubDash, Registry, SideBar
+from ..helpers import SubDash, Registry, SideBar, custom_tooltip
 
 pn.extension("tabulator")
 
@@ -634,13 +634,12 @@ class CorrectionTool(SubDash):
             sizing_mode="stretch_width",
             configuration={"columnDefaults": {"headerSort": False}},
         )
-        self.stats_tooltip = pn.widgets.TooltipIcon(
-            value=(
-                "Count: number of samples in the class\n"
-                "Med Dur: median segment duration\n"
-                "Med Centroid: median spectral centroid (energy-weighted mean frequency)\n"
-                "Med Slope: median temporal slope of dominant frequency"
-            )
+        self.stats_tooltip = custom_tooltip(
+            "Count: number of samples in the class\n"
+            "Med Dur: median segment duration\n"
+            "Med Centroid: median spectral centroid (energy-weighted mean frequency)\n"
+            "Med Slope: median temporal slope of dominant frequency",
+            direction="right",
         )
         self.compute_btn = pn.widgets.Button(
             name="Calculate Stats",
@@ -1185,9 +1184,10 @@ class SingleSampleRow(SubDash):
         )
 
         notated_file = pathlib.Path(row_data.notated_path).stem
-        file_tooltip = pn.widgets.TooltipIcon(
-            value=f"File: {notated_file}\nIndex: {idx}\nTime: {row_data.onset_s:.2f}s - {row_data.offset_s:.2f}s",
-            margin=(10, 15), align='center'
+        file_tooltip = custom_tooltip(
+            f"File: {notated_file}\nIndex: {idx}\nTime: {row_data.onset_s:.2f}s - {row_data.offset_s:.2f}s",
+            direction="right",
+            margin=(10, 15),
         )
 
         self.text_input = pn.widgets.TextInput(placeholder="Correction", width=140)

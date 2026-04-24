@@ -5,7 +5,7 @@ import logging
 import math
 from pathlib import Path
 import panel as pn
-from ..helpers import SubDash, SideBar, pick_file
+from ..helpers import SubDash, SideBar, pick_file, custom_tooltip
 
 _PRESETS_DIR = Path(__file__).parents[3] / "config" / "presets"
 
@@ -150,10 +150,7 @@ PARAM_HELP = {
 
 
 def _make_param_row(label: str, widget: pn.widgets.Widget, param_name: str):
-    tt = pn.widgets.TooltipIcon(
-        value=PARAM_HELP[param_name],
-        margin=(0, 10), align='center'
-    )
+    tt = custom_tooltip(PARAM_HELP[param_name], direction="left", margin=(0, 10))
     row = pn.Row(
         pn.pane.HTML(f"<b>{label}</b>", width=180, align="center"),
         widget,

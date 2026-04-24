@@ -1,8 +1,32 @@
 import subprocess
 import sys
+import uuid
 
 import panel as pn
 from ..controler import Controler
+
+
+def custom_tooltip(text, direction="right", width=240, margin=(0, 10), align="center"):
+    """Custom HTML tooltip icon. direction='left' opens left of the icon, 'right' opens right."""
+    uid = f"ctt-{uuid.uuid4().hex[:8]}"
+    pos = (
+        "right:calc(100% + 8px); top:50%; transform:translateY(-50%);"
+        if direction == "left"
+        else "left:calc(100% + 8px); top:50%; transform:translateY(-50%);"
+    )
+    text_html = text.replace("\n", "<br>")
+    html = (
+        f'<div class="{uid}" style="position:relative;display:inline-block;cursor:help;">'
+        f'<span style="display:inline-flex;align-items:center;justify-content:center;'
+        f'width:18px;height:18px;border-radius:50%;background:#e5e7eb;color:#6b7280;'
+        f'font-size:11px;font-weight:700;font-family:sans-serif;border:1px solid #d1d5db;">?</span>'
+        f'<div style="display:none;position:absolute;{pos}background:#1f2937;color:#f9fafb;'
+        f'font-size:12px;font-family:sans-serif;line-height:1.5;padding:8px 10px;border-radius:6px;'
+        f'width:{width}px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.25);white-space:normal;">'
+        f'{text_html}</div></div>'
+        f'<style>.{uid}:hover > div{{display:block !important;}}</style>'
+    )
+    return pn.pane.HTML(html, align=align, margin=margin)
 
 
 def pick_directory(title="Select Directory", initialdir=None):
@@ -71,7 +95,7 @@ SIDEBAR_BASE_CSS = """
     left: 0;
     width: 210px;
     height: 100vh;
-    overflow-y: auto;
+    overflow-y: hidden;
     z-index: 1000;
     background-color: #f8fafc;
     border-right: 2px solid #e2e8f0;

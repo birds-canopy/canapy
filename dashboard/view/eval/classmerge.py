@@ -8,8 +8,7 @@ import pandas as pd
 
 from canapy.plots import plot_bokeh_confusion_matrix
 
-from ..helpers import SubDash
-from ..helpers import Registry
+from ..helpers import SubDash, Registry, custom_tooltip
 
 pn.extension("tabulator")
 
@@ -175,7 +174,7 @@ class MetricsView(SubDash):
                 class_idx   = [i for i in df.index if i not in _SUMMARY_ROWS]
 
                 _header_style = "font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;"
-                tooltip = pn.widgets.TooltipIcon(value=_REPORT_TOOLTIP, margin=(0, 0, 0, 6), align='center')
+                tooltip = custom_tooltip(_REPORT_TOOLTIP, direction="right", margin=(0, 0, 0, 6))
 
                 stats_card = pn.Column(
                     pn.Row(

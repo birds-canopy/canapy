@@ -8,7 +8,7 @@ import panel as pn
 from canapy.plots import plot_bokeh_label_count
 
 from .classmerge import RepertoireView
-from ..helpers import SubDash, Registry, SideBar
+from ..helpers import SubDash, Registry, SideBar, custom_tooltip
 
 SAMPLE_CSS = """
 .sample-card {
@@ -304,10 +304,11 @@ class SingleSampleCorrectorView(SubDash):
         models_preds = ", ".join([f"{idx}: {p}" for idx, p in self.predictions.items()])
         notated_file = pathlib.Path(self.repertoire_entry.notated_path).stem
 
-        file_tooltip = pn.widgets.TooltipIcon(
-            value=f"File: {notated_file}\n"
-                  f"Time: {self.repertoire_entry.onset_s:.2f}s - {self.repertoire_entry.offset_s:.2f}s\n"
-                  f"Predictions: {models_preds}",
+        file_tooltip = custom_tooltip(
+            f"File: {notated_file}\n"
+            f"Time: {self.repertoire_entry.onset_s:.2f}s - {self.repertoire_entry.offset_s:.2f}s\n"
+            f"Predictions: {models_preds}",
+            direction="right",
         )
 
         self.label_status = pn.pane.Markdown("", styles={"font-size": "10px", "color": "orange"})

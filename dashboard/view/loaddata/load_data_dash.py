@@ -4,7 +4,7 @@
 import logging
 from pathlib import Path
 import panel as pn
-from ..helpers import SubDash, SideBar, pick_directory
+from ..helpers import SubDash, SideBar, pick_directory, custom_tooltip
 from canapy.corpus import Corpus
 from canapy.correction import Corrector
 from canapy.transforms.commons.training import split_train_test
@@ -181,10 +181,7 @@ class LoadDataDashboard(SubDash):
             
             row_elements = [inp]
             if tooltip_text:
-                tt = pn.widgets.TooltipIcon(
-                    value=tooltip_text,
-                    margin=(0, 10), align='center'
-                )
+                tt = custom_tooltip(tooltip_text, direction="left", margin=(0, 10))
                 row_elements.append(tt)
             else:
                 row_elements.append(pn.Spacer(width=10))
@@ -331,9 +328,10 @@ class LoadDataDashboard(SubDash):
             pn.Row(
                 pn.pane.HTML("<b>Detected SR</b>", width=120, align="center"),
                 self.sr_detected_display,
-                pn.widgets.TooltipIcon(
-                    value="Sample rate detected from the first audio file found in the selected directory.",
-                    margin=(0, 10), align="center",
+                custom_tooltip(
+                    "Sample rate detected from the first audio file found in the selected directory.",
+                    direction="left",
+                    margin=(0, 10),
                 ),
                 sizing_mode="stretch_width",
                 margin=(4, 0),
@@ -341,9 +339,10 @@ class LoadDataDashboard(SubDash):
             pn.Row(
                 pn.pane.HTML("<b>Downsample</b>", width=120, align="center"),
                 self.downsample_toggle,
-                pn.widgets.TooltipIcon(
-                    value="Enable to resample audio to a lower target sample rate during processing.",
-                    margin=(0, 10), align="center",
+                custom_tooltip(
+                    "Enable to resample audio to a lower target sample rate during processing.",
+                    direction="left",
+                    margin=(0, 10),
                 ),
                 sizing_mode="stretch_width",
                 margin=(4, 0),
