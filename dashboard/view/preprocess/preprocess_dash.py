@@ -514,28 +514,20 @@ class RepertoireView(SubDash):
 
     def on_select_left(self, events):
         label = events.new
-        if self.registry.get(label) is None:
-            if len(self.registry) > 10:
-                self.registry.popitem()
-            self.registry[label] = SampleView(
-                self,
-                label=label,
-                orientation=self.orientation,
-                num_samples=self.num_samples,
-            )
+        if len(self.registry) > 10:
+            self.registry.popitem()
+        self.registry[label] = SampleView(
+            self, label=label, orientation=self.orientation, num_samples=self.num_samples,
+        )
         self._left_col[2] = self.registry[label].layout
 
     def on_select_right(self, events):
         label = events.new
-        if self.registry.get(label) is None:
-            if len(self.registry) > 10:
-                self.registry.popitem()
-            self.registry[label] = SampleView(
-                self,
-                label=label,
-                orientation=self.orientation,
-                num_samples=self.num_samples,
-            )
+        if len(self.registry) > 10:
+            self.registry.popitem()
+        self.registry[label] = SampleView(
+            self, label=label, orientation=self.orientation, num_samples=self.num_samples,
+        )
         self._right_col[2] = self.registry[label].layout
 
 class SampleView(SubDash):
@@ -549,7 +541,8 @@ class SampleView(SubDash):
         if not label:
             return pn.Spacer()
         selected_df = self.controler.corpus.dataset.query("label == @label")
-        selected_df = selected_df.iloc[: self.num_samples]
+        n = min(self.num_samples, len(selected_df))
+        selected_df = selected_df.sample(n) if n > 0 else selected_df.iloc[:0]
         specs = self.controler.load_repertoire(selected_df)
         sampling_rate = self.controler.config.transforms.audio.sampling_rate
         views = []

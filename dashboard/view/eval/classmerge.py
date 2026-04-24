@@ -1,6 +1,7 @@
 # Author: Nathan Trouvain at 18/07/2023 <nathan.trouvain<at>inria.fr>
 # Licence: MIT License
 # Copyright: Nathan Trouvain
+import math
 from pathlib import Path
 
 import panel as pn
@@ -74,7 +75,7 @@ class ClassMergeDashboard(SubDash):
         pn.config.raw_css.append(MERGE_CSS)
 
         self.metrics = MetricsView(self)
-        self.repertoire = RepertoireView(self, num_panel=2, orientation="column", num_samples=100)
+        self.repertoire = RepertoireView(self, num_panel=2, orientation="column")
         self.corrector = CorrectorView(self)
         
         self.layout = pn.Column(
@@ -214,10 +215,11 @@ class MetricsView(SubDash):
 
 
 class RepertoireView(SubDash):
-    def __init__(self, parent, num_panel, orientation, num_samples=MAX_SAMPLE_DISPLAY):
+    def __init__(self, parent, num_panel, orientation, num_samples=MAX_SAMPLE_DISPLAY, page_size=None):
         super().__init__(parent)
         self.orientation = orientation
         self.num_samples = num_samples
+        self.page_size = page_size
         self.registry = Registry()
 
         self.select_left = pn.widgets.Select(
@@ -274,75 +276,68 @@ class RepertoireView(SubDash):
 
     def on_select_left(self, events):
         label = events.new
-        if self.registry.get(label) is None:
-            if len(self.registry) > 10: self.registry.popitem()
-            self.registry[label] = SampleView(self, label=label, orientation=self.orientation, num_samples=self.num_samples)
+        if len(self.registry) > 10:
+            self.registry.popitem()
+        self.registry[label] = SampleView(self, label=label, orientation=self.orientation, num_samples=self.num_samples, page_size=self.page_size)
         self._left_col[2] = self.registry[label].layout
 
     def on_select_right(self, events):
         label = events.new
-        if self.registry.get(label) is None:
-            if len(self.registry) > 10: self.registry.popitem()
-            self.registry[label] = SampleView(self, label=label, orientation=self.orientation, num_samples=self.num_samples)
+        if len(self.registry) > 10:
+            self.registry.popitem()
+        self.registry[label] = SampleView(self, label=label, orientation=self.orientation, num_samples=self.num_samples, page_size=self.page_size)
         self._right_col[2] = self.registry[label].layout
 
 
 class SampleView(SubDash):
-    PAGE_SIZE = 4
-    WINDOW_SIZE = 20
-
-    def __init__(self, parent, label=None, orientation="column", num_samples=MAX_SAMPLE_DISPLAY):
+    def __init__(self, parent, label=None, orientation="column", num_samples=MAX_SAMPLE_DISPLAY, page_size=None):
         super().__init__(parent)
         self.orientation = orientation
+        self.page_size = page_size
         selected_df = self.controler.corpus.dataset.query("label == @label")
-        self.selected_df = selected_df.iloc[:num_samples]
-        n = len(self.selected_df)
-        self._n_pages = max(1, -(-n // self.PAGE_SIZE))
-        self._updating_pager = False
+        n = min(num_samples, len(selected_df))
+        self.selected_df = selected_df.sample(n) if n > 0 else selected_df.iloc[:0]
 
-        self._content = pn.Column(sizing_mode="stretch_width")
-        self._pager = pn.widgets.RadioButtonGroup(
-            options=self._window(1),
-            value=1,
-            button_style="outline",
-            button_type="default",
-            visible=self._n_pages > 1,
-        )
-        self._pager.param.watch(self._on_page_change, "value")
-        self.layout = pn.Column(
-            self._content,
-            pn.Row(pn.Spacer(), self._pager, pn.Spacer(), sizing_mode="stretch_width"),
-            sizing_mode="stretch_width",
-        )
-        self._render_page(0)
+        if page_size:
+            self._page = 0
+            self._n_pages = max(1, math.ceil(len(self.selected_df) / page_size))
+            self._updating = False
+            self._content = pn.Column(sizing_mode="stretch_width")
+            self._prev_btn = pn.widgets.Button(name="<", width=32, height=30, button_type="default", margin=(0, 4))
+            self._next_btn = pn.widgets.Button(name=">", width=32, height=30, button_type="default", margin=(0, 4))
+            self._page_input = pn.widgets.IntInput(value=1, width=48, height=30, margin=(0, 2))
+            self._total_label = pn.pane.HTML(
+                f"<span style='font-size:13px;color:#374151;'>/ {self._n_pages}</span>",
+                align="center", margin=(0, 6),
+            )
+            self._error_msg = pn.pane.HTML("", margin=(4, 0, 0, 0))
+            self._prev_btn.on_click(self._on_prev)
+            self._next_btn.on_click(self._on_next)
+            self._page_input.param.watch(self._on_page_input, "value")
+            pager = pn.Row(
+                self._prev_btn, self._page_input, self._total_label, self._next_btn,
+                align="center", margin=(8, 0, 4, 0),
+            )
+            self.layout = pn.Column(self._content, pager, self._error_msg, sizing_mode="stretch_width")
+            self._render_page(0)
+        else:
+            self.layout = self._build_all(self.selected_df)
 
-    def _window(self, current_page):
-        if self._n_pages <= self.WINDOW_SIZE:
-            return list(range(1, self._n_pages + 1))
-        half = self.WINDOW_SIZE // 2
-        start = max(1, current_page - half)
-        end = min(self._n_pages, start + self.WINDOW_SIZE - 1)
-        start = max(1, end - self.WINDOW_SIZE + 1)
-        return list(range(start, end + 1))
-
-    def _render_page(self, page_index):
-        start = page_index * self.PAGE_SIZE
-        batch = self.selected_df.iloc[start:start + self.PAGE_SIZE]
-        if batch.empty:
-            return
-        specs = self.controler.load_repertoire(batch)
+    def _make_cards(self, df, offset=0):
+        if df.empty:
+            return [pn.pane.HTML("<div style='color:#9ca3af;font-size:13px;padding:20px;text-align:center;'>No samples available.</div>")]
+        specs = self.controler.load_repertoire(df)
         sampling_rate = self.controler.config.transforms.audio.sampling_rate
         views = []
         for i, sp in enumerate(specs):
-            display_num = start + i + 1
             visual_block = pn.Row(
-                pn.pane.Markdown(f"**#{display_num}**", styles={'font-size': '11px', 'color': '#6b7280'}, width=30, align='center'),
+                pn.pane.Markdown(f"**#{offset+i+1}**", styles={'font-size': '11px', 'color': '#6b7280'}, width=30, align='center'),
                 pn.pane.Matplotlib(sp[0], format="png", tight=True, sizing_mode="stretch_width", height=100),
                 sizing_mode="stretch_width",
                 styles={"min-width": "120px", "max-width": "320px"},
                 margin=(0, 10, 0, 0),
             )
-            if start == 0 and i == 0:
+            if offset == 0 and i == 0:
                 audio_block = pn.Column(
                     pn.pane.HTML("<span style='font-size:10px;color:#6b7280;'>🔊 Context window (~1s around segment)</span>"),
                     pn.pane.Audio(sp[1], sample_rate=round(sampling_rate), height=35, sizing_mode="stretch_width"),
@@ -364,21 +359,46 @@ class SampleView(SubDash):
                 flex_wrap='wrap', gap=10, sizing_mode="stretch_width",
             )
             views.append(pn.Column(card_content, css_classes=['sample-card'], padding=20, sizing_mode="stretch_width"))
-        self._content.objects = views
+        return views
 
-    def _on_page_change(self, event):
-        if self._updating_pager:
+    def _build_all(self, df):
+        views = self._make_cards(df)
+        layout_cls = pn.Column if self.orientation == "column" else pn.Row
+        return layout_cls(*views, sizing_mode="stretch_width")
+
+    def _render_page(self, page):
+        self._page = page
+        start = page * self.page_size
+        batch = self.selected_df.iloc[start:start + self.page_size]
+        self._content.objects = self._make_cards(batch, offset=start)
+        self._updating = True
+        try:
+            self._page_input.value = page + 1
+        finally:
+            self._updating = False
+
+    def _on_prev(self, event):
+        self._error_msg.object = ""
+        self._render_page((self._page - 1) % self._n_pages)
+
+    def _on_next(self, event):
+        self._error_msg.object = ""
+        self._render_page((self._page + 1) % self._n_pages)
+
+    def _on_page_input(self, event):
+        if self._updating:
             return
-        page = event.new
-        self._render_page(page - 1)
-        if self._n_pages > self.WINDOW_SIZE:
-            new_opts = self._window(page)
-            if new_opts != self._pager.options:
-                self._updating_pager = True
-                try:
-                    self._pager.param.update(options=new_opts, value=page)
-                finally:
-                    self._updating_pager = False
+        val = event.new
+        if val is None:
+            return
+        if 1 <= val <= self._n_pages:
+            self._error_msg.object = ""
+            self._render_page(val - 1)
+        else:
+            self._error_msg.object = (
+                f"<span style='color:#ef4444;font-size:11px;'>"
+                f"Please enter a page number between 1 and {self._n_pages}.</span>"
+            )
 
 
 class CorrectorView(SubDash):

@@ -64,7 +64,7 @@ class SampleCorrectionDashboard(SubDash):
         self.save_msg = pn.pane.HTML(styles=dict(color="green", background="white"))
 
         self.repertoire_view = RepertoireView(
-            self, num_panel=1, orientation="column", num_samples=100
+            self, num_panel=1, orientation="column", num_samples=100, page_size=5,
         )
 
         fig, self.counts = plot_bokeh_label_count(self.controler.misclassified_segments)
@@ -243,7 +243,6 @@ class SampleCorrectorView(SubDash):
     def build_display(self):
         segments = self.controler.load_repertoire(self.misclassified_segments)
         container = pn.Column(sizing_mode="stretch_width")
-        
         for i, (segment, (idx, annots)) in enumerate(zip(
             segments, self.misclassified_segments.iterrows()
         )):
@@ -254,7 +253,6 @@ class SampleCorrectorView(SubDash):
             else:
                 display = self.registry[idx]
             container.append(display.layout)
-            
         return container
 
 
