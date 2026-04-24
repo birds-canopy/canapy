@@ -374,6 +374,7 @@ class SettingsDashboard(SubDash):
 
         self.reservoir_block = pn.Column(
             pn.pane.HTML("<div class='settings-subsection-header'>Reservoir (syn & nsyn)</div>"),
+            pn.pane.HTML("<p style='font-size:12px;color:#64748b;margin:0 0 10px 0;'>These parameters can be automatically optimised by the hyperparameter search run just before model training, and can differ from the values set here if you run the hyperparameter search.</p>"),
             _make_param_row("Spectral radius (sr)", self.sr_input, "sr"),
             _make_param_row("Leak rate (leak)", self.leak_input, "leak"),
             _make_param_row("Input scaling MFCC (iss)", self.iss_input, "iss"),
