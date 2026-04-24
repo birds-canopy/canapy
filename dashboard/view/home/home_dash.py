@@ -82,8 +82,9 @@ class HomeDashboard(SubDash):
                 main_content,
                 pn.Spacer(height=40),
                 sizing_mode="stretch_width",
-                styles={"padding": "0 40px", "overflow-y": "auto"},
+                height_policy="max",
+                styles={"padding": "0 40px", "overflow-y": "auto", "height": "100%"},
             ),
             sizing_mode="stretch_both",
-            background="#ffffff",
+            margin=0,
         )
