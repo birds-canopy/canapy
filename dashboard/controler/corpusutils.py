@@ -19,13 +19,12 @@ def mark_whole_corpus_as_train(corpus):
 def query_split(corpus, split="all"):
     if split != "all":
         if split == "test":
-            query = "not train"
+            return corpus[~corpus.dataset["train"]]
         elif split == "train":
-            query = "train"
+            return corpus[corpus.dataset["train"]]
         else:
             raise ValueError(
                 f"split should be 'all', 'train' or 'test, " f"not {split}."
             )
-        return corpus[query]
     else:
         return corpus

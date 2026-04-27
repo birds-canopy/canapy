@@ -150,34 +150,28 @@ class Corpus:
 
     def __getitem__(self, item):
         """
-        Create a new corpus whose dataset satisfies the query.
+        Create a new corpus whose dataset satisfies a boolean mask.
 
         Parameters
         ----------
-        item : str
-            The query string to evaluate. Refer to the pandas.DataFrame.query documentation for details.
+        item : pandas.Series of bool
+            Boolean mask to apply to the dataset.
 
         Returns
         -------
         Corpus
-            New corpus which dataset contains the query applied to the former dataset.
+            New corpus filtered by the mask.
 
         Examples
         --------
-            >>> corpus = Corpus (...)
-            >>> # 'corpus' is the original corpus
-            >>> corpus_without_cri = corpus["label != 'cri'"]
-            >>> # corpus_without_cri is a copy of corpus where every line of the dataset with the label 'cri' is erased
-
-            >>> corpus_first_seconds = corpus["offset_s <= 10"]
-            >>> # corpus_first_seconds is a copy of corpus where there is only line that offset_s is smaller than 10
-            >>> # so it contains the annotation that stop before the first 10 seconds
-
-            >>> corpus_long_phrase = corpus["offset_s - onset_s > 1"]
-            >>> # corpus_long_phrase is a copy of corpus where every phrase of the dataset that last less than a second
-            >>> # are erased
+            >>> corpus = Corpus(...)
+            >>> corpus_without_cri = corpus[corpus.dataset["label"] != "cri"]
+            >>> corpus_first_seconds = corpus[corpus.dataset["offset_s"] <= 10]
+            >>> corpus_long_phrase = corpus[
+            ...     (corpus.dataset["offset_s"] - corpus.dataset["onset_s"]) > 1
+            ... ]
         """
-        return self.clone_with_df(self.dataset.query(item))
+        return self.clone_with_df(self.dataset[item])
 
     def __repr__(self):
         return f"<Corpus at (audio) {self.audio_directory} | (annots) {self.annots_directory}.>"

@@ -340,7 +340,7 @@ class TestCorpus:
         assert simple_corpus.data_resources["test_key"]["value"] == 42
 
     def test_filter_via_getitem(self, simple_corpus):
-        filtered = simple_corpus["label == 'a'"]
+        filtered = simple_corpus[simple_corpus.dataset["label"] == "a"]
         assert all(filtered.dataset["label"] == "a")
 
     def test_to_directory(self, simple_corpus, tmp_path):

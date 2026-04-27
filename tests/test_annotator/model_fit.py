@@ -40,14 +40,16 @@ def load_annotators(verif_print=False):
 
 def test_corpus_query(corpus, verif_print=False):
     # 'corpus' is the original corpus
-    corpus_without_cri = corpus["label != 'cri'"]
+    corpus_without_cri = corpus[corpus.dataset["label"] != "cri"]
     # corpus_without_cri is a copy of corpus where every line of the dataset with the label 'cri' is erased
 
-    corpus_first_seconds = corpus["offset_s <= 10"]
+    corpus_first_seconds = corpus[corpus.dataset["offset_s"] <= 10]
     # corpus_first_seconds is a copy of corpus where there is only line that offset_s is smaller than 10
     # so it contains the annotation that stop before the first 10 seconds
 
-    corpus_long_phrase = corpus["offset_s - onset_s > 1"]
+    corpus_long_phrase = corpus[
+        (corpus.dataset["offset_s"] - corpus.dataset["onset_s"]) > 1
+    ]
     # corpus_long_phrase is a copy of corpus where every phrase of the dataset that last less than a second
     # are erased
 
