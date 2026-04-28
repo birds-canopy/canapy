@@ -10,16 +10,66 @@ import panel as pn
 from pathlib import Path
 import logging
 import sys
+import warnings
+
+warnings.filterwarnings("ignore")
 
 from .app import CanapyDashboard
 from .controler import Controler
 from canapy.utils.tempstorage import close_tempfiles
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler(sys.stdout)]
-)
+class _NoWarningFilter(logging.Filter):
+    def filter(self, record):
+        return record.levelno != logging.WARNING
+
+def _suppress_warnings():
+    """
+    Suppress WARNING-level log messages for the entire process lifetime.
+
+    Two layers:
+    1. Patch existing loggers (panel/bokeh/tornado created during import).
+    2. Monkey-patch logging.getLogger so every logger created later also
+       receives the filter automatically (Bokeh server, panel extensions…).
+    """
+    _filter = _NoWarningFilter()
+    _fmt = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+    def _apply(lg):
+        if not any(isinstance(f, _NoWarningFilter) for f in lg.filters):
+            lg.addFilter(_filter)
+        for h in lg.handlers:
+            if not any(isinstance(f, _NoWarningFilter) for f in h.filters):
+                h.addFilter(_filter)
+
+    # Configure root logger
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+    for h in root.handlers[:]:
+        root.removeHandler(h)
+    _handler = logging.StreamHandler(sys.stdout)
+    _handler.setFormatter(_fmt)
+    _handler.addFilter(_filter)
+    root.addHandler(_handler)
+    root.addFilter(_filter)
+
+    # Patch all loggers already created during imports
+    for _lg in logging.Logger.manager.loggerDict.values():
+        if isinstance(_lg, logging.Logger):
+            _apply(_lg)
+
+    # Raise threshold on the noisiest libraries
+    for _name in ("panel", "bokeh", "tornado", "param", "asyncio", "websocket"):
+        logging.getLogger(_name).setLevel(logging.ERROR)
+
+    # Monkey-patch logging.getLogger so every future logger is also covered
+    _orig_getLogger = logging.getLogger
+    def _patched_getLogger(name=None):
+        lg = _orig_getLogger(name)
+        _apply(lg)
+        return lg
+    logging.getLogger = _patched_getLogger
+
+_suppress_warnings()
 logger = logging.getLogger("canapy-cli")
 
 _annotators = ["syn-esn", "nsyn-esn", "ensemble"]
