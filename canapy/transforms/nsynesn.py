@@ -50,7 +50,6 @@ def balance_labels_duration(corpus, *, resource_name, **kwargs):
 
     rs = np.random.RandomState(corpus.config.misc.seed)
 
-    min_duration = config.min_class_total_duration
     min_silence = config.min_silence_duration
     silence_tag = corpus.config.transforms.annots.silence_tag
 
@@ -61,10 +60,9 @@ def balance_labels_duration(corpus, *, resource_name, **kwargs):
 
     balanced_df = balanced_df.query("label != @silence_tag or duration > @min_silence")
 
-    # Weight each sample in function of its class weight in the
-    # dataset, in terms of total duration, and regarding the
-    # min_duration objective
+    # Target = median total duration across classes (data-driven, no free parameter)
     durations = pd.DataFrame(balanced_df.groupby("label")["duration"].sum())
+    min_duration = durations["duration"].median()
     durations["weights"] = min_duration / durations["duration"]
     durations["weights"] = durations["weights"] / durations["weights"].sum()
 

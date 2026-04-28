@@ -65,7 +65,6 @@ transforms:
     balance:
       data_augmentation:
         noise_std: 0.01
-      min_class_total_duration: 2
       min_silence_duration: 0.2
     max_sequences: -1
     test_ratio: 0.2
@@ -371,13 +370,6 @@ schema:
                   description: Noise level added to augmented samples.
                   default: 0.01
                   minimum: 0.0
-            min_class_total_duration: 
-              type: float
-              description: |
-                Minimum total audio duration of each label class
-                for non-syntactic training, in seconds. [META] units=seconds
-              default: 2.0
-              minimum: 0.0
             min_silence_duration:
               type: float
               description: |

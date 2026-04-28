@@ -11,8 +11,6 @@ from canapy.transforms.synesn import *
 
 
 def test_balance_labels(corpus):
-    corpus.config.transforms.training.balance.min_class_total_duration = 30.0
-
     df = corpus.dataset
     df["train"] = False
     samples = df.sample(50).index
@@ -24,7 +22,11 @@ def test_balance_labels(corpus):
     bdf["duration"] = bdf["offset_s"] - bdf["onset_s"]
     durations = bdf.groupby("label")["duration"].sum()
 
-    assert durations.min() >= 30.0
+    # All classes should reach at least the median total duration of the original set
+    original_durations = df.copy()
+    original_durations["duration"] = original_durations["offset_s"] - original_durations["onset_s"]
+    expected_min = original_durations.groupby("label")["duration"].sum().median()
+    assert durations.min() >= expected_min
 
 
 def test_compute_mfcc_for_balanced_dataset(corpus):

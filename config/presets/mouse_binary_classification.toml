@@ -57,7 +57,6 @@ padding = "wrap"
 padding = "wrap"
 
 [transforms.training.balance]
-min_class_total_duration = 2
 min_silence_duration = 0.2
 
 [transforms.training.balance.data_augmentation]
