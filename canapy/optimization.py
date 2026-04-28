@@ -234,8 +234,6 @@ def _load_selected_seqids_to_memmap(
 
     Peak RAM during this call:
         ~ max(one raw MFCC file) + the memmap backing file (disk).
-
-    Data is stored as float32 to halve memory relative to the default float64.
     """
     if not selected_seqids:
         raise ValueError(f"No sequences selected for '{label}' loading.")
@@ -313,12 +311,12 @@ def _load_selected_seqids_to_memmap(
     del X_mm, Y_mm
 
     # Open read-only views of the actually-used portion
-    X_final = np.memmap(x_path, dtype=np.float32, mode="r", shape=(pos, n_features))
-    Y_final = np.memmap(y_path, dtype=np.float32, mode="r", shape=(pos, n_classes))
+    X_final = np.memmap(x_path, dtype=np.float64, mode="r", shape=(pos, n_features))
+    Y_final = np.memmap(y_path, dtype=np.float64, mode="r", shape=(pos, n_classes))
 
     logger.info(
         f"Loaded '{label}': {pos} frames × {n_features} features "
-        f"(float32 memmap, {pos * n_features * 4 / 1e6:.1f} MB on disk)."
+        f"(float64 memmap, {pos * n_features * 8 / 1e6:.1f} MB on disk)."
     )
     return X_final, Y_final, seq_lengths
 
@@ -496,7 +494,7 @@ def optimize_hyperparameters(
             selected_train = list(hp_train_seqids)
 
         # --- Step 4: load directly to memmaps (piste 1 + 4) ---
-        # One file at a time in RAM; no intermediate lists; float32 throughout.
+        # One file at a time in RAM; no intermediate lists; float64 throughout.
         logger.info("Step 2 (Opt): Loading HP-train MFCCs to memmap...")
         X_train, Y_train, train_seq_lengths = _load_selected_seqids_to_memmap(
             corpus, selected_train, train_df, mfcc_paths,
