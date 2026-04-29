@@ -299,7 +299,7 @@ class AnnotateDashboard(SubDash):
         total_s = sum(durations)
         self.dataset_status.object = (
             f"<span style='color:#16a34a;font-weight:600;font-size:12px;'>"
-            f"✓ {len(valid_files)} file(s) — {total_s:.1f} s total</span>"
+            f"✓ {len(valid_files)} file(s) — {total_s:.1f} s ({total_s/3600:.2f} h) total</span>"
         )
         logger.info(f"External corpus loaded: {len(valid_files)} files from {folder_path}")
 
@@ -329,6 +329,16 @@ class AnnotateDashboard(SubDash):
             if not self.toggle_nsyn.value: self.toggle_nsyn.value = True
             if "syn-esn"  not in chosen: chosen.append("syn-esn")
             if "nsyn-esn" not in chosen: chosen.append("nsyn-esn")
+
+        self._available_models = self._scan_models()
+        missing = [m for m in chosen if m not in self._available_models]
+        if missing:
+            self.info_msg.object = (
+                "<span style='color:#dc2626;font-size:12px;'>"
+                + " &nbsp;·&nbsp; ".join(f"No <b>{m}</b> model found" for m in missing)
+                + "</span>"
+            )
+            return
 
         models_to_run = {k: v for k, v in self._available_models.items() if k in chosen}
 
@@ -423,13 +433,13 @@ class AnnotateDashboard(SubDash):
         model_root = getattr(self.controler, "model_root", None)
         if model_root is None:
             return found
-        model_root = Path(model_root)
-        if not model_root.exists():
+        export_dir = Path(model_root) / "exported_models"
+        if not export_dir.exists():
             return found
         for name in KNOWN_ANNOTATORS:
-            candidates = list(model_root.rglob(name))
-            if candidates:
-                found[name] = str(sorted(candidates, reverse=True)[0])
+            candidate = export_dir / name
+            if candidate.exists():
+                found[name] = str(candidate)
         return found
 
     def _validate_audio_on_init(self):
