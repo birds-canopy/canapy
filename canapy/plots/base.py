@@ -22,6 +22,14 @@ def plot_bokeh_confusion_matrix(cm, classes=None, title=None):
 
     if classes is None:
         classes = [str(i) for i in range(cm.shape[0])]
+    else:
+        classes = list(classes)
+
+    if "TRASH" in classes:
+        idx = classes.index("TRASH")
+        new_order = [i for i in range(len(classes)) if i != idx] + [idx]
+        classes = [classes[i] for i in new_order]
+        cm = cm[np.ix_(new_order, new_order)]
 
     n = len(classes)
 
