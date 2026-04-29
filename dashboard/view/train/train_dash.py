@@ -42,8 +42,12 @@ class TrainDashboard(SubDash):
 
         hp_section = self._build_hp_section()
 
+        is_retrain = self.controler._iter > 1
         header = pn.Column(
-            pn.pane.Markdown("# Train", css_classes=["page-title"], margin=0),
+            pn.pane.Markdown(
+                f"# Train again — iteration {self.controler._iter}" if is_retrain else "# Train",
+                css_classes=["page-title"], margin=0,
+            ),
             pn.pane.Markdown(
                 "Train and evaluate the annotator models.",
                 css_classes=["page-subtitle"],
@@ -94,6 +98,8 @@ class TrainDashboard(SubDash):
             margin=(0, 0, 10, 0),
         )
 
+        is_retrain = self.controler._iter > 1
+
         self._hp_expanded = pn.Column(
             self._hp_info_alert,
             self._hp_params_pane,
@@ -101,7 +107,7 @@ class TrainDashboard(SubDash):
             td.opt_progress,
             td.opt_progress_text,
             td.opt_status,
-            visible=False,
+            visible=is_retrain,
             sizing_mode="stretch_width",
             margin=(10, 0, 0, 0),
         )
@@ -155,8 +161,13 @@ class TrainerDashboard(SubDash):
     def __init__(self, parent):
         super().__init__(parent)
 
+        _btn_label = (
+            "Train again with eval corrections"
+            if self.controler._iter > 1 else
+            "Start Training"
+        )
         self.train_btn = pn.widgets.Button(
-            name="Start Training",
+            name=_btn_label,
             button_type="success",
             sizing_mode="stretch_width",
             margin=(16, 0, 0, 0),
