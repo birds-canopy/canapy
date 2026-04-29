@@ -108,27 +108,19 @@ class SampleCorrectionDashboard(SubDash):
                     sizing_mode="stretch_width"
                 ),
                 pn.pane.Markdown("### 2. Correct samples", margin=(20, 0, 10, 0)),
+                pn.Row(
+                    self.save_msg,
+                    self.save_btn,
+                    sizing_mode="stretch_width",
+                    align="center",
+                    margin=(0, 0, 8, 0),
+                ),
                 sizing_mode="stretch_width"
             ),
             pn.Spacer(height=10),
             self.sample_container,
-            pn.Spacer(height=15),
-            pn.Column(
-                pn.pane.Markdown("### 3. Save Corrections", margin=(20, 0, 10, 0)),
-                self.save_msg, 
-                self.save_btn, 
-                sizing_mode="stretch_width"
-            ),
             sizing_mode="stretch_both",
         )
-
-    @property
-    def save_txt(self):
-        return self.layout[5][0].object
-
-    @save_txt.setter
-    def save_txt(self, value):
-        self.layout[5][0].object = value
 
     def build_class_selectors(self):
         grid = pn.FlexBox(
@@ -178,7 +170,7 @@ class SampleCorrectionDashboard(SubDash):
         for sample_corrector in self.registry["sample"].values():
             new_corrections.update(sample_corrector.corrections)
         self.controler.upload_corrections(new_corrections, "annot")
-        self.save_txt = "Saved!"
+        self.save_msg.object = "Saved!"
 
 
 class ClassSelectionView(SubDash):
