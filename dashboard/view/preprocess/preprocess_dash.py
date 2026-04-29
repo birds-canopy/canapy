@@ -706,22 +706,14 @@ class SampleView(SubDash):
                 styles={"min-width": "120px", "max-width": "320px"},
                 margin=(0, 10, 0, 0),
             )
-            if i == 0:
-                audio_block = pn.Column(
-                    pn.pane.HTML("<span style='font-size:10px;color:#6b7280;'>🔊 Context window (~1s around segment)</span>"),
-                    pn.pane.Audio(sp[1], sample_rate=round(sampling_rate), height=35, sizing_mode="stretch_width"),
-                    pn.Spacer(height=3),
-                    pn.pane.HTML("<span style='font-size:10px;color:#6b7280;'>🎯 Exact segment only</span>"),
-                    pn.pane.Audio(sp[2], sample_rate=round(sampling_rate), height=35, sizing_mode="stretch_width"),
-                    sizing_mode="stretch_width",
-                )
-            else:
-                audio_block = pn.Column(
-                    pn.pane.Audio(sp[1], sample_rate=round(sampling_rate), height=35, sizing_mode="stretch_width"),
-                    pn.Spacer(height=5),
-                    pn.pane.Audio(sp[2], sample_rate=round(sampling_rate), height=35, sizing_mode="stretch_width"),
-                    sizing_mode="stretch_width",
-                )
+            audio_block = pn.Column(
+                pn.pane.HTML("<span style='font-size:10px;color:#6b7280;'>🔊 Context window (~1s around segment)</span>"),
+                pn.pane.Audio(sp[1], sample_rate=round(sampling_rate), height=35, sizing_mode="stretch_width"),
+                pn.Spacer(height=3),
+                pn.pane.HTML("<span style='font-size:10px;color:#6b7280;'>🎯 Exact segment only</span>"),
+                pn.pane.Audio(sp[2], sample_rate=round(sampling_rate), height=35, sizing_mode="stretch_width"),
+                sizing_mode="stretch_width",
+            )
             card_content = pn.FlexBox(
                 visual_block,
                 audio_block,
