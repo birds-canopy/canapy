@@ -87,6 +87,7 @@ class Controler:
     fit_done: bool = attr.field(default=False)
     eval_done: bool = attr.field(default=False)
     export_done: bool = attr.field(default=False)
+    _audio_params_dirty: bool = attr.field(alias="_audio_params_dirty", default=False)
     opt_parallel: bool = attr.field(default=False)
     opt_max_percentage: float = attr.field(default=0.3)
     opt_n_jobs: int = attr.field(default=4)
@@ -342,12 +343,25 @@ class Controler:
             logger.critical(f"Failed to export corpus: {e}")
             raise
 
+    def _clear_audio_cache(self):
+        """Delete on-disk spectrograms and in-memory caches when audio params change."""
+        self._repertoire_cache.clear()
+        self.preprocess_done = False
+        if self.spec_directory and self.spec_directory.exists():
+            for f in self.spec_directory.glob("*.npz"):
+                f.unlink(missing_ok=True)
+        logger.info("Audio cache cleared after parameter change.")
+
     def load_page(self, page_name: str):
         logger.info(f"Manual navigation request to: {page_name}")
 
         if page_name not in VALID_STEPS:
             logger.error(f"Unknown page: {page_name}")
             return
+
+        if getattr(self, "_audio_params_dirty", False):
+            self._clear_audio_cache()
+            self._audio_params_dirty = False
 
         if page_name == "preprocess":
             self._step = "preprocess"

@@ -291,7 +291,7 @@ class SideBar(SubDash):
 
         accessible = {
             "loaddata":   not in_pipeline,
-            "settings":   has_data and not in_pipeline,
+            "settings":   has_data and not fit_done,
             "preprocess": has_data,
             "train":      has_data,
             "eval":       fit_done,
@@ -352,6 +352,9 @@ class SideBar(SubDash):
             self.controler.load_page("preprocess")
 
         def _nav_fit(e):
+            if getattr(self.controler, "_audio_params_dirty", False):
+                self.controler._clear_audio_cache()
+                self.controler._audio_params_dirty = False
             step = self.controler.step
             if step in ("preprocess", "eval"):
                 self.controler.next_step()

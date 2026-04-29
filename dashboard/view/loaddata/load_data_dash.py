@@ -530,6 +530,12 @@ class LoadDataDashboard(SubDash):
             self.controler.compute_classes()
             
             self.controler._is_ready = True
+            self.controler.fit_done = False
+            self.controler.eval_done = False
+            self.controler.export_done = False
+            self.controler.preprocess_done = False
+            self.controler._repertoire_cache.clear()
+            self.controler._audio_params_dirty = False
             self.controler._step = "home"
             self.sidebar.on_data_loaded()
 

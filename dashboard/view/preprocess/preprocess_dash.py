@@ -467,6 +467,11 @@ class PreprocessDashboard(SubDash):
             self.export_msg.styles = {"font-size": "12px", "color": "#be123c"}
             self.export_msg.visible = True
 
+    def _on_class_merged(self, corrections):
+        self._spec_computed = False
+        self.spec_grid.objects = []
+        self.correction_tool._sync_after_merge(corrections)
+
     def _on_toggle_trim_panel(self, event):
         self.trim_expanded.visible = not self.trim_expanded.visible
 
@@ -586,6 +591,7 @@ class CorrectorView(SubDash):
             self.controler.apply_live_corrections(new_corrections, "class")
             self.rebuild_grid()
             self.parent.repertoire.update_classes()
+            self.parent.parent._on_class_merged(new_corrections)
             self.save_msg.object = "Applied!"
             self.save_msg.visible = True
 
@@ -1158,6 +1164,71 @@ class CorrectionTool(SubDash):
                 self.compute_btn.disabled = False
 
         threading.Thread(target=run, daemon=True).start()
+
+    def _sync_after_merge(self, corrections):
+        df_corpus = self.controler.corpus.dataset
+        df_table = self.stats_table.value.copy()
+
+        def _parse(s):
+            if not isinstance(s, str) or s == "—":
+                return None
+            try:
+                return float(s.split()[0].rstrip("s"))
+            except (ValueError, IndexError):
+                return None
+
+        for old_cls, new_cls in corrections.items():
+            if old_cls == new_cls:
+                continue
+            old_in_table = old_cls in df_table["Class"].values
+            new_in_table = new_cls in df_table["Class"].values
+
+            # Weighted centroid/slope using counts recorded in the table (pre-merge)
+            count_old = int(df_table.loc[df_table["Class"] == old_cls, "Count"].iloc[0]) if old_in_table else 0
+            count_new = int(df_table.loc[df_table["Class"] == new_cls, "Count"].iloc[0]) if new_in_table else 0
+
+            def _weighted(col, fmt):
+                v_o = _parse(df_table.loc[df_table["Class"] == old_cls, col].iloc[0]) if old_in_table else None
+                v_n = _parse(df_table.loc[df_table["Class"] == new_cls, col].iloc[0]) if new_in_table else None
+                w_o = count_old if v_o is not None else 0
+                w_n = count_new if v_n is not None else 0
+                total_w = w_o + w_n
+                if total_w == 0:
+                    return "—"
+                return fmt((v_o or 0) * w_o / total_w + (v_n or 0) * w_n / total_w)
+
+            # Recompute count and duration from updated corpus
+            new_sub = df_corpus[df_corpus["label"] == new_cls]
+            new_count = len(new_sub)
+            new_dur = f"{(new_sub['offset_s'] - new_sub['onset_s']).median():.2f}s" if not new_sub.empty else "—"
+            new_centroid = _weighted("Med Centroid", lambda v: f"{v:.2f} kHz")
+            new_slope = _weighted("Med Slope", lambda v: f"{v:.2f} kHz/s")
+
+            if new_in_table:
+                df_table.loc[df_table["Class"] == new_cls, "Count"] = new_count
+                df_table.loc[df_table["Class"] == new_cls, "Med Dur"] = new_dur
+                df_table.loc[df_table["Class"] == new_cls, "Med Centroid"] = new_centroid
+                df_table.loc[df_table["Class"] == new_cls, "Med Slope"] = new_slope
+            else:
+                new_row = pd.DataFrame([{
+                    "Class": new_cls, "Count": new_count, "Med Dur": new_dur,
+                    "Med Centroid": new_centroid, "Med Slope": new_slope,
+                }])
+                df_table = pd.concat([df_table, new_row], ignore_index=True)
+
+            df_table = df_table[df_table["Class"] != old_cls]
+
+        self.stats_table.value = df_table.sort_values("Class").reset_index(drop=True)
+
+        # Refresh selectors and histogram
+        self.all_classes = sorted([c for c in df_corpus["label"].unique() if c != "SIL"])
+        self.registry["class"] = {}
+        self.registry["sample"] = {}
+        self.build_class_selectors()
+        self.sample_container.objects = [
+            pn.pane.Alert("Select a class above to inspect samples.", alert_type="light")
+        ]
+        self.update_boxplot_view()
 
     def build_class_selectors(self):
         grid = pn.FlexBox(justify_content="start", gap=10, align_items="center")

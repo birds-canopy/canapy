@@ -663,13 +663,19 @@ class SettingsDashboard(SubDash):
             return
 
         cfg = self.controler.config
-
         audio_data = cfg.data["transforms"]["audio"]
+
+        _audio_keys = ("fmin", "fmax", "win_length", "hop_length", "n_fft")
+        _old_audio = {k: audio_data.get(k) for k in _audio_keys}
+
         audio_data["fmin"] = self.fmin_input.value
         audio_data["fmax"] = self.fmax_input.value
         audio_data["win_length"] = self.win_length_input.value
         audio_data["hop_length"] = self.hop_length_input.value
         audio_data["n_fft"] = self.n_fft_input.value
+
+        if any(audio_data.get(k) != _old_audio[k] for k in _audio_keys):
+            self.controler._audio_params_dirty = True
 
         for section in ("syn", "nsyn"):
             model_data = cfg.data["model"][section]
