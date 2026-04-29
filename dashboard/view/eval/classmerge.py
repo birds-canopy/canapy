@@ -179,22 +179,14 @@ class MetricsView(SubDash):
 
                 stats_card = pn.Column(
                     pn.Row(
-                        pn.Column(
-                            pn.Row(
-                                pn.pane.HTML(f"<span style='{_header_style}'>Summary</span>"),
-                                tooltip,
-                                align='center',
-                                margin=(0, 0, 4, 0),
-                            ),
-                            _make_score_table(df.loc[summary_idx]),
-                        ),
-                        pn.Spacer(width=15),
-                        pn.Column(
-                            pn.pane.HTML(f"<span style='{_header_style}'>Per class</span>"),
-                            _make_score_table(df.loc[class_idx]),
-                        ),
-                        align='start',
+                        pn.pane.HTML(f"<span style='{_header_style}'>Summary</span>"),
+                        tooltip,
+                        margin=(0, 0, 4, 0),
                     ),
+                    _make_score_table(df.loc[summary_idx]),
+                    pn.Spacer(height=12),
+                    pn.pane.HTML(f"<span style='{_header_style}'>Per class</span>"),
+                    _make_score_table(df.loc[class_idx]),
                     css_classes=['inner-metric-card'],
                 )
 
