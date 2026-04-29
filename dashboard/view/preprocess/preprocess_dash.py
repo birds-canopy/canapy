@@ -792,7 +792,7 @@ class CorrectionTool(SubDash):
             disabled=True,
         )
         self.save_btn.on_click(self.on_click_save)
-        self.save_msg = pn.pane.HTML(styles=dict(color="green", background="white"))
+        self.save_msg = pn.pane.HTML(styles=dict(color="green", background="white"), visible=False)
         self.sample_container = pn.Column(
             pn.pane.Alert(
                 "Select a class above to inspect samples.", alert_type="light"
@@ -1249,6 +1249,7 @@ class CorrectionTool(SubDash):
 
     def listen_class_selection(self, label):
         self.highlight_selection(label)
+        self.save_msg.visible = False
         with pn.io.unlocked():
             self.sample_container.objects = [pn.Column(
                 pn.indicators.LoadingSpinner(value=True, width=36, height=36, color="primary"),

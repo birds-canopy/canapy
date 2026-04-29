@@ -61,7 +61,7 @@ class SampleCorrectionDashboard(SubDash):
             disabled=True 
         )
         self.save_btn.on_click(self.on_click_save)
-        self.save_msg = pn.pane.HTML(styles=dict(color="green", background="white"))
+        self.save_msg = pn.pane.HTML(styles=dict(color="green", background="white"), visible=False)
 
         self.repertoire_view = RepertoireView(
             self, num_panel=1, orientation="column", num_samples=100, page_size=5,
@@ -153,7 +153,7 @@ class SampleCorrectionDashboard(SubDash):
 
     def listen_class_selection(self, label):
         self.highlight_selection(label)
-        
+        self.save_msg.visible = False
         sample_corrector_layout = self.get_sample_corrector(label)
         self.sample_container.objects = [sample_corrector_layout]
 
@@ -171,6 +171,7 @@ class SampleCorrectionDashboard(SubDash):
             new_corrections.update(sample_corrector.corrections)
         self.controler.upload_corrections(new_corrections, "annot")
         self.save_msg.object = "Saved!"
+        self.save_msg.visible = True
 
 
 class ClassSelectionView(SubDash):
