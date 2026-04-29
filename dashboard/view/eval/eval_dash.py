@@ -226,7 +226,7 @@ class EvalDashboard(SubDash):
                                     fig,
                                     format="png",
                                     tight=True,
-                                    width=200,
+                                    sizing_mode="stretch_width",
                                     height=120,
                                 ),
                                 styles={
@@ -235,7 +235,7 @@ class EvalDashboard(SubDash):
                                     "padding": "8px",
                                     "background": "#f8fafc",
                                 },
-                                width=220,
+                                width=240,
                             )
                             self.spec_grid.append(card)
                     except Exception as e:

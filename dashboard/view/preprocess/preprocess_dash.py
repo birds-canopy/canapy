@@ -422,7 +422,7 @@ class PreprocessDashboard(SubDash):
                                     fig,
                                     format="png",
                                     tight=True,
-                                    width=200,
+                                    sizing_mode="stretch_width",
                                     height=120,
                                 ),
                                 styles={
@@ -431,7 +431,7 @@ class PreprocessDashboard(SubDash):
                                     "padding": "8px",
                                     "background": "#f8fafc",
                                 },
-                                width=220,
+                                width=240,
                             )
                             self.spec_grid.append(card)
                     except Exception as e:
@@ -440,7 +440,7 @@ class PreprocessDashboard(SubDash):
                             pn.pane.Markdown(
                                 f"**{cls}**: _error_",
                                 styles={"font-size": "11px", "color": "#dc2626"},
-                                width=220,
+                                width=240,
                             )
                         )
                 self._spec_computed = True

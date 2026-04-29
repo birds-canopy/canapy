@@ -579,6 +579,11 @@ class Controler:
             f"Loading repertoire samples for label(s): {selected_samples.label.unique()}"
         )
         audio_conf = self.config.transforms.audio
+        df = self.corpus.dataset
+        silence_tag = self.config.transforms.annots.silence_tag
+        non_sil = df[df["label"] != silence_tag]
+        seg_durs = non_sil["offset_s"] - non_sil["onset_s"]
+        x_tick_ref_s = float(seg_durs[seg_durs > 0].max()) if not seg_durs.empty else 1.0
         specs = [
             plot_segment_melspectrogram(
                 s.notated_path,
@@ -591,6 +596,8 @@ class Controler:
                 fmin=audio_conf.fmin,
                 fmax=audio_conf.fmax,
                 return_audio=True,
+                show_ticks=True,
+                x_tick_ref_s=x_tick_ref_s,
             )
             for s in selected_samples.itertuples()
         ]

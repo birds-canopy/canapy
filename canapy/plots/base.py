@@ -107,7 +107,9 @@ def plot_segment_melspectrogram(
         win_length=0.02,
         fmin=500,
         fmax=8000,
-        return_audio=False
+        return_audio=False,
+        show_ticks=False,
+        x_tick_ref_s=None,
     ):
 
     audio_file = pathlib.Path(notated_path)
@@ -135,13 +137,14 @@ def plot_segment_melspectrogram(
     e_delta = min(len(y), round(e_delta))
 
     full = y[s_delta:e_delta]
+    hop_length_samples = seconds_to_audio(hop_length, sampling_rate)
     win_length_samples = min(seconds_to_audio(win_length, sampling_rate), n_fft)
     spec = lbr.feature.melspectrogram(
         y=full,
         sr=sampling_rate,
         n_fft=n_fft,
         win_length=win_length_samples,
-        hop_length=seconds_to_audio(hop_length, sampling_rate),
+        hop_length=hop_length_samples,
         fmin=fmin,
         fmax=fmax,
         )
@@ -150,14 +153,9 @@ def plot_segment_melspectrogram(
 
     fig = matplotlib.figure.Figure(figsize=(1.5, 0.5))
     ax = fig.subplots()
-    ax.axis("off")
-    fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
 
-    sample_onset = audio_to_frames(onset_audio - s_delta,
-                    seconds_to_audio(hop_length, sampling_rate)),
-
-    sample_offset = spec.shape[1] - audio_to_frames(e_delta - offset_audio,
-                    seconds_to_audio(hop_length, sampling_rate)),
+    sample_onset = audio_to_frames(onset_audio - s_delta, hop_length_samples),
+    sample_offset = spec.shape[1] - audio_to_frames(e_delta - offset_audio, hop_length_samples),
 
     ax.imshow(spec, origin="lower", cmap="magma", aspect="auto")
     ax.axvline(
@@ -178,6 +176,28 @@ def plot_segment_melspectrogram(
         markevery=0.01,
         markersize=5,
         )
+
+    ax.axis("off")
+    fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
+
+    if show_ticks:
+        n_mels, n_frames = spec.shape
+        tick_h = n_mels * 0.07
+        tick_w = n_frames * 0.03
+        so = sample_onset[0]
+
+        # Y-ticks: evenly spaced in mel-bin space (= evenly spaced visually)
+        for yp in np.linspace(0, n_mels - 1, 5):
+            ax.plot([0, tick_w], [yp, yp], color="white", lw=0.8, alpha=0.85, solid_capstyle="butt")
+
+        # X-ticks: fixed spacing based on dataset max segment duration, clipped to segment
+        sf = sample_offset[0]
+        ref_frames = (x_tick_ref_s * sampling_rate / hop_length_samples
+                      if x_tick_ref_s is not None
+                      else sf - so)
+        for xp in (so + np.arange(5) * ref_frames / 4):
+            if xp <= sf:
+                ax.plot([xp, xp], [0, tick_h], color="white", lw=0.8, alpha=0.85, solid_capstyle="butt")
 
     if return_audio:
         sample_only = y[max(0, onset_audio): min(len(y), offset_audio)]
