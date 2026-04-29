@@ -1319,20 +1319,29 @@ class SampleListView(SubDash):
         self.sliced_df = self.controler.corpus.dataset.query("label==@label")
         self.registry = Registry()
         self._current_page = 0
+        self._syncing = False
         n = len(self.sliced_df)
         self._n_pages = max(1, -(-n // self.PAGE_SIZE))
         self._container = pn.Column(sizing_mode="stretch_width")
-        self._pager = pn.widgets.RadioButtonGroup(
+
+        pager_kwargs = dict(
             options=list(range(1, self._n_pages + 1)),
             value=1,
             button_style="outline",
             button_type="default",
             visible=self._n_pages > 1,
         )
-        self._pager.param.watch(self._on_page_change, "value")
+        self._pager_top = pn.widgets.RadioButtonGroup(**pager_kwargs)
+        self._pager_bot = pn.widgets.RadioButtonGroup(**pager_kwargs)
+        self._pager_top.param.watch(self._on_page_change_top, "value")
+        self._pager_bot.param.watch(self._on_page_change_bot, "value")
+
+        pager_row_top = pn.Row(pn.Spacer(), self._pager_top, pn.Spacer(), sizing_mode="stretch_width")
+        pager_row_bot = pn.Row(pn.Spacer(), self._pager_bot, pn.Spacer(), sizing_mode="stretch_width")
         self.layout = pn.Column(
+            pager_row_top,
             self._container,
-            pn.Row(pn.Spacer(), self._pager, pn.Spacer(), sizing_mode="stretch_width"),
+            pager_row_bot,
             sizing_mode="stretch_width",
         )
         if self.sliced_df.empty:
@@ -1354,7 +1363,20 @@ class SampleListView(SubDash):
             rows.append(self.registry[idx].layout)
         self._container.objects = rows
 
-    def _on_page_change(self, event):
+    def _on_page_change_top(self, event):
+        if self._syncing:
+            return
+        self._syncing = True
+        self._pager_bot.value = event.new
+        self._syncing = False
+        self._render_page(event.new - 1)
+
+    def _on_page_change_bot(self, event):
+        if self._syncing:
+            return
+        self._syncing = True
+        self._pager_top.value = event.new
+        self._syncing = False
         self._render_page(event.new - 1)
 
     @property
