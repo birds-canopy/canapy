@@ -93,6 +93,7 @@ class Controler:
     opt_max_evals: int = attr.field(default=100)
     opt_hp_val_ratio: float = attr.field(default=0.2)
     opt_seed: int = attr.field(default=42)
+    min_class_count: int = attr.field(default=10)
 
     def __attrs_post_init__(self):
         if (
@@ -309,13 +310,13 @@ class Controler:
             f"\nAnnotation correction:\n{annot_corrections}"
         )
 
-    def clean_corpus_pre_training(self, min_class_count=10):
+    def clean_corpus_pre_training(self):
         df = self.corpus.dataset.copy()
         silence_tag = self.config.transforms.annots.silence_tag
 
         # Remove under-represented classes (occurrence-based)
         counts = df[~df["label"].isin([silence_tag, "TRASH"])].groupby("label").size()
-        classes_to_remove = counts[counts < min_class_count].index.tolist()
+        classes_to_remove = counts[counts < self.min_class_count].index.tolist()
 
         if classes_to_remove:
             df.loc[df["label"].isin(classes_to_remove), "label"] = "TRASH"

@@ -725,7 +725,7 @@ class CorrectionTool(SubDash):
             button_style="solid",
             styles={"font-size": "12px"},
         )
-        self.stat_selector.param.watch(self.update_boxplot_view, "value")
+        self.stat_selector.param.watch(self._on_stat_selector_change, "value")
         self.sort_btn = pn.widgets.RadioButtonGroup(
             name="Sort",
             options=["A→Z", "sorted by ↑"],
@@ -744,6 +744,49 @@ class CorrectionTool(SubDash):
             visible=(n_pages > 1),
         )
         self.plot_pager.param.watch(self.update_boxplot_view, "value")
+
+        df = self.controler.corpus.dataset
+        max_count = int(
+            df[~df["label"].isin(["SIL", "TRASH"])].groupby("label").size().max()
+        ) if len(df) > 0 else 100
+
+        self.min_count_input = pn.widgets.IntInput(
+            value=self.controler.min_class_count,
+            start=1,
+            end=max_count,
+            step=1,
+            width=90,
+        )
+        self.apply_threshold_btn = pn.widgets.Button(
+            name="Apply",
+            button_type="primary",
+            width=70,
+            height=32,
+            align="center",
+        )
+        self.apply_threshold_btn.on_click(self._on_apply_threshold)
+        _threshold_tooltip = custom_tooltip(
+            "Classes with fewer samples than this threshold\n"
+            "will be excluded from model training.\n"
+            "The red dashed line shows the current threshold.",
+            direction="right",
+        )
+        self.threshold_row = pn.Row(
+            pn.pane.Markdown(
+                "**Min. count threshold:**",
+                styles={"font-size": "12px"},
+                align="center",
+                margin=(0, 6, 0, 0),
+            ),
+            self.min_count_input,
+            pn.Spacer(width=6),
+            self.apply_threshold_btn,
+            _threshold_tooltip,
+            align="center",
+            margin=(4, 0, 2, 0),
+            visible=True,
+        )
+
         self.update_boxplot_view()
 
         table_section = pn.Column(
@@ -778,6 +821,7 @@ class CorrectionTool(SubDash):
                 align="center",
                 sizing_mode="stretch_width",
             ),
+            self.threshold_row,
             self.plot_pane,
             pn.Row(pn.Spacer(), self.plot_pager, pn.Spacer()),
             sizing_mode="stretch_width",
@@ -810,6 +854,14 @@ class CorrectionTool(SubDash):
             return meds.reindex(self.all_classes, fill_value=0).sort_values().index.tolist()
         return list(self.all_classes)
 
+    def _on_stat_selector_change(self, event):
+        self.threshold_row.visible = (event.new == "Count")
+        self.update_boxplot_view(event)
+
+    def _on_apply_threshold(self, event):
+        self.controler.min_class_count = self.min_count_input.value
+        self.update_boxplot_view()
+
     def update_boxplot_view(self, event=None):
         if self._updating_view:
             return
@@ -840,10 +892,10 @@ class CorrectionTool(SubDash):
                           .groupby("label").size()
                           .reindex(current_classes, fill_value=0))
                 ax.bar(current_classes, counts.values, color="#3b82f6")
-                MIN_COUNT = 10
+                MIN_COUNT = self.min_count_input.value
                 ax.axhline(
                     y=MIN_COUNT, color="red", linestyle="--", linewidth=1.5,
-                    label=f"Minimal fitting treshold ({MIN_COUNT} samples)",
+                    label=f"Minimal fitting threshold ({MIN_COUNT} samples)",
                 )
                 ax.legend(fontsize=8, loc="upper right")
                 ax.set_ylabel("Count", fontsize=9)
