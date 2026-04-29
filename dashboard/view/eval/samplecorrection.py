@@ -69,29 +69,17 @@ class SampleCorrectionDashboard(SubDash):
 
         fig, self.counts = plot_bokeh_label_count(self.controler.misclassified_segments)
         fig.min_border = 0
-        bokeh_pane = pn.pane.Bokeh(fig, sizing_mode="stretch_both", max_height=350)
+        bokeh_pane = pn.pane.Bokeh(fig, sizing_mode="stretch_width", height=280)
 
         self.sample_container = pn.Column(
             pn.pane.Alert("Select a class above to start correcting.", alert_type="light"),
-            sizing_mode="stretch_both",
-            scroll=True,
-            min_height=300
-        )
-
-        repertoire_card = pn.Column(
-            self.repertoire_view.layout,
             sizing_mode="stretch_width",
-            css_classes=['sample-card']
+            scroll=True,
+            min_height=300,
         )
 
         self.layout = pn.Column(
-            pn.Row(
-                bokeh_pane,
-                pn.Spacer(width=20),
-                repertoire_card,
-                sizing_mode="stretch_width",
-                min_height=280
-            ),
+            bokeh_pane,
             pn.Spacer(height=20),
             pn.Column(
                 pn.pane.Markdown("### 1. Select a class to correct", margin=(10, 0, 10, 0)),
@@ -103,9 +91,9 @@ class SampleCorrectionDashboard(SubDash):
                         "background": "#f8f9fa",
                         "padding": "15px",
                         "border-radius": "8px",
-                        "border": "1px solid #dee2e6"
+                        "border": "1px solid #dee2e6",
                     },
-                    sizing_mode="stretch_width"
+                    sizing_mode="stretch_width",
                 ),
                 pn.pane.Markdown("### 2. Correct samples", margin=(20, 0, 10, 0)),
                 pn.Row(
@@ -115,11 +103,24 @@ class SampleCorrectionDashboard(SubDash):
                     align="center",
                     margin=(0, 0, 8, 0),
                 ),
-                sizing_mode="stretch_width"
+                sizing_mode="stretch_width",
             ),
             pn.Spacer(height=10),
-            self.sample_container,
-            sizing_mode="stretch_both",
+            pn.Row(
+                pn.Column(
+                    pn.pane.Markdown("**Samples to correct**", margin=(0, 0, 6, 0)),
+                    self.sample_container,
+                    sizing_mode="stretch_width",
+                ),
+                pn.Spacer(width=20),
+                pn.Column(
+                    pn.pane.Markdown("**Audio repertoire**", margin=(0, 0, 6, 0)),
+                    self.repertoire_view.layout,
+                    sizing_mode="stretch_width",
+                ),
+                sizing_mode="stretch_width",
+            ),
+            sizing_mode="stretch_width",
         )
 
     def build_class_selectors(self):
