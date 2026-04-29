@@ -328,8 +328,8 @@ class SideBar(SubDash):
         btn_loaddata   = _btn("Load Data",     "loaddata")
         btn_settings   = _btn("Settings",      "settings")
         btn_preprocess = _btn("Preprocessing", "preprocess")
-        btn_train      = _btn("Fit",           "train")
-        btn_eval       = _btn("Eval",          "eval")
+        btn_train      = _btn("Fit (& re-Fit)",           "train")
+        btn_eval       = _btn("Eval (& re-Process)",          "eval")
         btn_export     = _btn("Export",        "export")
         btn_annotate   = _btn("Annotate",      "annotate")
 
