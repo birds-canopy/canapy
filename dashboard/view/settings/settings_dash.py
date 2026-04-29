@@ -357,6 +357,7 @@ class SettingsDashboard(SubDash):
             height=45,
         )
         self.btn_apply.on_click(self._apply)
+        self.apply_status = pn.pane.HTML("", margin=(4, 0, 0, 0))
 
         self.advanced_audio_block = pn.Column(
             _make_param_row("hop_length (s)", self.hop_length_input, "hop_length"),
@@ -478,13 +479,13 @@ class SettingsDashboard(SubDash):
             species_params_card,
             hp_card,
             self.btn_apply,
+            self.apply_status,
             sizing_mode="stretch_width",
             min_width=320,
         )
 
         main_content = pn.Column(
             pn.pane.HTML("<h1 style='color:#1e293b;margin:0 0 6px 0;'>Settings</h1>"),
-            self.status,
             pn.Spacer(height=20),
             pn.Row(
                 species_card,
@@ -714,9 +715,15 @@ class SettingsDashboard(SubDash):
                 f"librosa will cap fmax at {nyquist:.0f} Hz."
             )
             self.status.alert_type = "warning"
+            self.apply_status.object = (
+                f"<span style='font-size:12px;color:#d97706;'>⚠ Applied — fmax capped at {nyquist:.0f} Hz</span>"
+            )
         else:
             self.status.object = "Settings applied successfully."
             self.status.alert_type = "success"
+            self.apply_status.object = (
+                "<span style='font-size:12px;color:#059669;'>✓ Settings applied successfully.</span>"
+            )
 
     def _validate(self):
         if self.fmin_input.value >= self.fmax_input.value:
