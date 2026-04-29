@@ -536,6 +536,8 @@ class LoadDataDashboard(SubDash):
             self.controler.preprocess_done = False
             self.controler._repertoire_cache.clear()
             self.controler._audio_params_dirty = False
+            self.controler._settings_dirty = False
+            self.controler._config_display_name = None
             self.controler._step = "home"
             self.sidebar.on_data_loaded()
 

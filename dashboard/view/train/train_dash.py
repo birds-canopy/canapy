@@ -1,7 +1,6 @@
 import logging
 import threading
 import time
-from pathlib import Path
 import panel as pn
 
 from ..helpers import SubDash
@@ -90,8 +89,14 @@ class TrainDashboard(SubDash):
             margin=(0, 0, 10, 0),
         )
 
+        self._hp_params_pane = pn.pane.HTML(
+            self._build_params_text(),
+            margin=(0, 0, 10, 0),
+        )
+
         self._hp_expanded = pn.Column(
             self._hp_info_alert,
+            self._hp_params_pane,
             pn.Row(td.optimize_btn, td.opt_indicator, align="center", margin=(0, 0, 6, 0)),
             td.opt_progress,
             td.opt_progress_text,
@@ -109,8 +114,31 @@ class TrainDashboard(SubDash):
             styles={"margin-bottom": "12px"},
         )
 
+    def _build_params_text(self):
+        c = self.controler
+        pct = int(getattr(c, "opt_max_percentage", 0.3) * 100)
+        n_jobs = getattr(c, "opt_n_jobs", 4)
+        n_evals = getattr(c, "opt_max_evals", 100)
+        parallel = getattr(c, "opt_parallel", False)
+        mode = "parallel" if parallel else "sequential"
+        chip = "background:#eff6ff;color:#1d4ed8;border:1px solid #93c5fd;border-radius:4px;padding:2px 8px;font-size:12px;font-family:monospace;"
+        return (
+            f"<div style='display:flex;gap:8px;flex-wrap:wrap;align-items:center;'>"
+            f"<span style='{chip}'>{n_evals} trials</span>"
+            f"<span style='{chip}'>{n_jobs} jobs</span>"
+            f"<span style='{chip}'>{pct}% data</span>"
+            f"<span style='{chip}'>{mode}</span>"
+            f"</div>"
+        )
+
     def _on_toggle_hp_panel(self, event):
         self._hp_expanded.visible = not self._hp_expanded.visible
+        if self._hp_expanded.visible:
+            name = self.controler._config_display_name or "default"
+            if self.controler._settings_dirty:
+                name += " *(custom)*"
+            self.traindash.params_display.object = f"**Current params:** {name}"
+            self._hp_params_pane.object = self._build_params_text()
 
 
 def _spinner_col(label, indicator, status):
@@ -173,12 +201,8 @@ class TrainerDashboard(SubDash):
             styles={"font-size": "12px", "color": "#6b7280"},
             visible=False,
         )
-        _config_name = (
-            Path(self.controler.config_path).stem
-            if self.controler.config_path else "default"
-        )
         self.params_display = pn.pane.Markdown(
-            f"**Current params:** {_config_name}",
+            f"**Current params:** {self.controler._config_display_name or 'default'}",
             styles={"font-size": "13px", "color": "#374151"},
             align="center",
             margin=(0, 0, 0, 16),

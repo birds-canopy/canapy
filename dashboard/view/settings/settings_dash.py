@@ -564,8 +564,10 @@ class SettingsDashboard(SubDash):
             from config.config import Config as _Config
             preset = _Config.from_file(self._selected_preset_path)
             _deep_update(self.controler.config.data, preset.data)
+            self.controler._config_display_name = self._selected_preset_path.stem
             self._refresh_widgets_from_config()
             self._apply(None)
+            self.controler._settings_dirty = False
             name = self._selected_preset_path.stem.replace("_", " ").title()
             self._preset_status.object = (
                 f"<span style='font-size:12px;color:#059669;'>Preset <b>{name}</b> applied.</span>"
@@ -606,8 +608,11 @@ class SettingsDashboard(SubDash):
             from config.config import Config as _Config
             loaded = _Config.from_file(path)
             _deep_update(self.controler.config.data, loaded.data)
+            self.controler.config_path = path
+            self.controler._config_display_name = path.stem
             self._refresh_widgets_from_config()
             self._apply(None)
+            self.controler._settings_dirty = False
             self.config_load_status.object = (
                 "<span style='font-size:12px;color:#059669;'>Config loaded and applied.</span>"
             )
@@ -676,6 +681,7 @@ class SettingsDashboard(SubDash):
 
         if any(audio_data.get(k) != _old_audio[k] for k in _audio_keys):
             self.controler._audio_params_dirty = True
+        self.controler._settings_dirty = True
 
         for section in ("syn", "nsyn"):
             model_data = cfg.data["model"][section]
