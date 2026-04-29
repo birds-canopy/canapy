@@ -230,9 +230,11 @@ class PreprocessDashboard(SubDash):
         self.correction_tool = CorrectionTool(self)
         self.content_area = pn.Column(self.merge_tool.layout, sizing_mode="stretch_both")
         trim_section = self._build_trim_section()
+        spec_section = self._build_class_spectrogram_section()
         main_content = pn.Column(
             self.header,
             trim_section,
+            spec_section,
             pn.Row(self.pane_selection, css_classes=["selector-bar"], sizing_mode="stretch_width"),
             self.content_area,
             sizing_mode="stretch_both",
@@ -320,6 +322,139 @@ class PreprocessDashboard(SubDash):
             sizing_mode="stretch_width",
             styles={"margin-bottom": "15px"},
         )
+
+    def _build_class_spectrogram_section(self):
+        self._spec_computed = False
+        self.spec_toggle_btn = pn.widgets.Button(
+            name="Class Spectrograms",
+            button_type="primary",
+            width=180,
+        )
+        self.spec_toggle_btn.on_click(self._on_toggle_spec_panel)
+        self.spec_collapsed = pn.Row(
+            self.spec_toggle_btn,
+            pn.pane.Markdown(
+                "Visualize one mel spectrogram per class to identify similar classes.",
+                styles={"font-size": "13px", "color": "#374151"},
+                align="center",
+                margin=(0, 0, 0, 12),
+            ),
+            align="center",
+            sizing_mode="stretch_width",
+        )
+
+        self.spec_progress = pn.widgets.Progress(
+            value=0,
+            max=100,
+            sizing_mode="stretch_width",
+            visible=False,
+            bar_color="primary",
+        )
+        self.spec_status = pn.pane.Markdown(
+            "",
+            styles={"font-size": "12px", "color": "#6b7280"},
+            visible=False,
+        )
+        self.spec_grid = pn.FlexBox(
+            justify_content="start",
+            gap=10,
+            flex_wrap="wrap",
+            sizing_mode="stretch_width",
+        )
+        self.spec_expanded = pn.Column(
+            pn.Column(
+                self.spec_progress,
+                self.spec_status,
+                sizing_mode="stretch_width",
+            ),
+            self.spec_grid,
+            visible=False,
+            sizing_mode="stretch_width",
+        )
+
+        return pn.Column(
+            self.spec_collapsed,
+            self.spec_expanded,
+            css_classes=["dashboard-col"],
+            sizing_mode="stretch_width",
+            styles={"margin-bottom": "15px"},
+        )
+
+    def _on_toggle_spec_panel(self, event):
+        self.spec_expanded.visible = not self.spec_expanded.visible
+        if self.spec_expanded.visible and not self._spec_computed:
+            self._on_compute_class_spectrograms(None)
+
+    def _on_compute_class_spectrograms(self, event):
+        self.spec_toggle_btn.loading = True
+        self.spec_progress.value = 0
+        self.spec_progress.visible = True
+        self.spec_status.visible = True
+        self.spec_status.object = "Starting..."
+        self.spec_grid.objects = []
+
+        def run():
+            try:
+                df = self.controler.corpus.dataset
+                classes = sorted([c for c in df["label"].unique() if c != "SIL"])
+                total = len(classes)
+                for i, cls in enumerate(classes):
+                    self.spec_status.object = f"Class {i + 1}/{total}: {cls}"
+                    self.spec_progress.value = int(i / total * 100)
+                    class_df = df[df["label"] == cls].copy()
+                    class_df = class_df.assign(
+                        duration=class_df["offset_s"] - class_df["onset_s"]
+                    )
+                    med_dur = class_df["duration"].median()
+                    best_idx = (class_df["duration"] - med_dur).abs().idxmin()
+                    sample_row = class_df.loc[[best_idx]]
+                    try:
+                        specs = self.controler.load_repertoire(sample_row)
+                        if specs:
+                            fig = specs[0][0]
+                            card = pn.Column(
+                                pn.pane.Markdown(
+                                    f"**{cls}**",
+                                    styles={"font-size": "11px", "text-align": "center"},
+                                    margin=(0, 0, 2, 0),
+                                ),
+                                pn.pane.Matplotlib(
+                                    fig,
+                                    format="png",
+                                    tight=True,
+                                    width=200,
+                                    height=120,
+                                ),
+                                styles={
+                                    "border": "1px solid #e5e7eb",
+                                    "border-radius": "6px",
+                                    "padding": "8px",
+                                    "background": "#f8fafc",
+                                },
+                                width=220,
+                            )
+                            self.spec_grid.append(card)
+                    except Exception as e:
+                        logger.debug(f"Spectrogram error ({cls}): {e}")
+                        self.spec_grid.append(
+                            pn.pane.Markdown(
+                                f"**{cls}**: _error_",
+                                styles={"font-size": "11px", "color": "#dc2626"},
+                                width=220,
+                            )
+                        )
+                self._spec_computed = True
+                self.spec_progress.value = 100
+                self.spec_status.object = f"Done — {total} classes."
+                self.spec_progress.visible = False
+                self.spec_status.visible = False
+            except Exception as e:
+                logger.error(f"Class spectrogram computation error: {e}")
+                self.spec_status.object = f"Error: {e}"
+            finally:
+                self.spec_toggle_btn.loading = False
+
+        threading.Thread(target=run, daemon=True).start()
 
     def _on_click_export(self, event):
         try:
