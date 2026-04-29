@@ -41,7 +41,7 @@ def plot_bokeh_confusion_matrix(cm, classes=None, title=None):
         tools="hover,save,wheel_zoom,box_zoom,pan,reset",
         x_range=classes,
         y_range=list(reversed(classes)),
-        tooltips=[("class", "@ylabel, @xlabel"), ("value", "@confusion")],
+        tooltips=[("True", "@ylabel"), ("Predicted", "@xlabel"), ("Recall", "@confusion{0.000}")],
         active_scroll="wheel_zoom",
         active_drag="box_zoom",
         sizing_mode="stretch_both"
@@ -50,7 +50,11 @@ def plot_bokeh_confusion_matrix(cm, classes=None, title=None):
     p.grid.grid_line_color = None
     p.axis.major_label_text_font_size = "10px"
     p.axis.major_label_standoff = 0
-    p.xaxis.major_label_orientation = np.pi / 2  # modif 4/12 labels + lisibles
+    p.xaxis.major_label_orientation = np.pi / 2
+    p.xaxis.axis_label = "Predicted"
+    p.yaxis.axis_label = "True label"
+    p.axis.axis_label_text_font_size = "11px"
+    p.axis.axis_label_standoff = 8
 
     p.rect(
         "xlabel",
