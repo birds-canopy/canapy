@@ -8,7 +8,7 @@ matplotlib.use("agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import librosa
-from ..helpers import SubDash, Registry, SideBar, custom_tooltip
+from ..helpers import SubDash, Registry, SideBar, custom_tooltip, pick_directory
 
 pn.extension("tabulator")
 
@@ -175,10 +175,23 @@ class PreprocessDashboard(SubDash):
         super().__init__(parent)
         pn.config.raw_css.append(PREPROCESS_CSS)
         self.sidebar = SideBar(self, "Preprocessing", disabled=False)
+        default_export_dir = str(self.controler.output_directory / "corrected_annotations")
+        self.export_dir_input = pn.widgets.TextInput(
+            value=default_export_dir,
+            placeholder="/path/to/output",
+            sizing_mode="stretch_width",
+            height=32,
+            margin=0,
+        )
+        self.export_browse_btn = pn.widgets.Button(
+            name="Browse", button_type="default", width=70, height=32, margin=(0, 0, 0, 4)
+        )
+        self.export_browse_btn.on_click(self._browse_export_dir)
+
         self.export_btn = pn.widgets.Button(
             name="Export Annotations",
-            width=180,
-            align="end",
+            sizing_mode="stretch_width",
+            height=34,
             stylesheets=["""
                 button.bk-btn {
                     background-color: #dcfce7 !important;
@@ -194,7 +207,7 @@ class PreprocessDashboard(SubDash):
             """],
         )
         self.export_msg = pn.pane.Markdown(
-            "", styles={"font-size": "12px", "color": "#166534"}, visible=False, align="end"
+            "", styles={"font-size": "12px", "color": "#166534"}, visible=False
         )
         self.export_btn.on_click(self._on_click_export)
 
@@ -209,8 +222,21 @@ class PreprocessDashboard(SubDash):
                 sizing_mode="stretch_width",
             ),
             pn.Column(
+                pn.pane.HTML(
+                    "<span style='font-size:11px;color:#6b7280;font-weight:600;"
+                    "text-transform:uppercase;letter-spacing:0.6px;'>Output folder</span>",
+                    margin=(0, 0, 3, 0),
+                ),
+                pn.Row(
+                    self.export_dir_input,
+                    self.export_browse_btn,
+                    sizing_mode="stretch_width",
+                    align="center",
+                    margin=(0, 0, 4, 0),
+                ),
                 self.export_btn,
                 self.export_msg,
+                width=300,
                 align="end",
                 margin=(0, 0, 0, 10),
             ),
@@ -456,10 +482,17 @@ class PreprocessDashboard(SubDash):
 
         threading.Thread(target=run, daemon=True).start()
 
+    def _browse_export_dir(self, event):
+        directory = pick_directory("Select Export Directory")
+        if directory:
+            self.export_dir_input.value = directory
+
     def _on_click_export(self, event):
         try:
-            self.controler.export_corpus()
+            out_dir = self.export_dir_input.value.strip() or None
+            self.controler.export_corpus(output_dir=out_dir)
             self.export_msg.object = "Exported!"
+            self.export_msg.styles = {"font-size": "12px", "color": "#166534"}
             self.export_msg.visible = True
         except Exception as e:
             logger.error(f"Export failed: {e}")

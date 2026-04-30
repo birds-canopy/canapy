@@ -168,6 +168,20 @@ class AnnotateDashboard(SubDash):
         )
         self.btn_run.on_click(self._on_annotate)
 
+        default_export_dir = str(Path(self.controler.output_directory) / "annotated_external")
+        self.export_dir_input = pn.widgets.TextInput(
+            value=default_export_dir,
+            placeholder="/path/to/output",
+            sizing_mode="stretch_width",
+            height=38,
+            margin=0,
+            disabled=True,
+        )
+        self.export_dir_browse_btn = pn.widgets.Button(
+            name="Browse", button_type="default", width=90, height=38, margin=0, disabled=True
+        )
+        self.export_dir_browse_btn.on_click(self._browse_export_dir)
+
         self.btn_export = pn.widgets.Button(
             name="Export Results",
             button_type="success",
@@ -201,6 +215,15 @@ class AnnotateDashboard(SubDash):
             self.toggle_ens,
             pn.Spacer(height=12),
             self.btn_run,
+            pn.Spacer(height=8),
+            pn.pane.HTML("<div class='section-header'>Export Directory</div>"),
+            pn.Row(
+                self.export_dir_input,
+                self.export_dir_browse_btn,
+                sizing_mode="stretch_width",
+                align="center",
+                margin=0,
+            ),
             self.btn_export,
             pn.Spacer(height=6),
             self.info_msg,
@@ -398,6 +421,8 @@ class AnnotateDashboard(SubDash):
 
             self._predictions = all_preds
             self.btn_export.disabled = False
+            self.export_dir_input.disabled = False
+            self.export_dir_browse_btn.disabled = False
             self.info_msg.object = (
                 "<span style='color:#16a34a;font-weight:600;font-size:12px;'>All tasks completed.</span>"
             )
@@ -412,11 +437,16 @@ class AnnotateDashboard(SubDash):
         finally:
             self.btn_run.disabled = False
 
+    def _browse_export_dir(self, event):
+        directory = pick_directory("Select Export Directory")
+        if directory:
+            self.export_dir_input.value = directory
+
     def _on_export(self, event):
         if not self._predictions:
             return
         try:
-            out_dir = Path(self.controler.output_directory) / "annotated_external"
+            out_dir = Path(self.export_dir_input.value.strip()) if self.export_dir_input.value.strip() else Path(self.controler.output_directory) / "annotated_external"
             from datetime import datetime
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
             for name, pred in self._predictions.items():
