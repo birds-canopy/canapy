@@ -66,6 +66,7 @@ transforms:
       data_augmentation:
         noise_std: 0.01
       min_silence_duration: 0.2
+    iterative_fit: false
     max_sequences: -1
     test_ratio: 0.2
 
@@ -377,6 +378,15 @@ schema:
                 be discarded in the non-syntactic training set. [META] units=seconds
               default: 0.2
               minimum: 0.0
+        iterative_fit:
+          type: bool
+          description: |
+            When true, fit the ESN reservoir one sequence at a time
+            (seq-by-seq), keeping only one state matrix in RAM at once.
+            Mathematically equivalent to the standard fit but uses constant
+            peak RAM instead of O(n_total_frames × n_units). Slightly slower
+            due to the sequential loop. Recommended for large datasets.
+          default: false
         max_sequences:
           type: int
           description: |

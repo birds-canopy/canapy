@@ -146,6 +146,14 @@ PARAM_HELP = {
         "excluded from training metrics. Must match the tag used in your annotation files "
         "if you already have silence labels."
     ),
+    "iterative_fit": (
+        "Normal fit: standard mode — accumulates all reservoir state matrices in RAM "
+        "before solving Ridge. Slightly faster but RAM usage grows with dataset size "
+        "(O(n_frames × n_units)). "
+        "Iterative fit: processes one sequence at a time, keeping only one state matrix "
+        "in RAM at once. Mathematically equivalent result, constant peak RAM. "
+        "Recommended for large datasets."
+    ),
 }
 
 
@@ -373,6 +381,18 @@ class SettingsDashboard(SubDash):
             sizing_mode="stretch_width",
         )
 
+        _iterative_fit_val = bool(
+            cfg.data.get("transforms", {}).get("training", {}).get("iterative_fit", False)
+        )
+        self.fit_mode_input = pn.widgets.Select(
+            options={
+                "Normal fit (fast, high RAM on large datasets)": False,
+                "Iterative fit (memory-efficient, slightly slower)": True,
+            },
+            value=_iterative_fit_val,
+            sizing_mode="stretch_width",
+        )
+
         self.reservoir_block = pn.Column(
             pn.pane.HTML("<div class='settings-subsection-header'>Reservoir (syn & nsyn)</div>"),
             pn.pane.HTML("<p style='font-size:12px;color:#64748b;margin:0 0 10px 0;'>These parameters can be automatically optimised by the hyperparameter search run just before model training, and can differ from the values set here if you run the hyperparameter search.</p>"),
@@ -382,6 +402,7 @@ class SettingsDashboard(SubDash):
             _make_param_row("Input scaling delta (isd)", self.isd_input, "isd"),
             _make_param_row("Input scaling delta2 (isd2)", self.isd2_input, "isd2"),
             _make_param_row("Ridge coefficient", self.ridge_input, "ridge"),
+            _make_param_row("Fit mode", self.fit_mode_input, "iterative_fit"),
             visible=False,
             sizing_mode="stretch_width",
         )
@@ -698,6 +719,7 @@ class SettingsDashboard(SubDash):
             x.strip() for x in self.lonely_labels_input.value.split(",") if x.strip()
         ]
         cfg.data["transforms"]["annots"]["silence_tag"] = self.silence_tag_input.value.strip() or "SIL"
+        cfg.data["transforms"]["training"]["iterative_fit"] = self.fit_mode_input.value
 
         self.controler.opt_parallel = self.opt_parallel_input.value
         self.controler.opt_max_percentage = self.opt_percentage_input.value

@@ -5,7 +5,7 @@ import logging
 import numpy as np
 
 from .base import Annotator
-from .commons.esn import init_esn_model, predict_with_esn
+from .commons.esn import init_esn_model, predict_with_esn, fit_esn_seq_by_seq
 from .commons.mfccs import load_mfccs_and_repeat_labels
 from .commons.postprocess import predictions_to_corpus, extract_vocab
 from ..transforms.synesn import SynESNTransform
@@ -151,7 +151,12 @@ class SynAnnotator(Annotator):
                 corpus, purpose="training"
             )
 
-            self.rpy_model.fit(train_mfcc, train_labels)
+            iterative_fit = getattr(self.config.transforms.training, "iterative_fit", False)
+            if iterative_fit and isinstance(train_mfcc, list):
+                logger.info("SynAnnotator: using iterative (seq-by-seq) fit.")
+                fit_esn_seq_by_seq(self.rpy_model, train_mfcc, train_labels)
+            else:
+                self.rpy_model.fit(train_mfcc, train_labels)
 
             self._trained = True
 

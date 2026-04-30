@@ -66,6 +66,25 @@ def init_esn_model(model_config, input_dim, audio_features, seed=None, workers=N
         backend=getattr(model_config, "backend", "multiprocessing")
     )
 
+def fit_esn_seq_by_seq(model, X_seqs, Y_seqs):
+    """Memory-efficient ESN fit: interleave reservoir.run and readout.worker
+    one sequence at a time so peak RAM = one state matrix instead of all of them.
+    Mathematically equivalent to model.fit(X_seqs, Y_seqs).
+    """
+    model.fit([np.asarray(X_seqs[0])], [np.asarray(Y_seqs[0])])
+    reservoir = model.reservoir
+    readout   = model.readout
+
+    def _gen():
+        for x_seq, y_seq in zip(X_seqs, Y_seqs):
+            reservoir.reset()
+            states = np.asarray(reservoir.run(x_seq))
+            yield readout.worker(states, y_seq)
+            del states
+
+    readout.master(_gen())
+
+
 def predict_with_esn(annotator, corpus, return_raw=False, redo_transforms=False):
     if not hasattr(annotator, 'rpy_model'):
         raise NotTrainedError("Annotator does not contain a trained rpy_model.")

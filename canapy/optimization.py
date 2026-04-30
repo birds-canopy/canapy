@@ -19,7 +19,7 @@ from hyperopt import STATUS_OK, STATUS_FAIL
 from reservoirpy.hyper import research, parallel_research
 
 from canapy.corpus import Corpus
-from canapy.annotator.commons.esn import init_esn_model
+from canapy.annotator.commons.esn import init_esn_model, fit_esn_seq_by_seq
 from canapy.timings import seconds_to_frames, seconds_to_audio
 
 logger = logging.getLogger("canapy")
@@ -414,7 +414,7 @@ def objective(dataset, config, **kwargs):
             X_fit, Y_fit = X_train, Y_train
 
         if isinstance(X_fit, list):
-            _fit_esn_seq_by_seq(model, X_fit, Y_fit)
+            fit_esn_seq_by_seq(model, X_fit, Y_fit)
         else:
             model.fit(X_fit, Y_fit)
         predictions = model.predict(X_val)

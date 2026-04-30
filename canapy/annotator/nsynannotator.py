@@ -6,7 +6,7 @@ import logging
 import numpy as np
 
 from .base import Annotator
-from .commons.esn import predict_with_esn, init_esn_model
+from .commons.esn import predict_with_esn, init_esn_model, fit_esn_seq_by_seq
 from .commons.postprocess import predictions_to_corpus, extract_vocab
 from ..transforms.nsynesn import NSynESNTransform
 from ..timings import seconds_to_audio, seconds_to_frames
@@ -173,7 +173,12 @@ class NSynAnnotator(Annotator):
                     f"\nConcerned audio(s) are : \n\t{str_base.join(error_audio_path)}"
                 )
             # train
-            self.rpy_model.fit(train_mfcc, train_labels)
+            iterative_fit = getattr(self.config.transforms.training, "iterative_fit", False)
+            if iterative_fit and isinstance(train_mfcc, list):
+                logger.info("NSynAnnotator: using iterative (seq-by-seq) fit.")
+                fit_esn_seq_by_seq(self.rpy_model, train_mfcc, train_labels)
+            else:
+                self.rpy_model.fit(train_mfcc, train_labels)
 
             self._trained = True
 

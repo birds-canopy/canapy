@@ -26,6 +26,7 @@ lifter = 40
 [transforms.training]
 max_sequences = -1
 test_ratio = 0.2
+iterative_fit = false
 
 [model.syn]
 units = 1000
