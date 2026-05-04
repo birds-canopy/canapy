@@ -802,7 +802,7 @@ class CorrectionTool(SubDash):
             direction="right",
         )
         self.compute_btn = pn.widgets.Button(
-            name="Calculate Stats",
+            name="Compute Stats",
             button_type="primary",
             width=160,
             height=60,
@@ -1096,7 +1096,7 @@ class CorrectionTool(SubDash):
                     )
                 else:
                     if metric != "Duration":
-                        ax.text(0.5, 0.5, "Click on 'Calculate Stats' to display",
+                        ax.text(0.5, 0.5, "Click on 'Compute Stats' to display",
                                 ha="center", va="center", transform=ax.transAxes, color="gray")
                     ax.set_xticks(range(len(current_classes)))
                     ax.set_xticklabels(current_classes)
