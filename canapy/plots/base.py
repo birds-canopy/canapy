@@ -123,10 +123,7 @@ def plot_segment_melspectrogram(
     show_ticks=False,
     x_tick_ref_s=None,
 ):
-    import numpy as np
-    import pathlib
-    import matplotlib
-    import librosa as lbr
+
 
     audio_file = pathlib.Path(notated_path)
     if audio_file.suffix == ".npy":
@@ -191,7 +188,6 @@ def plot_segment_melspectrogram(
 
         mel_freqs = lbr.mel_frequencies(n_mels, fmin=fmin, fmax=fmax)
 
-        # ---------------- Y TICKS ----------------
         for yp in np.linspace(0, n_mels - 1, 3):
             idx = min(int(round(yp)), n_mels - 1)
             freq_hz = float(mel_freqs[idx])
@@ -217,7 +213,6 @@ def plot_segment_melspectrogram(
                 bbox=dict(boxstyle="round,pad=0.2", fc="black", alpha=0.75, ec="none"),
             )
 
-        # ---------------- X TICKS ----------------
         t_start = s_delta / sampling_rate
         margin = max(2, int(n_frames * 0.01))
 
@@ -227,7 +222,6 @@ def plot_segment_melspectrogram(
             (sample_offset, offset_s - t_start, "right"),
         ]
 
-        # clip visuel des positions des lignes
         ticks_vis = []
         for xp, t_val, align in ticks:
             xp_vis = np.clip(xp, margin, n_frames - 1 - margin)
@@ -249,11 +243,9 @@ def plot_segment_melspectrogram(
         for t in ticks_vis:
             t[1] = np.clip(t[1], margin, n_frames - 1 - margin)
 
-        # ---------------- DRAW ----------------
         for i, (xp_true, xp_vis, t_val, align) in enumerate(ticks_vis):
             ax.plot([xp_true, xp_true], [0, tick_h], color="white", lw=1.0)
 
-            # SUPPRESSION du texte pour le 1er tick horizontal
             if i == 0:
                 continue
 
