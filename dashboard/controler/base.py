@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Optional, List, Mapping
 from collections import defaultdict
-
+import os
 import attr
 import joblib
 import pandas as pd
@@ -92,8 +92,8 @@ class Controler:
     _settings_dirty: bool = attr.field(alias="_settings_dirty", default=False)
     _config_display_name: Optional[str] = attr.field(alias="_config_display_name", default=None)
     opt_parallel: bool = attr.field(default=False)
-    opt_max_percentage: float = attr.field(default=0.3)
-    opt_n_jobs: int = attr.field(default=4)
+    opt_max_percentage: float = attr.field(default=1)
+    opt_n_jobs: int = attr.field(default=os.cpu_count() or 8)
     opt_max_evals: int = attr.field(default=100)
     opt_hp_val_ratio: float = attr.field(default=0.2)
     opt_seed: int = attr.field(default=42)
