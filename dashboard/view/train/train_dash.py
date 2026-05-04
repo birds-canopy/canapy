@@ -36,6 +36,30 @@ class TrainDashboard(SubDash):
 
         pn.config.raw_css.append(TRAIN_CSS)
 
+        self._pending_nav = None
+
+        self._cancel_leave_btn = pn.widgets.Button(
+            name="Cancel", button_type="default", width=100,
+        )
+        self._confirm_leave_btn = pn.widgets.Button(
+            name="Leave & Stop Search", button_type="danger", width=180,
+        )
+        self._cancel_leave_btn.on_click(self._on_cancel_leave)
+        self._confirm_leave_btn.on_click(self._on_confirm_leave)
+
+        self._leave_warning = pn.Column(
+            pn.pane.HTML(
+                "<div style='background:#fef3c7;border:2px solid #f59e0b;"
+                "border-radius:8px;padding:14px 18px;font-size:14px;'>"
+                "<b>⚠ Hyperparameter search in progress</b><br>"
+                "If you leave this page, the search will be stopped. Continue?"
+                "</div>"
+            ),
+            pn.Row(self._cancel_leave_btn, self._confirm_leave_btn, margin=(8, 0, 0, 0)),
+            visible=False,
+            margin=(0, 0, 12, 0),
+        )
+
         self.sidebar = SideBar(self, "train")
         self.traindash = TrainerDashboard(self)
         self.annotdash = AnnotatorDashboard(self)
@@ -59,6 +83,7 @@ class TrainDashboard(SubDash):
         self.layout = pn.Row(
             self.sidebar,
             pn.Column(
+                self._leave_warning,
                 header,
                 hp_section,
                 self.traindash,
@@ -68,6 +93,26 @@ class TrainDashboard(SubDash):
             sizing_mode="stretch_both",
             background="#f8fafc",
         )
+
+    def request_navigate_away(self, nav_fn):
+        if self.controler.is_optimization_running:
+            self._pending_nav = nav_fn
+            self._leave_warning.visible = True
+        else:
+            nav_fn()
+
+    def _on_cancel_leave(self, event):
+        self._pending_nav = None
+        self._leave_warning.visible = False
+
+    def _on_confirm_leave(self, event):
+        self._leave_warning.visible = False
+        fn = self._pending_nav
+        self._pending_nav = None
+        self.traindash._opt_running = False
+        self.controler.stop_optimization()
+        if fn is not None:
+            fn()
 
     def _build_hp_section(self):
         td = self.traindash
@@ -103,7 +148,7 @@ class TrainDashboard(SubDash):
         self._hp_expanded = pn.Column(
             self._hp_info_alert,
             self._hp_params_pane,
-            pn.Row(td.optimize_btn, td.opt_indicator, align="center", margin=(0, 0, 6, 0)),
+            pn.Row(td.optimize_btn, td.stop_search_btn, td.opt_indicator, align="center", margin=(0, 0, 6, 0)),
             td.opt_progress,
             td.opt_progress_text,
             td.opt_status,
@@ -196,6 +241,14 @@ class TrainerDashboard(SubDash):
         )
         self.optimize_btn.on_click(self.on_click_optimize)
 
+        self.stop_search_btn = pn.widgets.Button(
+            name="Stop Search",
+            button_type="danger",
+            width=130,
+            visible=False,
+        )
+        self.stop_search_btn.on_click(self.on_click_stop_search)
+
         self.opt_indicator = pn.indicators.LoadingSpinner(value=False, width=40, height=40)
         self.opt_status = pn.pane.HTML(
             "<span style='color:#6b7280; font-size:13px;'>Recommended for new data.</span>"
@@ -212,6 +265,7 @@ class TrainerDashboard(SubDash):
             styles={"font-size": "12px", "color": "#6b7280"},
             visible=False,
         )
+        self._opt_running = False
         self.params_display = pn.pane.Markdown(
             f"**Current params:** {self.controler._config_display_name or 'default'}",
             styles={"font-size": "13px", "color": "#374151"},
@@ -233,9 +287,15 @@ class TrainerDashboard(SubDash):
             min_width=400,
         )
 
+    def on_click_stop_search(self, event):
+        self.stop_search_btn.disabled = True
+        self.controler.stop_optimization()
+
     def on_click_optimize(self, event):
         self.optimize_btn.disabled = True
         self.optimize_btn.loading = True
+        self.stop_search_btn.visible = True
+        self.stop_search_btn.disabled = False
         self.opt_status.object = (
             "<span style='color:#d97706; font-size:13px;'><b>Running hyperparameter search...</b></span>"
         )
@@ -244,47 +304,57 @@ class TrainerDashboard(SubDash):
         self.opt_progress.visible = True
         self.opt_progress_text.object = "Trial 0 / ?"
         self.opt_progress_text.visible = True
+        self._opt_running = True
         tic = time.time()
 
+        def _safe_ui(fn):
+            try:
+                fn()
+            except Exception:
+                pass
+
         def _on_progress(done, total):
+            if not self._opt_running:
+                return
             pct = int(done / total * 100) if total > 0 else 0
-            with pn.io.unlocked():
-                self.opt_progress.value = pct
-                self.opt_progress_text.object = f"Trial {done} / {total}"
+            try:
+                with pn.io.unlocked():
+                    self.opt_progress.value = pct
+                    self.opt_progress_text.object = f"Trial {done} / {total}"
+            except Exception:
+                pass
 
         def run():
             try:
                 best_params = self.controler.optimize_models(progress_callback=_on_progress)
                 duration = time.time() - tic
                 if best_params is None:
-                    self.opt_status.object = (
+                    _safe_ui(lambda: setattr(self.opt_status, 'object',
                         "<span style='color:#dc2626; font-size:13px;'>"
-                        "<b>Optimization failed or was interrupted.</b> Check logs.</span>"
-                    )
+                        "<b>Optimization was interrupted.</b>"))
                 else:
                     lines = []
                     for k, v in best_params.items():
                         lines.append(f"  {k}: {v:.4g}" if isinstance(v, float) else f"  {k}: {v}")
-                    self.params_display.object = (
-                        "🤓 **Best params found:**\n```\n" + "\n".join(lines) + "\n```"
-                    )
-                    self.opt_status.object = (
+                    _safe_ui(lambda: setattr(self.params_display, 'object',
+                        "🤓 **Best params found:**\n```\n" + "\n".join(lines) + "\n```"))
+                    _safe_ui(lambda: setattr(self.opt_status, 'object',
                         f"<span style='color:#16a34a; font-size:13px;'>"
-                        f"<b>Done</b> in {round(duration, 1)} s</span>"
-                    )
-                    self.optimize_btn.visible = False
-                    self.parent._hp_info_alert.visible = False
+                        f"<b>Done</b> in {round(duration, 1)} s</span>"))
+                    _safe_ui(lambda: setattr(self.optimize_btn, 'visible', False))
+                    _safe_ui(lambda: setattr(self.parent._hp_info_alert, 'visible', False))
             except Exception as e:
-                self.opt_status.object = (
-                    f"<span style='color:#dc2626; font-size:13px;'>Error: {e}</span>"
-                )
+                _safe_ui(lambda: setattr(self.opt_status, 'object',
+                    f"<span style='color:#dc2626; font-size:13px;'>Error: {e}</span>"))
             finally:
-                self.opt_indicator.value = False
-                self.opt_indicator.visible = False
-                self.optimize_btn.disabled = False
-                self.optimize_btn.loading = False
-                self.opt_progress.visible = False
-                self.opt_progress_text.visible = False
+                self._opt_running = False
+                _safe_ui(lambda: setattr(self.opt_indicator, 'value', False))
+                _safe_ui(lambda: setattr(self.opt_indicator, 'visible', False))
+                _safe_ui(lambda: setattr(self.optimize_btn, 'disabled', False))
+                _safe_ui(lambda: setattr(self.optimize_btn, 'loading', False))
+                _safe_ui(lambda: setattr(self.stop_search_btn, 'visible', False))
+                _safe_ui(lambda: setattr(self.opt_progress, 'visible', False))
+                _safe_ui(lambda: setattr(self.opt_progress_text, 'visible', False))
 
         threading.Thread(target=run, daemon=True).start()
 

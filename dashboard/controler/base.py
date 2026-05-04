@@ -98,6 +98,7 @@ class Controler:
     opt_hp_val_ratio: float = attr.field(default=0.2)
     opt_seed: int = attr.field(default=42)
     min_class_count: int = attr.field(default=10)
+    _opt_pgid: Optional[int] = attr.field(default=None, init=False)
 
     def __attrs_post_init__(self):
         if (
@@ -781,7 +782,20 @@ class Controler:
         logger.info(f"Config exported to {config_path}")
         return str(config_path)
 
+    @property
+    def is_optimization_running(self):
+        return self._opt_pgid is not None
+
+    def stop_optimization(self):
+        pgid = self._opt_pgid
+        if pgid is not None:
+            from canapy.optimization import _killpg_safe
+            _killpg_safe(pgid)
+            self._opt_pgid = None
+            logger.info(f"Optimization subprocess (pgid={pgid}) killed.")
+
     def stop_app(self):
+        self.stop_optimization()
         close_tempfiles()
         self.dashboard.stop()
 
@@ -1016,6 +1030,10 @@ class Controler:
 
         import shutil
         logger.info("Step 3: Launching optimization (isolated subprocess)...")
+
+        def _set_pgid(pgid):
+            self._opt_pgid = pgid
+
         try:
             best_params = optimize_hyperparameters_isolated(
                 c,
@@ -1028,9 +1046,10 @@ class Controler:
                 hp_val_ratio=self.opt_hp_val_ratio,
                 seed=self.opt_seed,
                 progress_callback=progress_callback,
+                pgid_callback=_set_pgid,
             )
         finally:
-            # Always clean up temp MFCC files, even if optimization raised.
+            self._opt_pgid = None
             shutil.rmtree(optim_spec_dir, ignore_errors=True)
 
         if not best_params:

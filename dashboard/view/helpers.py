@@ -386,6 +386,16 @@ class SideBar(SubDash):
             self.controler._step = "annotate"
             self.controler.dashboard.switch_panel()
 
+        def _guarded(fn):
+            """Intercept navigation away from train if optimization is running."""
+            def _wrapped(e):
+                if (getattr(self.controler, 'is_optimization_running', False)
+                        and hasattr(self.parent, 'request_navigate_away')):
+                    self.parent.request_navigate_away(lambda: fn(e))
+                else:
+                    fn(e)
+            return _wrapped
+
         self._nav_settings  = _nav_settings
         self._nav_preprocess = _nav_preprocess
         self._nav_fit      = _nav_fit
@@ -393,17 +403,17 @@ class SideBar(SubDash):
         self._nav_export   = _nav_export
         self._nav_annotate = _nav_annotate
 
-        btn_loaddata.on_click(_nav_loaddata)
+        btn_loaddata.on_click(_guarded(_nav_loaddata))
         if has_data:
-            btn_settings.on_click(_nav_settings)
-            btn_preprocess.on_click(_nav_preprocess)
-            btn_train.on_click(_nav_fit)
+            btn_settings.on_click(_guarded(_nav_settings))
+            btn_preprocess.on_click(_guarded(_nav_preprocess))
+            btn_train.on_click(_nav_fit)  # stays on train — no guard needed
         if fit_done:
-            btn_eval.on_click(_nav_eval)
+            btn_eval.on_click(_guarded(_nav_eval))
         if eval_done:
-            btn_export.on_click(_nav_export)
+            btn_export.on_click(_guarded(_nav_export))
         if has_model:
-            btn_annotate.on_click(_nav_annotate)
+            btn_annotate.on_click(_guarded(_nav_annotate))
 
         quit_btn = pn.widgets.Button(
             name="✕  Quit App",
@@ -452,7 +462,7 @@ class SideBar(SubDash):
                 align="center",
                 stylesheets=[_HOME_BTN_CSS],
             )
-            home_btn.on_click(self.on_click_home)
+            home_btn.on_click(_guarded(self.on_click_home))
             items.append(home_btn)
             items.append(pn.Spacer(height=4))
 
@@ -498,6 +508,7 @@ class SideBar(SubDash):
         self.controler.dashboard.switch_panel()
 
     def on_click_stop(self, events):
+        self.controler.stop_optimization()
         self.layout.append(
             pn.pane.Alert(
                 "Server closed. You can close this tab.",

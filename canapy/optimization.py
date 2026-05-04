@@ -776,7 +776,8 @@ def optimize_hyperparameters_isolated(
     hp_val_ratio: float = 0.2,
     seed: int = 42,
     progress_callback=None,
-    timeout : int = None,
+    timeout: int = None,
+    pgid_callback=None,
 ):
     """
     Run optimize_hyperparameters in a fresh spawned subprocess.
@@ -821,6 +822,11 @@ def optimize_hyperparameters_isolated(
     )
     p.start()
     pgid = p.pid  # subprocess calls setpgrp() so its PGID == its PID
+    if pgid_callback is not None:
+        try:
+            pgid_callback(pgid)
+        except Exception:
+            pass
 
     stop_event = threading.Event()
     oom_terminated = threading.Event()
