@@ -81,9 +81,8 @@ SETTINGS_CSS = """
 """
 
 PARAM_HELP = {
-    "sampling_rate": "Sampling rate (Hz) of your audio files. librosa will resample to this value. Common values: 22050, 44100, 48000.",
     "fmin": "Minimum frequency (Hz) for MFCC computation. Frequencies below this value are ignored.",
-    "fmax": "Maximum frequency (Hz) for MFCC computation. Frequencies above this value are ignored.",
+    "fmax": "Maximum frequency (Hz) for MFCC computation. Frequencies above this value are ignored. Capped at sr/2 (Nyquist frequency).",
     "win_length": (
         "Window length (seconds) for spectrogram frames."
     ),
@@ -154,6 +153,39 @@ PARAM_HELP = {
         "in RAM at once. Mathematically equivalent result, constant peak RAM. "
         "Recommended for large datasets."
     ),
+    "n_mfcc": "Number of MFCC coefficients extracted per frame. Changing this requires recomputing spectrograms.",
+    "lifter": "MFCC liftering coefficient. Applies a sinusoidal lift to de-emphasise low-order coefficients. 0 = no liftering.",
+    "audio_features": "Feature types extracted from audio. mfcc = raw coefficients, delta = 1st derivative, delta2 = 2nd derivative. Changing this requires recomputing spectrograms.",
+    "delta_padding": "Padding mode used to compute 1st-order MFCC derivatives at sequence boundaries.",
+    "delta2_padding": "Padding mode used to compute 2nd-order MFCC derivatives at sequence boundaries.",
+    "time_precision": "Minimum time resolution (seconds) for annotation onsets/offsets. Values are rounded to this precision.",
+    "min_label_duration": "Annotations shorter than this (seconds) are discarded during preprocessing.",
+    "min_silence_gap": "Silence gaps shorter than this (seconds) between two annotations are absorbed by the surrounding labels.",
+    "test_ratio": (
+        "Fraction of audio files held out for evaluation. Applied when moving from preprocessing to training. "
+        "Changing this invalidates the current train/test split and resets model training."
+    ),
+    "max_sequences": (
+        "Maximum number of audio files used for training. -1 = all files. "
+        "Changing this invalidates the current train/test split and resets model training."
+    ),
+    "min_silence_duration": (
+        "Silence segments shorter than this (seconds) are discarded from the non-syntactic (NSyn) training set. "
+        "Changing this resets model training."
+    ),
+    "noise_std": (
+        "Standard deviation of Gaussian noise added to augmented NSyn training samples. "
+        "Changing this resets model training."
+    ),
+    "units": "Number of neurons in the ESN reservoir. Larger reservoirs capture more complex temporal patterns but use more RAM and are slower to train.",
+    "workers": "Number of parallel workers for ESN training and inference. -1 = all available CPUs.",
+    "backend": "Joblib parallelisation backend. multiprocessing = separate processes (safe, high overhead); threading = shared memory (faster but GIL-limited); loky = robust multiprocessing.",
+    "seed": "Global random seed for reproducibility. Affects reservoir initialisation and train/test split.",
+    "min_segment_proportion_agreement": (
+        "Minimum fraction of time during which all annotators must agree on the same label "
+        "for a segment to be considered correctly annotated. Used in the evaluation view. "
+        "Range 0–1."
+    ),
 }
 
 
@@ -185,6 +217,7 @@ class SettingsDashboard(SubDash):
 
         cfg = self.controler.config
 
+        _sr = cfg.transforms.audio.data.get("sampling_rate", 44100)
         self.fmin_input = pn.widgets.IntInput(
             value=int(cfg.transforms.audio.data["fmin"]),
             start=0,
@@ -194,6 +227,7 @@ class SettingsDashboard(SubDash):
         self.fmax_input = pn.widgets.IntInput(
             value=int(cfg.transforms.audio.data["fmax"]),
             start=0,
+            end=int(_sr) // 2,
             step=100,
             sizing_mode="stretch_width",
         )
@@ -205,7 +239,6 @@ class SettingsDashboard(SubDash):
             sizing_mode="stretch_width",
         )
         _win = float(cfg.transforms.audio.data["win_length"])
-        _sr = cfg.transforms.audio.data.get("sampling_rate", 44100)
         self.hop_length_input = pn.widgets.FloatInput(
             value=round(_win / 2, 6),
             start=0.0001,
@@ -327,6 +360,96 @@ class SettingsDashboard(SubDash):
             sizing_mode="stretch_width",
         )
 
+        # --- Advanced audio ---
+        _adv_audio = cfg.transforms.audio.data
+        self.n_mfcc_input = pn.widgets.IntInput(
+            value=int(_adv_audio.get("n_mfcc", 13)),
+            start=1, end=128, sizing_mode="stretch_width",
+        )
+        self.lifter_input = pn.widgets.IntInput(
+            value=int(_adv_audio.get("lifter", 40)),
+            start=0, end=200, sizing_mode="stretch_width",
+        )
+        _all_feats = ["mfcc", "delta", "delta2"]
+        _cur_feats = list(_adv_audio.get("audio_features", _all_feats))
+        self.audio_features_input = pn.widgets.CheckBoxGroup(
+            options=_all_feats, value=_cur_feats,
+            inline=True, sizing_mode="stretch_width",
+        )
+        _PADDING_OPTS = ["wrap", "interp", "nearest", "mirror", "constant"]
+        self.delta_padding_input = pn.widgets.Select(
+            options=_PADDING_OPTS,
+            value=_adv_audio.get("delta", {}).get("padding", "wrap"),
+            sizing_mode="stretch_width",
+        )
+        self.delta2_padding_input = pn.widgets.Select(
+            options=_PADDING_OPTS,
+            value=_adv_audio.get("delta2", {}).get("padding", "wrap"),
+            sizing_mode="stretch_width",
+        )
+
+        # --- Advanced annotations ---
+        _adv_annots = cfg.transforms.annots.data
+        self.time_precision_input = pn.widgets.FloatInput(
+            value=float(_adv_annots.get("time_precision", 0.001)),
+            start=1e-6, step=0.001, sizing_mode="stretch_width",
+        )
+        self.min_label_dur_input = pn.widgets.FloatInput(
+            value=float(_adv_annots.get("min_label_duration", 0.02)),
+            start=0.0, step=0.005, sizing_mode="stretch_width",
+        )
+        self.min_silence_gap_input = pn.widgets.FloatInput(
+            value=float(_adv_annots.get("min_silence_gap", 0.001)),
+            start=0.0, step=0.001, sizing_mode="stretch_width",
+        )
+
+        # --- Advanced training ---
+        _adv_training = cfg.data.get("transforms", {}).get("training", {})
+        self.test_ratio_input = pn.widgets.FloatSlider(
+            value=float(_adv_training.get("test_ratio", 0.2)),
+            start=0.05, end=0.5, step=0.05, sizing_mode="stretch_width",
+        )
+        self.max_sequences_input = pn.widgets.IntInput(
+            value=int(_adv_training.get("max_sequences", -1)),
+            start=-1, step=1, sizing_mode="stretch_width",
+        )
+        _adv_balance = _adv_training.get("balance", {})
+        self.min_silence_dur_input = pn.widgets.FloatInput(
+            value=float(_adv_balance.get("min_silence_duration", 0.2)),
+            start=0.0, step=0.05, sizing_mode="stretch_width",
+        )
+        _adv_aug = _adv_balance.get("data_augmentation", {})
+        self.noise_std_input = pn.widgets.FloatInput(
+            value=float(_adv_aug.get("noise_std", 0.01)),
+            start=0.0, step=0.001, sizing_mode="stretch_width",
+        )
+
+        # --- Advanced model architecture ---
+        self.units_input = pn.widgets.IntInput(
+            value=int(cfg.model.syn.data.get("units", 1000)),
+            start=100, step=100, sizing_mode="stretch_width",
+        )
+        _BACKEND_OPTS = ["multiprocessing", "threading", "loky", "sequence"]
+        self.backend_input = pn.widgets.Select(
+            options=_BACKEND_OPTS,
+            value=cfg.model.syn.data.get("backend", "multiprocessing"),
+            sizing_mode="stretch_width",
+        )
+        self.workers_input = pn.widgets.IntInput(
+            value=int(cfg.model.syn.data.get("workers", -1)),
+            start=-1, step=1, sizing_mode="stretch_width",
+        )
+
+        # --- Misc & Correction ---
+        self.seed_input = pn.widgets.IntInput(
+            value=int(cfg.data.get("misc", {}).get("seed", 42)),
+            start=0, step=1, sizing_mode="stretch_width",
+        )
+        self.min_agreement_input = pn.widgets.FloatSlider(
+            value=float(cfg.data.get("correction", {}).get("min_segment_proportion_agreement", 0.66)),
+            start=0.0, end=1.0, step=0.01, sizing_mode="stretch_width",
+        )
+
         self.advanced_toggle = pn.widgets.Toggle(
             name="Show advanced parameters",
             value=False,
@@ -367,20 +490,6 @@ class SettingsDashboard(SubDash):
         self.btn_apply.on_click(self._apply)
         self.apply_status = pn.pane.HTML("", margin=(4, 0, 0, 0))
 
-        self.advanced_audio_block = pn.Column(
-            _make_param_row("hop_length (s)", self.hop_length_input, "hop_length"),
-            _make_param_row("n_fft (samples)", self.n_fft_input, "n_fft"),
-            visible=False,
-            sizing_mode="stretch_width",
-        )
-
-        self.advanced_annots_block = pn.Column(
-            _make_param_row("Lonely labels", self.lonely_labels_input, "lonely_labels"),
-            _make_param_row("Silence tag", self.silence_tag_input, "silence_tag"),
-            visible=False,
-            sizing_mode="stretch_width",
-        )
-
         _iterative_fit_val = bool(
             cfg.data.get("transforms", {}).get("training", {}).get("iterative_fit", False)
         )
@@ -393,9 +502,46 @@ class SettingsDashboard(SubDash):
             sizing_mode="stretch_width",
         )
 
+        self.advanced_audio_block = pn.Column(
+            _make_param_row("hop_length (s)", self.hop_length_input, "hop_length"),
+            _make_param_row("n_fft (samples)", self.n_fft_input, "n_fft"),
+            _make_param_row("n_mfcc", self.n_mfcc_input, "n_mfcc"),
+            _make_param_row("Lifter", self.lifter_input, "lifter"),
+            _make_param_row("Audio features", self.audio_features_input, "audio_features"),
+            _make_param_row("Delta padding", self.delta_padding_input, "delta_padding"),
+            _make_param_row("Delta2 padding", self.delta2_padding_input, "delta2_padding"),
+            visible=False,
+            sizing_mode="stretch_width",
+        )
+
+        self.advanced_annots_block = pn.Column(
+            _make_param_row("Time precision (s)", self.time_precision_input, "time_precision"),
+            _make_param_row("Min label duration (s)", self.min_label_dur_input, "min_label_duration"),
+            _make_param_row("Min silence gap (s)", self.min_silence_gap_input, "min_silence_gap"),
+            _make_param_row("Lonely labels", self.lonely_labels_input, "lonely_labels"),
+            _make_param_row("Silence tag", self.silence_tag_input, "silence_tag"),
+            visible=False,
+            sizing_mode="stretch_width",
+        )
+
+        self.advanced_training_block = pn.Column(
+            pn.pane.HTML("<div class='settings-subsection-header'>Training</div>"),
+            pn.pane.HTML(
+                "<p style='font-size:12px;color:#e67e22;margin:0 0 8px 0;'>"
+                "⚠ Changing these parameters invalidates the current train/test split "
+                "and resets model training.</p>"
+            ),
+            _make_param_row("Test ratio", self.test_ratio_input, "test_ratio"),
+            _make_param_row("Max sequences (-1 = all)", self.max_sequences_input, "max_sequences"),
+            _make_param_row("Min silence duration (s)", self.min_silence_dur_input, "min_silence_duration"),
+            _make_param_row("Noise std (augmentation)", self.noise_std_input, "noise_std"),
+            visible=False,
+            sizing_mode="stretch_width",
+        )
+
         self.reservoir_block = pn.Column(
             pn.pane.HTML("<div class='settings-subsection-header'>Reservoir (syn & nsyn)</div>"),
-            pn.pane.HTML("<p style='font-size:12px;color:#64748b;margin:0 0 10px 0;'>These parameters can be automatically optimised by the hyperparameter search run just before model training, and can differ from the values set here if you run the hyperparameter search.</p>"),
+            pn.pane.HTML("<p style='font-size:12px;color:#64748b;margin:0 0 10px 0;'>These parameters can be automatically optimised by the hyperparameter search run just before model training.</p>"),
             _make_param_row("Spectral radius (sr)", self.sr_input, "sr"),
             _make_param_row("Leak rate (leak)", self.leak_input, "leak"),
             _make_param_row("Input scaling MFCC (iss)", self.iss_input, "iss"),
@@ -403,6 +549,13 @@ class SettingsDashboard(SubDash):
             _make_param_row("Input scaling delta2 (isd2)", self.isd2_input, "isd2"),
             _make_param_row("Ridge coefficient", self.ridge_input, "ridge"),
             _make_param_row("Fit mode", self.fit_mode_input, "iterative_fit"),
+            pn.pane.HTML("<div class='settings-subsection-header'>Model architecture</div>"),
+            _make_param_row("N units", self.units_input, "units"),
+            _make_param_row("Workers (-1 = all)", self.workers_input, "workers"),
+            _make_param_row("Backend", self.backend_input, "backend"),
+            pn.pane.HTML("<div class='settings-subsection-header'>Misc & Correction</div>"),
+            _make_param_row("Random seed", self.seed_input, "seed"),
+            _make_param_row("Min agreement (correction)", self.min_agreement_input, "min_segment_proportion_agreement"),
             visible=False,
             sizing_mode="stretch_width",
         )
@@ -411,6 +564,7 @@ class SettingsDashboard(SubDash):
             self.advanced_toggle.button_type = "primary" if event.new else "default"
             self.advanced_audio_block.visible = event.new
             self.advanced_annots_block.visible = event.new
+            self.advanced_training_block.visible = event.new
             self.reservoir_block.visible = event.new
 
         self.advanced_toggle.param.watch(_on_advanced_toggle, "value")
@@ -434,6 +588,7 @@ class SettingsDashboard(SubDash):
             _make_param_row("Merge consecutive labels", self.merge_labels_input, "merge_consecutive_labels"),
             self.advanced_annots_block,
 
+            self.advanced_training_block,
             self.reservoir_block,
 
             css_classes=["settings-card"],
@@ -649,15 +804,29 @@ class SettingsDashboard(SubDash):
     def _refresh_widgets_from_config(self):
         cfg = self.controler.config
         audio = cfg.transforms.audio.data
+
+        # Basic audio
         self.fmin_input.value = int(audio["fmin"])
-        self.fmax_input.value = int(audio["fmax"])
-        win = float(audio["win_length"])
         sr = audio.get("sampling_rate", 44100)
+        self.fmax_input.end = int(sr) // 2
+        self.fmax_input.value = min(int(audio["fmax"]), int(sr) // 2)
+        win = float(audio["win_length"])
         self.win_length_input.value = win
         self.hop_length_input.value = float(audio.get("hop_length", round(win / 2, 6)))
         self.n_fft_input.value = int(
             audio.get("n_fft", 2 ** math.ceil(math.log2(max(win * int(sr), 1))))
         )
+
+        # Advanced audio
+        self.n_mfcc_input.value = int(audio.get("n_mfcc", 13))
+        self.lifter_input.value = int(audio.get("lifter", 40))
+        _all_feats = ["mfcc", "delta", "delta2"]
+        _cur_feats = [f for f in list(audio.get("audio_features", _all_feats)) if f in _all_feats]
+        self.audio_features_input.value = _cur_feats
+        self.delta_padding_input.value = audio.get("delta", {}).get("padding", "wrap")
+        self.delta2_padding_input.value = audio.get("delta2", {}).get("padding", "wrap")
+
+        # Model reservoir
         syn = cfg.model.syn.data
         self.sr_input.value = float(syn["sr"])
         self.leak_input.value = float(syn["leak"])
@@ -665,14 +834,43 @@ class SettingsDashboard(SubDash):
         self.isd_input.value = float(syn["isd"])
         self.isd2_input.value = float(syn["isd2"])
         self.ridge_input.value = float(syn["ridge"])
-        merge = bool(cfg.transforms.annots.data.get("merge_consecutive_labels", True))
+
+        # Model architecture
+        self.units_input.value = int(syn.get("units", 1000))
+        self.workers_input.value = int(syn.get("workers", -1))
+        _bk = syn.get("backend", "multiprocessing")
+        if _bk in self.backend_input.options:
+            self.backend_input.value = _bk
+
+        # Annotation params
+        annots = cfg.transforms.annots.data
+        merge = bool(annots.get("merge_consecutive_labels", True))
         self.merge_labels_input.value = merge
         self.merge_labels_input.name = "Enabled" if merge else "Disabled"
         self.merge_labels_input.button_type = "success" if merge else "default"
-        lonely_raw = cfg.transforms.annots.data.get("lonely_labels", [])
+        lonely_raw = annots.get("lonely_labels", [])
         self.lonely_labels_input.value = ", ".join(lonely_raw) if lonely_raw else ""
         self.lonely_labels_input.disabled = not merge
-        self.silence_tag_input.value = str(cfg.transforms.annots.data.get("silence_tag", "SIL"))
+        self.silence_tag_input.value = str(annots.get("silence_tag", "SIL"))
+        self.time_precision_input.value = float(annots.get("time_precision", 0.001))
+        self.min_label_dur_input.value = float(annots.get("min_label_duration", 0.02))
+        self.min_silence_gap_input.value = float(annots.get("min_silence_gap", 0.001))
+
+        # Training params
+        training = cfg.data.get("transforms", {}).get("training", {})
+        self.test_ratio_input.value = float(training.get("test_ratio", 0.2))
+        self.max_sequences_input.value = int(training.get("max_sequences", -1))
+        balance = training.get("balance", {})
+        self.min_silence_dur_input.value = float(balance.get("min_silence_duration", 0.2))
+        aug = balance.get("data_augmentation", {})
+        self.noise_std_input.value = float(aug.get("noise_std", 0.01))
+        self.fit_mode_input.value = bool(training.get("iterative_fit", False))
+
+        # Misc & Correction
+        self.seed_input.value = int(cfg.data.get("misc", {}).get("seed", 42))
+        self.min_agreement_input.value = float(
+            cfg.data.get("correction", {}).get("min_segment_proportion_agreement", 0.66)
+        )
 
     def _on_win_length_change(self, event):
         win = event.new
@@ -692,19 +890,43 @@ class SettingsDashboard(SubDash):
         cfg = self.controler.config
         audio_data = cfg.data["transforms"]["audio"]
 
-        _audio_keys = ("fmin", "fmax", "win_length", "hop_length", "n_fft")
-        _old_audio = {k: audio_data.get(k) for k in _audio_keys}
+        # --- Snapshot old audio params for dirty detection ---
+        _audio_keys_basic = ("fmin", "fmax", "win_length", "hop_length", "n_fft")
+        _old_audio = {k: audio_data.get(k) for k in _audio_keys_basic}
+        _old_n_mfcc = audio_data.get("n_mfcc")
+        _old_lifter = audio_data.get("lifter")
+        _old_audio_features = sorted(audio_data.get("audio_features", []))
+        _old_delta_padding = audio_data.get("delta", {}).get("padding")
+        _old_delta2_padding = audio_data.get("delta2", {}).get("padding")
 
+        # --- Apply basic audio params ---
         audio_data["fmin"] = self.fmin_input.value
         audio_data["fmax"] = self.fmax_input.value
         audio_data["win_length"] = self.win_length_input.value
         audio_data["hop_length"] = self.hop_length_input.value
         audio_data["n_fft"] = self.n_fft_input.value
 
-        if any(audio_data.get(k) != _old_audio[k] for k in _audio_keys):
+        # --- Apply advanced audio params ---
+        audio_data["n_mfcc"] = self.n_mfcc_input.value
+        audio_data["lifter"] = self.lifter_input.value
+        audio_data["audio_features"] = list(self.audio_features_input.value)
+        audio_data.setdefault("delta", {})["padding"] = self.delta_padding_input.value
+        audio_data.setdefault("delta2", {})["padding"] = self.delta2_padding_input.value
+
+        # --- Detect audio changes → invalidate MFCC cache ---
+        _audio_changed = (
+            any(audio_data.get(k) != _old_audio[k] for k in _audio_keys_basic)
+            or audio_data.get("n_mfcc") != _old_n_mfcc
+            or audio_data.get("lifter") != _old_lifter
+            or sorted(audio_data.get("audio_features", [])) != _old_audio_features
+            or audio_data.get("delta", {}).get("padding") != _old_delta_padding
+            or audio_data.get("delta2", {}).get("padding") != _old_delta2_padding
+        )
+        if _audio_changed:
             self.controler._audio_params_dirty = True
         self.controler._settings_dirty = True
 
+        # --- Model reservoir + architecture params (syn & nsyn) ---
         for section in ("syn", "nsyn"):
             model_data = cfg.data["model"][section]
             model_data["sr"] = self.sr_input.value
@@ -713,14 +935,49 @@ class SettingsDashboard(SubDash):
             model_data["isd"] = self.isd_input.value
             model_data["isd2"] = self.isd2_input.value
             model_data["ridge"] = self.ridge_input.value
+            model_data["units"] = self.units_input.value
+            model_data["workers"] = self.workers_input.value
+            model_data["backend"] = self.backend_input.value
 
-        cfg.data["transforms"]["annots"]["merge_consecutive_labels"] = self.merge_labels_input.value
-        cfg.data["transforms"]["annots"]["lonely_labels"] = [
+        # --- Annotation params ---
+        annots_data = cfg.data["transforms"]["annots"]
+        annots_data["merge_consecutive_labels"] = self.merge_labels_input.value
+        annots_data["lonely_labels"] = [
             x.strip() for x in self.lonely_labels_input.value.split(",") if x.strip()
         ]
-        cfg.data["transforms"]["annots"]["silence_tag"] = self.silence_tag_input.value.strip() or "SIL"
-        cfg.data["transforms"]["training"]["iterative_fit"] = self.fit_mode_input.value
+        annots_data["silence_tag"] = self.silence_tag_input.value.strip() or "SIL"
+        annots_data["time_precision"] = self.time_precision_input.value
+        annots_data["min_label_duration"] = self.min_label_dur_input.value
+        annots_data["min_silence_gap"] = self.min_silence_gap_input.value
 
+        # --- Training params (with dirty detection) ---
+        training_data = cfg.data["transforms"]["training"]
+        _old_test_ratio = training_data.get("test_ratio")
+        _old_max_sequences = training_data.get("max_sequences")
+        _old_balance = training_data.get("balance", {})
+        _old_min_sil_dur = _old_balance.get("min_silence_duration")
+        _old_noise_std = _old_balance.get("data_augmentation", {}).get("noise_std")
+
+        training_data["iterative_fit"] = self.fit_mode_input.value
+        training_data["test_ratio"] = self.test_ratio_input.value
+        training_data["max_sequences"] = self.max_sequences_input.value
+        training_data.setdefault("balance", {})["min_silence_duration"] = self.min_silence_dur_input.value
+        training_data["balance"].setdefault("data_augmentation", {})["noise_std"] = self.noise_std_input.value
+
+        _training_changed = (
+            training_data.get("test_ratio") != _old_test_ratio
+            or training_data.get("max_sequences") != _old_max_sequences
+            or training_data["balance"].get("min_silence_duration") != _old_min_sil_dur
+            or training_data["balance"]["data_augmentation"].get("noise_std") != _old_noise_std
+        )
+        if _training_changed:
+            self.controler._training_params_dirty = True
+
+        # --- Misc & Correction ---
+        cfg.data["misc"]["seed"] = self.seed_input.value
+        cfg.data["correction"]["min_segment_proportion_agreement"] = self.min_agreement_input.value
+
+        # --- HP Search ---
         self.controler.opt_parallel = self.opt_parallel_input.value
         self.controler.opt_max_percentage = self.opt_percentage_input.value
         self.controler.opt_n_jobs = self.opt_n_jobs_input.value
@@ -728,26 +985,21 @@ class SettingsDashboard(SubDash):
         self.controler.opt_seed = self.opt_seed_input.value
 
         logger.info("Settings applied to config.")
-        sr = cfg.data["transforms"]["audio"].get("sampling_rate", 0)
-        nyquist = sr / 2 if sr else 0
-        if nyquist and self.fmax_input.value >= nyquist:
-            self.status.object = (
-                f"Settings applied — Warning: fmax ({self.fmax_input.value} Hz) "
-                f"≥ Nyquist frequency ({nyquist:.0f} Hz = sr/2). "
-                f"librosa will cap fmax at {nyquist:.0f} Hz."
-            )
-            self.status.alert_type = "warning"
-            self.apply_status.object = (
-                f"<span style='font-size:12px;color:#d97706;'>⚠ Applied — fmax capped at {nyquist:.0f} Hz</span>"
-            )
-        else:
-            self.status.object = "Settings applied successfully."
-            self.status.alert_type = "success"
-            self.apply_status.object = (
-                "<span style='font-size:12px;color:#059669;'>✓ Settings applied successfully.</span>"
-            )
+        self.status.object = "Settings applied successfully."
+        self.status.alert_type = "success"
+        self.apply_status.object = (
+            "<span style='font-size:12px;color:#059669;'>✓ Settings applied successfully.</span>"
+        )
 
     def _validate(self):
+        sr = self.controler.config.data["transforms"]["audio"].get("sampling_rate", 44100)
+        nyquist = int(sr) // 2
+        if self.fmax_input.value > nyquist:
+            raise ValueError(
+                f"fmax ({self.fmax_input.value} Hz) exceeds the Nyquist frequency "
+                f"({nyquist} Hz = sr/2 with sr={sr} Hz). "
+                f"Set fmax ≤ {nyquist} Hz."
+            )
         if self.fmin_input.value >= self.fmax_input.value:
             raise ValueError("fmin must be strictly less than fmax.")
         if self.win_length_input.value <= 0:

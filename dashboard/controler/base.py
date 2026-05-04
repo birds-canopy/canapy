@@ -88,6 +88,7 @@ class Controler:
     eval_done: bool = attr.field(default=False)
     export_done: bool = attr.field(default=False)
     _audio_params_dirty: bool = attr.field(alias="_audio_params_dirty", default=False)
+    _training_params_dirty: bool = attr.field(alias="_training_params_dirty", default=False)
     _settings_dirty: bool = attr.field(alias="_settings_dirty", default=False)
     _config_display_name: Optional[str] = attr.field(alias="_config_display_name", default=None)
     opt_parallel: bool = attr.field(default=False)
@@ -177,6 +178,11 @@ class Controler:
         self.dashboard.switch_panel()
 
     def leave_settings(self):
+        if getattr(self, "_audio_params_dirty", False):
+            self._clear_audio_cache()
+            self._audio_params_dirty = False
+        if getattr(self, "_training_params_dirty", False):
+            self._clear_training_cache()
         self._step = self._settings_return_step
         self.dashboard.switch_panel()
 
@@ -346,13 +352,40 @@ class Controler:
             raise
 
     def _clear_audio_cache(self):
-        """Delete on-disk spectrograms and in-memory caches when audio params change."""
+        """Delete on-disk spectrograms and in-memory caches when audio params change.
+
+        Also re-initializes the ESN models because input_scaling is a vector whose
+        length depends on n_mfcc × len(audio_features) — changing either would cause
+        a shape mismatch at fit time if the model is not rebuilt.
+        """
         self._repertoire_cache.clear()
         self.preprocess_done = False
-        if self.spec_directory and self.spec_directory.exists():
-            for f in self.spec_directory.glob("*.npz"):
-                f.unlink(missing_ok=True)
-        logger.info("Audio cache cleared after parameter change.")
+        self.fit_done = False
+        self.eval_done = False
+        self.export_done = False
+        dirs_to_clear = set()
+        if self.spec_directory:
+            dirs_to_clear.add(Path(self.spec_directory))
+        if self.corpus is not None and getattr(self.corpus, "spec_directory", None):
+            dirs_to_clear.add(Path(self.corpus.spec_directory))
+        for d in dirs_to_clear:
+            if d.exists():
+                for f in d.glob("*.npz"):
+                    f.unlink(missing_ok=True)
+        self.initialize_models()
+        self.initialize_annots()
+        logger.info("Audio cache cleared and models re-initialized after parameter change.")
+
+    def _clear_training_cache(self):
+        """Redo train/test split and invalidate trained models when training params change."""
+        self.fit_done = False
+        if self.corpus is not None:
+            try:
+                self.corpus = split_train_test(self.corpus, redo=True)
+                logger.info("Train/test split redone after training parameter change.")
+            except Exception as e:
+                logger.warning(f"Could not redo train/test split: {e}")
+        self._training_params_dirty = False
 
     def load_page(self, page_name: str):
         logger.info(f"Manual navigation request to: {page_name}")
@@ -364,6 +397,8 @@ class Controler:
         if getattr(self, "_audio_params_dirty", False):
             self._clear_audio_cache()
             self._audio_params_dirty = False
+        if getattr(self, "_training_params_dirty", False):
+            self._clear_training_cache()
 
         if page_name == "preprocess":
             self._step = "preprocess"
