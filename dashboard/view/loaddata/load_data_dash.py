@@ -12,6 +12,7 @@ from canapy.transforms.commons.training import split_train_test
 logger = logging.getLogger("canapy")
 
 
+
 def _find_long_audio_files(audio_dir: Path, ext: str, max_duration_s: float) -> list:
     """Return paths of audio files whose duration exceeds max_duration_s.
     Uses soundfile.info() — reads only the file header, no audio data loaded.
@@ -255,9 +256,9 @@ class LoadDataDashboard(SubDash):
             sizing_mode="stretch_width",
         )
         _target_sr_lbl = pn.pane.HTML("<span class='input-label'>Target SR (Hz)</span>", margin=(0, 0, 2, 0))
-        self.target_sr_input = pn.widgets.IntInput(
+        self.target_sr_input = pn.widgets.Select(
+            options=[22050],
             value=22050,
-            start=1000,
             sizing_mode="stretch_width",
             height=38,
             margin=0,
@@ -437,6 +438,14 @@ class LoadDataDashboard(SubDash):
             return False, f"Path does not exist: {path}"
         return True, None
     
+    def _compute_valid_sr_choices(self, base_sr: int, min_sr: int = 100):
+        choices = []
+        current = base_sr
+        while current >= min_sr:
+            choices.append(current)
+            current = current // 2
+        return choices
+    
     def _load_data(self, event):
         try:
             self.global_status.object = "Loading data..."
@@ -607,6 +616,10 @@ class LoadDataDashboard(SubDash):
             self.sr_detected_display.object = (
                 f"<span style='color:#059669;font-weight:600;font-size:13px;'>{sr} Hz</span>"
             )
+            choices = self._compute_valid_sr_choices(sr)
+
+            self.target_sr_input.options = choices
+            
             if not self.downsample_toggle.value:
                 self.target_sr_input.value = sr
         else:
