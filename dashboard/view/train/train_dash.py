@@ -171,7 +171,7 @@ class TrainDashboard(SubDash):
         n_jobs = getattr(c, "opt_n_jobs", 4)
         n_evals = getattr(c, "opt_max_evals", 100)
         parallel = getattr(c, "opt_parallel", False)
-        mode = "parallel" if parallel else "sequential"
+        mode = "Random Parallel" if parallel else "Bayesian sequential"
         chip = "background:#eff6ff;color:#1d4ed8;border:1px solid #93c5fd;border-radius:4px;padding:2px 8px;font-size:12px;font-family:monospace;"
         return (
             f"<div style='display:flex;gap:8px;flex-wrap:wrap;align-items:center;'>"
