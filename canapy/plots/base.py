@@ -110,19 +110,23 @@ def plot_bokeh_label_count(df):
 
 
 def plot_segment_melspectrogram(
-        notated_path,
-        onset_s,
-        offset_s,
-        sampling_rate=16000,
-        hop_length=0.01,
-        n_fft=2048,
-        win_length=0.02,
-        fmin=500,
-        fmax=8000,
-        return_audio=False,
-        show_ticks=False,
-        x_tick_ref_s=None,
-    ):
+    notated_path,
+    onset_s,
+    offset_s,
+    sampling_rate=16000,
+    hop_length=0.01,
+    n_fft=2048,
+    win_length=0.02,
+    fmin=500,
+    fmax=8000,
+    return_audio=False,
+    show_ticks=False,
+    x_tick_ref_s=None,
+):
+    import numpy as np
+    import pathlib
+    import matplotlib
+    import librosa as lbr
 
     audio_file = pathlib.Path(notated_path)
     if audio_file.suffix == ".npy":
@@ -134,7 +138,7 @@ def plot_segment_melspectrogram(
     d = offset_s * sampling_rate - onset_s * sampling_rate
     delta = max(0, (max_length - d)) / 2
 
-    onset_audio  = seconds_to_audio(onset_s, sampling_rate)
+    onset_audio = seconds_to_audio(onset_s, sampling_rate)
     offset_audio = seconds_to_audio(offset_s, sampling_rate)
 
     s_delta = onset_audio - delta
@@ -149,8 +153,10 @@ def plot_segment_melspectrogram(
     e_delta = min(len(y), round(e_delta))
 
     full = y[s_delta:e_delta]
+
     hop_length_samples = seconds_to_audio(hop_length, sampling_rate)
     win_length_samples = min(seconds_to_audio(win_length, sampling_rate), n_fft)
+
     spec = lbr.feature.melspectrogram(
         y=full,
         sr=sampling_rate,
@@ -159,57 +165,109 @@ def plot_segment_melspectrogram(
         hop_length=hop_length_samples,
         fmin=fmin,
         fmax=fmax,
-        )
+    )
 
     spec = lbr.power_to_db(spec)
 
-    fig = matplotlib.figure.Figure(figsize=(1.5, 0.5))
+    fig = matplotlib.figure.Figure(figsize=(4, 1.5))
     ax = fig.subplots()
 
-    sample_onset = audio_to_frames(onset_audio - s_delta, hop_length_samples),
-    sample_offset = spec.shape[1] - audio_to_frames(e_delta - offset_audio, hop_length_samples),
+    sample_onset = audio_to_frames(onset_audio - s_delta, hop_length_samples)
+    sample_offset = spec.shape[1] - audio_to_frames(e_delta - offset_audio, hop_length_samples)
 
     ax.imshow(spec, origin="lower", cmap="magma", aspect="auto")
-    ax.axvline(
-        sample_onset,
-        color="white",
-        linestyle="--",
-        lw=1,
-        marker=">",
-        markevery=0.01,
-        markersize=5,
-        )
-    ax.axvline(
-        sample_offset,
-        color="white",
-        linestyle="--",
-        lw=1,
-        marker="<",
-        markevery=0.01,
-        markersize=5,
-        )
+
+    ax.axvline(sample_onset, color="white", linestyle="--", lw=1)
+    ax.axvline(sample_offset, color="white", linestyle="--", lw=1)
 
     ax.axis("off")
-    fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
+    fig.subplots_adjust(left=0.02, right=0.98, top=0.95, bottom=0.15)
 
     if show_ticks:
         n_mels, n_frames = spec.shape
-        tick_h = n_mels * 0.07
-        tick_w = n_frames * 0.03
-        so = sample_onset[0]
 
-        # Y-ticks: evenly spaced in mel-bin space (= evenly spaced visually)
-        for yp in np.linspace(0, n_mels - 1, 5):
-            ax.plot([0, tick_w], [yp, yp], color="white", lw=0.8, alpha=0.85, solid_capstyle="butt")
+        tick_h = n_mels * 0.12
+        tick_fontsize = 7
 
-        # X-ticks: fixed spacing based on dataset max segment duration, clipped to segment
-        sf = sample_offset[0]
-        ref_frames = (x_tick_ref_s * sampling_rate / hop_length_samples
-                      if x_tick_ref_s is not None
-                      else sf - so)
-        for xp in (so + np.arange(5) * ref_frames / 4):
-            if xp <= sf:
-                ax.plot([xp, xp], [0, tick_h], color="white", lw=0.8, alpha=0.85, solid_capstyle="butt")
+        mel_freqs = lbr.mel_frequencies(n_mels, fmin=fmin, fmax=fmax)
+
+        # ---------------- Y TICKS ----------------
+        for yp in np.linspace(0, n_mels - 1, 3):
+            idx = min(int(round(yp)), n_mels - 1)
+            freq_hz = float(mel_freqs[idx])
+
+            if freq_hz >= 1000:
+                lbl = f"{freq_hz / 1000:.1f}k"
+                if lbl.endswith(".0k"):
+                    lbl = lbl[:-3] + "k"
+            else:
+                lbl = f"{int(round(freq_hz))}"
+
+            ax.plot([0, n_frames * 0.025], [yp, yp], color="white", lw=1.0)
+
+            ax.text(
+                n_frames * 0.025 + n_frames * 0.01,
+                yp,
+                lbl,
+                color="white",
+                fontsize=tick_fontsize,
+                va="center",
+                ha="left",
+                clip_on=False,
+                bbox=dict(boxstyle="round,pad=0.2", fc="black", alpha=0.75, ec="none"),
+            )
+
+        # ---------------- X TICKS ----------------
+        t_start = s_delta / sampling_rate
+        margin = max(2, int(n_frames * 0.01))
+
+        ticks = [
+            (0, 0, "left"),
+            (sample_onset, onset_s - t_start, "center"),
+            (sample_offset, offset_s - t_start, "right"),
+        ]
+
+        # clip visuel des positions des lignes
+        ticks_vis = []
+        for xp, t_val, align in ticks:
+            xp_vis = np.clip(xp, margin, n_frames - 1 - margin)
+            ticks_vis.append([xp, xp_vis, t_val, align])
+
+        # gestion chevauchement labels
+        min_dx = n_frames * 0.12
+        ticks_vis.sort(key=lambda x: x[1])
+
+        for i in range(1, len(ticks_vis)):
+            prev = ticks_vis[i - 1]
+            curr = ticks_vis[i]
+
+            if curr[1] - prev[1] < min_dx:
+                shift = (min_dx - (curr[1] - prev[1])) / 2
+                prev[1] -= shift
+                curr[1] += shift
+
+        for t in ticks_vis:
+            t[1] = np.clip(t[1], margin, n_frames - 1 - margin)
+
+        # ---------------- DRAW ----------------
+        for i, (xp_true, xp_vis, t_val, align) in enumerate(ticks_vis):
+            ax.plot([xp_true, xp_true], [0, tick_h], color="white", lw=1.0)
+
+            # SUPPRESSION du texte pour le 1er tick horizontal
+            if i == 0:
+                continue
+
+            ax.text(
+                xp_vis,
+                tick_h + n_mels * 0.04,
+                f"{t_val:.2f}s",
+                color="white",
+                fontsize=tick_fontsize,
+                va="bottom",
+                ha=align,
+                clip_on=False,
+                bbox=dict(boxstyle="round,pad=0.2", fc="black", alpha=0.75, ec="none"),
+            )
 
     if return_audio:
         sample_only = y[max(0, onset_audio): min(len(y), offset_audio)]
@@ -217,6 +275,6 @@ def plot_segment_melspectrogram(
             fig,
             np.int16(full * np.iinfo(np.int16).max),
             np.int16(sample_only * np.iinfo(np.int16).max),
-            )
+        )
     else:
         return fig

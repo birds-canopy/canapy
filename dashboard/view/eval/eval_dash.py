@@ -140,7 +140,7 @@ class EvalDashboard(SubDash):
         self.spec_collapsed = pn.Row(
             self.spec_toggle_btn,
             pn.pane.Markdown(
-                "Visualize one mel spectrogram per class to identify similar classes.",
+                "One mel spectrogram per class — sample closest to the median duration of the class.",
                 styles={"font-size": "13px", "color": "#374151"},
                 align="center",
                 margin=(0, 0, 0, 12),
@@ -218,7 +218,7 @@ class EvalDashboard(SubDash):
                             fig = specs[0][0]
                             card = pn.Column(
                                 pn.pane.Markdown(
-                                    f"**{cls}**",
+                                    f"**{cls}** ({med_dur:.2f}s)",
                                     styles={"font-size": "11px", "text-align": "center"},
                                     margin=(0, 0, 2, 0),
                                 ),
@@ -227,7 +227,7 @@ class EvalDashboard(SubDash):
                                     format="png",
                                     tight=True,
                                     sizing_mode="stretch_width",
-                                    height=120,
+                                    height=200,
                                 ),
                                 styles={
                                     "border": "1px solid #e5e7eb",
@@ -235,7 +235,7 @@ class EvalDashboard(SubDash):
                                     "padding": "8px",
                                     "background": "#f8fafc",
                                 },
-                                width=240,
+                                width=420,
                             )
                             self.spec_grid.append(card)
                     except Exception as e:
@@ -244,7 +244,7 @@ class EvalDashboard(SubDash):
                             pn.pane.Markdown(
                                 f"**{cls}**: _error_",
                                 styles={"font-size": "11px", "color": "#dc2626"},
-                                width=220,
+                                width=420,
                             )
                         )
                 self._spec_computed = True
