@@ -276,6 +276,10 @@ class PreprocessDashboard(SubDash):
     def _build_trim_section(self):
         ratio, ratio_str = self.controler._compute_silence_ratio()
 
+        df = self.controler.corpus.dataset
+        classes = set(df["label"].unique()) - {"TRASH"}
+        recommended_ratio = 100 / (len(classes)+1)
+
         # --- Collapsed state: button + ratio ---
         self.trim_toggle_btn = pn.widgets.Button(
             name="Trim Silence",
@@ -331,6 +335,12 @@ class PreprocessDashboard(SubDash):
                 alert_type="warning",
                 margin=(0, 0, 8, 0),
             ),
+            pn.pane.Markdown(
+                f"Recommended silence ratio: **{recommended_ratio:.2f}%**",
+                styles={"font-size": "13px", "color": "#374151"},
+                margin=(0, 0, 0, 12),
+            ),
+
             pn.Row(
                 pn.Column(self.trim_target_input, sizing_mode="stretch_width"),
                 pn.Column(self.trim_confirm_btn, align="end", margin=(18, 0, 0, 15)),
