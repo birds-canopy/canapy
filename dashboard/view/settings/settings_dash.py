@@ -490,6 +490,35 @@ class SettingsDashboard(SubDash):
         self.btn_apply.on_click(self._apply)
         self.apply_status = pn.pane.HTML("", margin=(4, 0, 0, 0))
 
+        _export_config_css = """
+            button.bk-btn {
+                background-color: #dcfce7 !important;
+                color: #166534 !important;
+                border: 1px solid #86efac !important;
+                font-weight: bold !important;
+                border-radius: 6px !important;
+                font-size: 13px !important;
+            }
+            button.bk-btn:hover {
+                background-color: #bbf7d0 !important;
+            }
+        """
+        self._export_config_btn = pn.widgets.Button(
+            name="Export Config",
+            width=160,
+            stylesheets=[_export_config_css],
+        )
+        self._export_config_tooltip = custom_tooltip(
+            "Exports the current configuration (ESN hyperparameters, audio parameters, etc.)"
+            " as a TOML file in <code style='background:#374151;padding:1px 4px;border-radius:3px;'>config/user/</code>."
+            " You can reload it next time via Load Config.",
+            direction="left",
+        )
+        self._export_config_btn.on_click(self._on_click_export_config)
+        self._export_config_msg = pn.pane.Markdown(
+            "", styles={"font-size": "12px", "color": "#166534"}, visible=False
+        )
+
         _iterative_fit_val = bool(
             cfg.data.get("transforms", {}).get("training", {}).get("iterative_fit", False)
         )
@@ -646,6 +675,10 @@ class SettingsDashboard(SubDash):
             pn.Spacer(height=6),
             self.config_load_btn,
             self.config_load_status,
+            pn.Spacer(height=12),
+            pn.pane.HTML("<div class='settings-subsection-header'>Export Config</div>"),
+            pn.Row(self._export_config_tooltip, self._export_config_btn, align="end"),
+            self._export_config_msg,
             css_classes=["settings-card"],
             sizing_mode="stretch_width",
             min_width=260,
@@ -991,6 +1024,16 @@ class SettingsDashboard(SubDash):
             self.apply_status.object = (
                 "<span style='font-size:12px;color:#059669;'>✓ Settings applied successfully.</span>"
             )
+
+    def _on_click_export_config(self, event):
+        try:
+            path = self.controler.export_config()
+            self._export_config_msg.object = f"Saved to `{path}`"
+            self._export_config_msg.styles = {"font-size": "12px", "color": "#166534"}
+        except Exception as e:
+            self._export_config_msg.object = f"Error: {e}"
+            self._export_config_msg.styles = {"font-size": "12px", "color": "#be123c"}
+        self._export_config_msg.visible = True
 
     def _validate(self):
         sr = self.controler.config.data["transforms"]["audio"].get("sampling_rate", 44100)
