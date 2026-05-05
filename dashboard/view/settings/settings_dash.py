@@ -743,7 +743,7 @@ class SettingsDashboard(SubDash):
             _deep_update(self.controler.config.data, preset.data)
             self.controler._config_display_name = self._selected_preset_path.stem
             self._refresh_widgets_from_config()
-            self._apply(None)
+            self._apply(None, _silent=True)
             self.controler._settings_dirty = False
             name = self._selected_preset_path.stem.replace("_", " ").title()
             self._preset_status.object = (
@@ -788,7 +788,7 @@ class SettingsDashboard(SubDash):
             self.controler.config_path = path
             self.controler._config_display_name = path.stem
             self._refresh_widgets_from_config()
-            self._apply(None)
+            self._apply(None, _silent=True)
             self.controler._settings_dirty = False
             self.config_load_status.object = (
                 "<span style='font-size:12px;color:#059669;'>Config loaded and applied.</span>"
@@ -879,7 +879,7 @@ class SettingsDashboard(SubDash):
         win_samples = win * int(sr)
         self.n_fft_input.value = 2 ** math.ceil(math.log2(max(win_samples, 1)))
 
-    def _apply(self, _):
+    def _apply(self, _, _silent=False):
         try:
             self._validate()
         except ValueError as e:
@@ -985,11 +985,12 @@ class SettingsDashboard(SubDash):
         self.controler.opt_seed = self.opt_seed_input.value
 
         logger.info("Settings applied to config.")
-        self.status.object = "Settings applied successfully."
-        self.status.alert_type = "success"
-        self.apply_status.object = (
-            "<span style='font-size:12px;color:#059669;'>✓ Settings applied successfully.</span>"
-        )
+        if not _silent:
+            self.status.object = "Settings applied successfully."
+            self.status.alert_type = "success"
+            self.apply_status.object = (
+                "<span style='font-size:12px;color:#059669;'>✓ Settings applied successfully.</span>"
+            )
 
     def _validate(self):
         sr = self.controler.config.data["transforms"]["audio"].get("sampling_rate", 44100)
