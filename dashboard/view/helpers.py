@@ -300,6 +300,7 @@ class SideBar(SubDash):
         }
 
         if is_home:
+            accessible["settings"] = has_data
             accessible["eval"] = False
             accessible["export"] = False
 
@@ -356,8 +357,14 @@ class SideBar(SubDash):
                 self.controler._clear_audio_cache()
                 self.controler._audio_params_dirty = False
             step = self.controler.step
-            if step in ("preprocess", "eval"):
+            if step == "preprocess":
                 self.controler.next_step()
+            elif step == "eval":
+                # Navigate to train but defer next_iter() until the user actually starts training,
+                # so they can still go back to eval/export without losing their work.
+                self.controler._came_from_eval = True
+                self.controler._step = "train"
+                self.controler.dashboard.switch_panel()
             else:
                 if step == "home":
                     self.controler.fit_done = False
@@ -368,15 +375,23 @@ class SideBar(SubDash):
 
         def _nav_eval(e):
             step = self.controler.step
-            if step == "train" and self.controler.fit_done:
+            came_from_eval = getattr(self.controler, '_came_from_eval', False)
+            if step == "train" and self.controler.fit_done and not came_from_eval:
                 self.controler.next_step()
             else:
+                self.controler._came_from_eval = False
+                self.controler._came_from_eval_export = False
                 self.controler._step = "eval"
                 self.controler.dashboard.switch_panel()
 
         def _nav_export(e):
             if not self.controler.export_done:
-                self.controler.next_step(export=True)
+                # Defer checkpoint/apply_corrections/next_iter/export_corpus until
+                # the user actually clicks Start Export, so they can still go back to eval.
+                self.controler._came_from_eval = False
+                self.controler._came_from_eval_export = True
+                self.controler._step = "export"
+                self.controler.dashboard.switch_panel()
             else:
                 self.controler._step = "export"
                 self.controler.dashboard.switch_panel()

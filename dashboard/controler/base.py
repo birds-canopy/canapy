@@ -87,6 +87,8 @@ class Controler:
     fit_done: bool = attr.field(default=False)
     eval_done: bool = attr.field(default=False)
     export_done: bool = attr.field(default=False)
+    _came_from_eval: bool = attr.field(alias="_came_from_eval", default=False)
+    _came_from_eval_export: bool = attr.field(alias="_came_from_eval_export", default=False)
     _audio_params_dirty: bool = attr.field(alias="_audio_params_dirty", default=False)
     _training_params_dirty: bool = attr.field(alias="_training_params_dirty", default=False)
     _settings_dirty: bool = attr.field(alias="_settings_dirty", default=False)

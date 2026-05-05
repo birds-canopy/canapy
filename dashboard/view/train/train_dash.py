@@ -292,6 +292,7 @@ class TrainerDashboard(SubDash):
         self.controler.stop_optimization()
 
     def on_click_optimize(self, event):
+        self._commit_refit()
         self.optimize_btn.disabled = True
         self.optimize_btn.loading = True
         self.stop_search_btn.visible = True
@@ -358,7 +359,16 @@ class TrainerDashboard(SubDash):
 
         threading.Thread(target=run, daemon=True).start()
 
+    def _commit_refit(self):
+        """Finalise the transition from eval when the user actually starts training."""
+        if getattr(self.controler, '_came_from_eval', False):
+            self.controler._came_from_eval = False
+            self.controler.checkpoint()
+            self.controler.apply_corrections()
+            self.controler.next_iter()
+
     def on_click_train(self, event):
+        self._commit_refit()
         self.train_btn.disabled = True
         self.train_btn.loading = True
 

@@ -190,6 +190,15 @@ class ExportDashboard(SubDash):
     def _on_toggle_change(self, event):
         event.obj.button_type = "primary" if event.new else "default"
 
+    def _commit_from_eval(self):
+        """Finalise the transition from eval when the user actually starts the export."""
+        if getattr(self.controler, '_came_from_eval_export', False):
+            self.controler._came_from_eval_export = False
+            self.controler.checkpoint()
+            self.controler.apply_corrections()
+            self.controler.next_iter()
+            self.controler.export_corpus()
+
     def _on_export(self, event):
         chosen_syn  = self.toggle_syn.value
         chosen_nsyn = self.toggle_nsyn.value
@@ -207,6 +216,7 @@ class ExportDashboard(SubDash):
             )
             return
 
+        self._commit_from_eval()
         self.export_btn.disabled = True
         self.export_btn.loading = True
         self.info_msg.object = "<span style='color:#6b7280;font-size:12px;'>Running...</span>"
