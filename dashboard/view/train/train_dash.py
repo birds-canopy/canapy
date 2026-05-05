@@ -93,23 +93,19 @@ class TrainDashboard(SubDash):
             sizing_mode="stretch_both",
             background="#f8fafc",
         )
-    def _make_chevron(self, opened=False):
+    def _toggle_btn_css(self, opened=False):
         angle = "90deg" if opened else "0deg"
         return f"""
-        <div style="
-            font-size:14px;
-            width:20px;
-            display:flex;
-            align-items:center;
-            justify-content:center;
+        button.bk-btn::before {{
+            content: "▶";
+            display: inline-block;
+            font-size: 11px;
+            margin-right: 7px;
             transform: rotate({angle});
             transition: transform 0.15s ease;
-            color: #6b7280;
-            line-height: 1;
-            user-select: none;
-        ">
-            ▶
-        </div>
+            color: inherit;
+            vertical-align: middle;
+        }}
         """
     def request_navigate_away(self, nav_fn):
         if self.controler.is_optimization_running:
@@ -138,12 +134,11 @@ class TrainDashboard(SubDash):
             name="Optimize Hyperparameters",
             button_type="primary",
             width=230,
+            stylesheets=[self._toggle_btn_css(False)],
         )
-        self.hp_icon = pn.pane.HTML(self._make_chevron(False), width=20)
         self._hp_toggle_btn.on_click(self._on_toggle_hp_panel)
 
         hp_collapsed = pn.Row(
-            self.hp_icon,
             self._hp_toggle_btn,
             td.params_display,
             align="center",
@@ -203,7 +198,7 @@ class TrainDashboard(SubDash):
 
     def _on_toggle_hp_panel(self, event):
         self._hp_expanded.visible = not self._hp_expanded.visible
-        self.hp_icon.object = self._make_chevron(self._hp_expanded.visible)
+        self._hp_toggle_btn.stylesheets = [self._toggle_btn_css(self._hp_expanded.visible)]
         if self._hp_expanded.visible:
             name = self.controler._config_display_name or "default"
             if self.controler._settings_dirty:
