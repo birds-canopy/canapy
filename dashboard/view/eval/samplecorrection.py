@@ -109,6 +109,7 @@ class SampleCorrectionDashboard(SubDash):
             pn.Row(
                 pn.Column(
                     pn.pane.Markdown("**Samples to correct**", margin=(0, 0, 6, 0)),
+                    pn.pane.Markdown("Browse samples that have been missclassified by the models and correct their label if it's wrong."),
                     self.sample_container,
                     sizing_mode="stretch_width",
                 ),

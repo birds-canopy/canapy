@@ -80,7 +80,19 @@ class ClassMergeDashboard(SubDash):
         
         self.layout = pn.Column(
             pn.Column(
-                pn.pane.HTML("<div class='col-header'>1. Evaluation Metrics</div>"),
+                pn.Row(
+                    pn.pane.HTML(
+                        "<div class='col-header' style='margin-bottom:0;'>1. Evaluation Metrics</div>",
+                        margin=(0, 0, 0, 0),
+                    ),
+                    pn.pane.HTML(
+                        _f1_badges_html(self.controler),
+                        margin=(0, 0, 0, 16),
+                    ),
+                    align="center",
+                    margin=(0, 0, 15, 0),
+                    sizing_mode="stretch_width",
+                ),
                 self.metrics.layout,
                 styles={
                     "background-color": "#ffffff",
@@ -127,6 +139,55 @@ _REPORT_TOOLTIP = (
 )
 
 _SUMMARY_ROWS = {"accuracy", "macro avg", "weighted avg"}
+
+_MODEL_COLORS = [
+    ("#eff6ff", "#1d4ed8", "#bfdbfe"),   # blue  — model 0
+    ("#f5f3ff", "#6d28d9", "#ddd6fe"),   # purple — model 1
+    ("#f0fdf4", "#15803d", "#bbf7d0"),   # green  — model 2
+]
+
+
+def _f1_badges_html(controler):
+    metrics = controler.metrics
+    model_names = []
+    for split_data in metrics.values():
+        model_names = list(split_data["report"].keys())
+        break
+
+    def get_f1(split, name):
+        try:
+            return pd.DataFrame(metrics[split]["report"][name]).T.loc["weighted avg", "f1-score"]
+        except Exception:
+            return None
+
+    parts = []
+    for i, name in enumerate(model_names):
+        bg, fg, border = _MODEL_COLORS[i % len(_MODEL_COLORS)]
+        train_f1 = get_f1("train", name)
+        test_f1  = get_f1("test",  name)
+        train_str = f"{train_f1:.1%}" if train_f1 is not None else "—"
+        test_str  = f"{test_f1:.1%}"  if test_f1  is not None else "—"
+        parts.append(
+            f"<div style='background:{bg};border:1px solid {border};border-radius:8px;"
+            f"padding:5px 12px;font-size:11px;min-width:80px;'>"
+            f"<div style='font-weight:700;color:{fg};font-size:11px;margin-bottom:4px;"
+            f"text-transform:uppercase;letter-spacing:.5px;'>{name}</div>"
+            f"<div style='display:flex;justify-content:space-between;gap:10px;'>"
+            f"<span style='color:#6b7280;'>Train</span>"
+            f"<span style='font-weight:700;color:#111827;'>{train_str}</span>"
+            f"</div>"
+            f"<div style='display:flex;justify-content:space-between;gap:10px;margin-top:2px;'>"
+            f"<span style='color:#6b7280;'>Test</span>"
+            f"<span style='font-weight:700;color:#111827;'>{test_str}</span>"
+            f"</div>"
+            f"</div>"
+        )
+
+    return (
+        "<div style='display:flex;gap:8px;align-items:center;flex-wrap:wrap;'>"
+        + "".join(parts)
+        + "</div>"
+    )
 
 
 def _make_score_table(df):
