@@ -403,7 +403,7 @@ class SampleView(SubDash):
                 align_items='center', justify_content='start',
                 flex_wrap='wrap', gap=10, sizing_mode="stretch_width",
             )
-            views.append(pn.Column(card_content, css_classes=['sample-card'], padding=20, sizing_mode="stretch_width"))
+            views.append(pn.Column(card_content, css_classes=['sample-card'], padding=(12, 20), sizing_mode="stretch_width"))
         return views
 
     def _build_all(self, df):
