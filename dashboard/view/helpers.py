@@ -352,12 +352,17 @@ class SideBar(SubDash):
         def _nav_preprocess(e):
             self.controler.load_page("preprocess")
 
+        def _show_spinner():
+            self._spinner.value = True
+            self._spinner.visible = True
+
         def _nav_fit(e):
             if getattr(self.controler, "_audio_params_dirty", False):
                 self.controler._clear_audio_cache()
                 self.controler._audio_params_dirty = False
             step = self.controler.step
             if step == "preprocess":
+                _show_spinner()
                 self.controler.next_step()
             elif step == "eval":
                 # Navigate to train but defer next_iter() until the user actually starts training,
@@ -377,6 +382,7 @@ class SideBar(SubDash):
             step = self.controler.step
             came_from_eval = getattr(self.controler, '_came_from_eval', False)
             if step == "train" and self.controler.fit_done and not came_from_eval:
+                _show_spinner()
                 self.controler.next_step()
             else:
                 self.controler._came_from_eval = False
@@ -452,6 +458,15 @@ class SideBar(SubDash):
         else:
             items.append(pn.Spacer(height=10))
 
+        spinner = pn.indicators.LoadingSpinner(
+            value=False,
+            visible=False,
+            size=24,
+            align="center",
+            margin=(6, 0, 2, 0),
+        )
+        self._spinner = spinner
+
         items += [
             btn_loaddata,
             pn.Spacer(height=4),
@@ -467,6 +482,7 @@ class SideBar(SubDash):
             pn.Spacer(height=4),
             btn_annotate,
             pn.layout.Spacer(sizing_mode="stretch_height"),
+            spinner,
             pn.pane.HTML("<div class='nav-divider'></div>"),
         ]
 
