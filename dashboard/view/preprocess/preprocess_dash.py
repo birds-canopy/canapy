@@ -273,6 +273,25 @@ class PreprocessDashboard(SubDash):
             background="#f8fafc",
         )
 
+    def _make_chevron(self, opened=False):
+        angle = "90deg" if opened else "0deg"
+        return f"""
+        <div style="
+            font-size:14px;
+            width:20px;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            transform: rotate({angle});
+            transition: transform 0.15s ease;
+            color: #6b7280;
+            line-height: 1;
+            user-select: none;
+        ">
+            ▶
+        </div>
+        """
+    
     def _build_trim_section(self):
         ratio, ratio_str = self.controler._compute_silence_ratio()
         orig_ratio, _ = self.controler._compute_original_silence_ratio()
@@ -281,14 +300,15 @@ class PreprocessDashboard(SubDash):
         classes = set(df["label"].unique()) - {"TRASH"}
         recommended_ratio = 100 / (len(classes)+1)
 
-        # --- Collapsed state: button + ratio ---
         self.trim_toggle_btn = pn.widgets.Button(
             name="Trim Silence",
             button_type="warning",
             width=140,
         )
+        self.trim_icon = pn.pane.HTML(self._make_chevron(False), width=20)
         self.trim_toggle_btn.on_click(self._on_toggle_trim_panel)
         self.trim_collapsed = pn.Row(
+            self.trim_icon,
             self.trim_toggle_btn,
             pn.pane.Markdown(
                 f"Current silence ratio: **{ratio_str}**",
@@ -367,8 +387,10 @@ class PreprocessDashboard(SubDash):
             button_type="primary",
             width=180,
         )
+        self.spec_icon = pn.pane.HTML(self._make_chevron(False), width=20)
         self.spec_toggle_btn.on_click(self._on_toggle_spec_panel)
         self.spec_collapsed = pn.Row(
+            self.spec_icon,
             self.spec_toggle_btn,
             pn.pane.Markdown(
                 "One mel spectrogram per class. sample closest to the median duration of the class is displayed. " \
@@ -420,6 +442,8 @@ class PreprocessDashboard(SubDash):
 
     def _on_toggle_spec_panel(self, event):
         self.spec_expanded.visible = not self.spec_expanded.visible
+        self.spec_icon.object = self._make_chevron(self.spec_expanded.visible)
+
         if self.spec_expanded.visible and not self._spec_computed:
             self._on_compute_class_spectrograms(None)
 
@@ -519,6 +543,7 @@ class PreprocessDashboard(SubDash):
 
     def _on_toggle_trim_panel(self, event):
         self.trim_expanded.visible = not self.trim_expanded.visible
+        self.trim_icon.object = self._make_chevron(self.trim_expanded.visible)
 
     def on_click_trim_silence(self, event):
         target_ratio = self.trim_target_input.value / 100.0

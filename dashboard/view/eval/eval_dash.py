@@ -128,7 +128,25 @@ class EvalDashboard(SubDash):
             sizing_mode="stretch_both",
             background="#f8fafc" 
         )
-
+    def _make_chevron(self, opened=False):
+        angle = "90deg" if opened else "0deg"
+        return f"""
+        <div style="
+            font-size:14px;
+            width:20px;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            transform: rotate({angle});
+            transition: transform 0.15s ease;
+            color: #6b7280;
+            line-height: 1;
+            user-select: none;
+        ">
+            ▶
+        </div>
+        """
+    
     def _build_class_spectrogram_section(self):
         self._spec_computed = False
         self.spec_toggle_btn = pn.widgets.Button(
@@ -136,8 +154,10 @@ class EvalDashboard(SubDash):
             button_type="primary",
             width=180,
         )
+        self.spec_icon = pn.pane.HTML(self._make_chevron(False), width=20)
         self.spec_toggle_btn.on_click(self._on_toggle_spec_panel)
         self.spec_collapsed = pn.Row(
+            self.spec_icon,
             self.spec_toggle_btn,
             pn.pane.Markdown(
                 "One mel spectrogram per class — sample closest to the median duration of the class.",
@@ -186,8 +206,10 @@ class EvalDashboard(SubDash):
 
     def _on_toggle_spec_panel(self, event):
         self.spec_expanded.visible = not self.spec_expanded.visible
+        self.spec_icon.object = self._make_chevron(self.spec_expanded.visible)
+
         if self.spec_expanded.visible and not self._spec_computed:
-            self._on_compute_class_spectrograms(None)
+            self._on_compute_class_spectrograms(None) 
 
     def _on_compute_class_spectrograms(self, event):
         self.spec_toggle_btn.loading = True
