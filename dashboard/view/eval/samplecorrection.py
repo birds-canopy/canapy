@@ -52,7 +52,8 @@ class SampleCorrectionDashboard(SubDash):
         
         self.total_corrected = 0
 
-        self.class_selectors = self.build_class_selectors()
+        self.class_selectors = pn.FlexBox(justify_content='start', gap=10, align_items='center')
+        self.build_class_selectors()
 
         self.save_btn = pn.widgets.Button(
             name="Save all", 
@@ -125,18 +126,14 @@ class SampleCorrectionDashboard(SubDash):
         )
 
     def build_class_selectors(self):
-        grid = pn.FlexBox(
-            justify_content='start',
-            gap=10,
-            align_items='center'
-        )
+        self.class_selectors.objects = []
+        self.registry["class"] = {}
         misclass = self.controler.misclassified_segments
         for lbl in misclass.label.unique():
             n_error = len(misclass.query("label==@lbl"))
             display = ClassSelectionView(lbl, n_error, self)
             self.registry["class"][lbl] = display
-            grid.append(display.layout)
-        return grid
+            self.class_selectors.append(display.layout)
 
     def get_sample_corrector(self, label):
         if self.registry["sample"].get(label) is not None:
@@ -167,11 +164,30 @@ class SampleCorrectionDashboard(SubDash):
     def check_correction(self, label):
         return label in self.controler.classes if label != "" else True
 
+    def _refresh_after_annot_save(self):
+        saved_counts = {
+            lbl: view.num_corrected
+            for lbl, view in self.registry["class"].items()
+        }
+        self.registry["sample"] = {}
+        self.build_class_selectors()
+        for lbl, count in saved_counts.items():
+            if lbl in self.registry["class"] and count > 0:
+                view = self.registry["class"][lbl]
+                view.num_corrected = count
+                view.count_btn.name = f"{count} / {view.num_error}"
+                view.count_btn.button_type = "success"
+        self.sample_container.objects = [
+            pn.pane.Alert("Select a class above to start correcting.", alert_type="light")
+        ]
+        self.parent.merge_dashboard.corrector.rebuild_grid()
+
     def on_click_save(self, events):
         new_corrections = {}
         for sample_corrector in self.registry["sample"].values():
             new_corrections.update(sample_corrector.corrections)
-        self.controler.upload_corrections(new_corrections, "annot")
+        self.controler.apply_live_corrections(new_corrections, "annot")
+        self._refresh_after_annot_save()
         self.save_msg.object = "Saved!"
         self.save_msg.visible = True
 

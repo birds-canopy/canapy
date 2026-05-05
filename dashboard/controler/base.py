@@ -87,6 +87,8 @@ class Controler:
     fit_done: bool = attr.field(default=False)
     eval_done: bool = attr.field(default=False)
     export_done: bool = attr.field(default=False)
+    _original_audio_directory: Optional[Path] = attr.field(alias="_original_audio_directory", default=None)
+    _original_annots_directory: Optional[Path] = attr.field(alias="_original_annots_directory", default=None)
     _came_from_eval: bool = attr.field(alias="_came_from_eval", default=False)
     _came_from_eval_export: bool = attr.field(alias="_came_from_eval_export", default=False)
     _audio_params_dirty: bool = attr.field(alias="_audio_params_dirty", default=False)
@@ -265,6 +267,31 @@ class Controler:
     def upload_corrections(self, corrections, target):
         self._correction_store[target].update(corrections)
         logger.info(f"Uploaded corrections {target}: {corrections} to store.")
+
+    def _compute_original_silence_ratio(self):
+        """Return silence ratio of the original (pre-trim) corpus, or current corpus if never trimmed."""
+        if self._original_audio_directory is None:
+            return self._compute_silence_ratio()
+        config_path = Path(self.config_path) if self.config_path is not None else None
+        orig_corpus = Corpus.from_directory(
+            audio_directory=self._original_audio_directory,
+            spec_directory=self.spec_directory,
+            annots_directory=self._original_annots_directory,
+            config_path=config_path,
+            annot_format=self.annot_format,
+            audio_ext=self.audio_ext,
+        )
+        df = orig_corpus.dataset.copy()
+        silence_tag = self.config.transforms.annots.silence_tag
+        df["_duration"] = df["offset_s"] - df["onset_s"]
+        sil_duration = df.loc[df["label"] == silence_tag, "_duration"].sum()
+        df_sorted = df.sort_values(["notated_path", "onset_s"])
+        prev_offset = df_sorted.groupby("notated_path")["offset_s"].shift(fill_value=0.0)
+        gap_duration = (df_sorted["onset_s"] - prev_offset).clip(lower=0).sum()
+        total_sil = sil_duration + gap_duration
+        total_dur = df["_duration"].sum() + gap_duration
+        ratio = total_sil / total_dur if total_dur > 0 else 0.0
+        return ratio, f"{ratio * 100:.1f}%"
 
     def _compute_silence_ratio(self):
         """Return (ratio, pct_str) of silence (explicit SIL + implicit gaps) in current corpus."""
@@ -821,10 +848,40 @@ class Controler:
             logger.error("trim_silences_hard: audio_directory is None.")
             return
 
+        # Save the original directories on first trim so that re-trimming always
+        # operates on the untouched source files, not a previously trimmed version.
+        if self._original_audio_directory is None:
+            self._original_audio_directory = self.audio_directory
+            self._original_annots_directory = self.annots_directory
+
+        # Reload a temporary corpus from the originals to use as trimming source.
+        _hp_attrs = ("sr", "leak", "ridge", "iss", "isd", "isd2")
+        _saved_hp = {k: self.config.data["model"]["syn"].get(k) for k in _hp_attrs}
+        config_path = Path(self.config_path) if self.config_path is not None else None
+        source_corpus = Corpus.from_directory(
+            audio_directory=self._original_audio_directory,
+            spec_directory=self.spec_directory,
+            annots_directory=self._original_annots_directory,
+            config_path=config_path,
+            annot_format=self.annot_format,
+            audio_ext=self.audio_ext,
+        )
+
         silence_tag = self.config.transforms.annots.silence_tag
 
-        # --- Compute keep_fraction ---
-        ratio, _ = self._compute_silence_ratio()
+        # --- Compute keep_fraction from original corpus ---
+        orig_df = source_corpus.dataset.copy()
+        orig_df["_dur"] = orig_df["offset_s"] - orig_df["onset_s"]
+        sil_dur_orig = orig_df.loc[orig_df["label"] == silence_tag, "_dur"].sum()
+        non_sil_dur_orig = orig_df["_dur"].sum() - sil_dur_orig
+        orig_df_sorted = orig_df.sort_values(["notated_path", "onset_s"])
+        prev_offset_orig = orig_df_sorted.groupby("notated_path")["offset_s"].shift(fill_value=0.0)
+        gap_dur_orig = (orig_df_sorted["onset_s"] - prev_offset_orig).clip(lower=0).sum()
+        total_sil_orig = sil_dur_orig + gap_dur_orig
+        non_sil_dur = non_sil_dur_orig
+        total_sil_ratio = total_sil_orig / (total_sil_orig + non_sil_dur_orig) if (total_sil_orig + non_sil_dur_orig) > 0 else 0.0
+
+        ratio = total_sil_ratio
         if ratio <= target_ratio:
             panel.state.notifications.warning(
                 f"Silence ratio ({ratio*100:.1f}%) is already at or below "
@@ -833,19 +890,12 @@ class Controler:
             )
             return
 
-        df = self.corpus.dataset.copy()
-        df["_dur"] = df["offset_s"] - df["onset_s"]
-        sil_dur = df.loc[df["label"] == silence_tag, "_dur"].sum()
-        non_sil_dur = df["_dur"].sum() - sil_dur
-
-        df_sorted = df.sort_values(["notated_path", "onset_s"])
-        prev_offset = df_sorted.groupby("notated_path")["offset_s"].shift(fill_value=0.0)
-        gap_dur = (df_sorted["onset_s"] - prev_offset).clip(lower=0).sum()
-        total_sil = sil_dur + gap_dur
+        # Use the original corpus dataframe for all trimming computation.
+        df = orig_df
 
         # target_ratio = keep_sil / (non_sil + keep_sil)  =>  keep_sil = target_ratio * non_sil / (1 - target_ratio)
         keep_sil = (target_ratio * non_sil_dur / (1 - target_ratio)) if target_ratio < 1 else float("inf")
-        keep_fraction = min(1.0, keep_sil / total_sil) if total_sil > 0 else 1.0
+        keep_fraction = min(1.0, keep_sil / total_sil_orig) if total_sil_orig > 0 else 1.0
 
         logger.info(
             f"trim_silences_hard: ratio={ratio*100:.1f}% → target={target_ratio*100:.1f}%, "
@@ -856,7 +906,7 @@ class Controler:
         trimmed_audio_dir = self.output_directory / "audio_trimmed"
         trimmed_annots_dir = self.output_directory / "annots_trimmed"
 
-        # Clear any leftover files from a previous dataset before writing new ones
+        # Clear any leftover files from a previous trim before writing new ones.
         if trimmed_audio_dir.exists():
             for f in trimmed_audio_dir.glob("*"):
                 f.unlink(missing_ok=True)
@@ -957,11 +1007,6 @@ class Controler:
         # --- Reload corpus from trimmed directories ---
         self.audio_directory = trimmed_audio_dir
         self.annots_directory = trimmed_annots_dir
-
-        # Preserve HP params before corpus reload (Corpus.from_directory resets config from disk)
-        _hp_attrs = ("sr", "leak", "ridge", "iss", "isd", "isd2")
-        # Reading via attribute access is fine for scalars (copy has same scalar values).
-        _saved_hp = {k: self.config.data["model"]["syn"].get(k) for k in _hp_attrs}
 
         config_path = Path(self.config_path) if self.config_path is not None else None
         self.corpus = Corpus.from_directory(

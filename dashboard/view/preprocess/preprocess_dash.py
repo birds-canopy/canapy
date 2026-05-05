@@ -275,6 +275,7 @@ class PreprocessDashboard(SubDash):
 
     def _build_trim_section(self):
         ratio, ratio_str = self.controler._compute_silence_ratio()
+        orig_ratio, _ = self.controler._compute_original_silence_ratio()
 
         df = self.controler.corpus.dataset
         classes = set(df["label"].unique()) - {"TRASH"}
@@ -299,12 +300,12 @@ class PreprocessDashboard(SubDash):
             sizing_mode="stretch_width",
         )
 
-        max_ratio = max(int(ratio * 100) - 1, 1)
-        default_value_trim_silences = min(20,max_ratio)
+        max_ratio = max(int(orig_ratio * 100) - 1, 1)
+        default_value_trim_silences = min(20, max_ratio)
 
         self.trim_target_input = pn.widgets.IntSlider(
             name="Target silence ratio (%)",
-            start=0,
+            start=1,
             end=max_ratio,
             step=1,
             value=default_value_trim_silences,
@@ -1310,12 +1311,58 @@ class CorrectionTool(SubDash):
     def check_correction(self, label):
         return label in self.controler.classes if label != "" else True
 
+    def _refresh_after_annot_save(self):
+        df = self.controler.corpus.dataset
+
+        # Update all_classes from the now-corrected corpus.
+        self.all_classes = sorted([c for c in df["label"].unique() if c != "SIL"])
+
+        # Update stats table: recompute Count & Med Dur; keep audio stats for existing rows.
+        df_table = self.stats_table.value.copy()
+        new_classes = set(self.all_classes)
+        for cls in new_classes:
+            sub = df[df["label"] == cls]
+            count = len(sub)
+            dur = f"{(sub['offset_s'] - sub['onset_s']).median():.2f}s" if not sub.empty else "—"
+            if cls in df_table["Class"].values:
+                df_table.loc[df_table["Class"] == cls, "Count"] = count
+                df_table.loc[df_table["Class"] == cls, "Med Dur"] = dur
+            else:
+                new_row = pd.DataFrame([{
+                    "Class": cls, "Count": count, "Med Dur": dur,
+                    "Med Centroid": "—", "Med Slope": "—",
+                }])
+                df_table = pd.concat([df_table, new_row], ignore_index=True)
+        df_table = df_table[df_table["Class"].isin(new_classes)]
+        self.stats_table.value = df_table.sort_values("Class").reset_index(drop=True)
+
+        # Preserve correction counts, then rebuild class selectors.
+        saved_counts = {
+            lbl: view.num_corrected
+            for lbl, view in self.registry["class"].items()
+        }
+        self.registry["sample"] = {}
+        self.build_class_selectors()
+        for lbl, count in saved_counts.items():
+            if lbl in self.registry["class"] and count > 0:
+                view = self.registry["class"][lbl]
+                view.num_corrected = count
+                view.count_btn.name = f"{count} / {view.total_count}"
+                view.count_btn.button_type = "success"
+
+        self.sample_container.objects = [
+            pn.pane.Alert("Select a class above to inspect samples.", alert_type="light")
+        ]
+        # Keep class merge grid in sync.
+        self.parent.merge_tool.corrector.rebuild_grid()
+
     def on_click_save(self, events):
         new_corrections = {}
         for sample_view in self.registry["sample"].values():
             new_corrections.update(sample_view.corrections)
         if new_corrections:
             self.controler.apply_live_corrections(new_corrections, "annot")
+            self._refresh_after_annot_save()
             self.save_msg.object = "Saved successfully!"
             self.save_msg.visible = True
 
