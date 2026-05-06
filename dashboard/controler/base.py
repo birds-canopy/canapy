@@ -2,6 +2,7 @@
 # Licence: MIT License
 # Copyright: Nathan Trouvain
 import logging
+import shutil
 from pathlib import Path
 from typing import Dict, Optional, List, Mapping
 from collections import defaultdict
@@ -216,6 +217,7 @@ class Controler:
     def initialize_output(self, output=None):
         try:
             self.output_directory.mkdir(parents=True, exist_ok=True)
+            self._cleanup_trimmed_dirs()
         except OSError as e:
             logger.critical(e)
 
@@ -823,8 +825,16 @@ class Controler:
             self._opt_pgid = None
             logger.info(f"Optimization subprocess (pgid={pgid}) killed.")
 
+    def _cleanup_trimmed_dirs(self):
+        for name in ("audio_trimmed", "annots_trimmed"):
+            d = self.output_directory / name
+            if d.exists():
+                shutil.rmtree(d)
+                logger.info(f"Removed temporary directory: {d}")
+
     def stop_app(self):
         self.stop_optimization()
+        self._cleanup_trimmed_dirs()
         close_tempfiles()
         self.dashboard.stop()
 
