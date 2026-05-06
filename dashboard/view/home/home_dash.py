@@ -13,19 +13,19 @@ Schéma ? (utiliser celui qu'on utilisera pour l'article)
 FAQ_TEXT = """
 **Can Canapy automatically annotate my recordings without any manual work?**
 
-Not entirely: Canapy needs a small set of hand-labeled recordings to learn from — roughly 10 to 60 minutes depending on the species. Once trained, it can automatically annotate hundreds of hours of new audio files without any further human input.
+Not entirely: Canapy needs a small set of hand-labeled recordings to learn from; roughly 10 to 60 minutes depending on the species. Once trained, it can automatically annotate hundreds of hours of new audio files without any further human input.
 
 ---
 
 **I have recordings from multiple species. Do I need to start from scratch each time?**
 
-Yes, one model is trained per species (or per individual if vocalizations vary greatly). However, Canapy comes with pre-configured presets for several well-studied species: canary, Bengalese finch, zebra finch, mouse, and infant marmoset. If your species is on the list, you start with a solid baseline right away.
+Yes, one model is trained per species (or per individual if vocalizations vary greatly). However, Canapy comes with pre-configured presets for several well-studied species: canary, Bengalese finch, zebra finch, mouse, infant marmoset, and soon more. If your species is on the list, you start with a solid baseline right away.
 
 ---
 
 **If the model makes mistakes, do I have to redo everything?**
 
-No. After each training run, Canapy shows you where the model went wrong — which vocalizations it confuses with which. You can then correct the mislabeled examples directly in the interface and retrain. In practice, 3–4 iterations of this loop are enough to reach good performance. No need to re-annotate from scratch.
+No. After each training run, Canapy shows you where the model went wrong: which vocalizations it confuses with which. You can then correct the mislabeled examples directly in the interface and retrain. In practice, maximum 3–4 iterations of this loop should be enough to reach good performance. No need to re-annotate from scratch.
 
 ---
 
