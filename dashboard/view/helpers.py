@@ -448,9 +448,9 @@ class SideBar(SubDash):
 
         if not is_home:
             items.append(
-                pn.pane.PNG(
-                    "images/Logo_canapy.png",
-                    height=55,
+                pn.pane.JPG(
+                    "images/logo_canapy_simple.jpeg",
+                    height=69,
                     align="center",
                     margin=(10, 5, 15, 5),
                 )

@@ -63,8 +63,8 @@ class HomeDashboard(SubDash):
         self.sidebar = SideBar(self, "Home")
 
         logo = pn.pane.PNG(
-            "images/Logo_canapy.png",
-            height=200,
+            "images/logo_canapy_detailled.png",
+            height=250,
             align="center",
             margin=(40, 0, 50, 0),
         )
