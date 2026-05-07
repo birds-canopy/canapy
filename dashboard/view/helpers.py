@@ -1,12 +1,15 @@
 # Author: Axel Arnaud
 # Licence: BSD-3-Clause
 # Copyright: Axel Arnaud
+import pathlib
 import subprocess
 import sys
 import uuid
 
 import panel as pn
 from ..controler import Controler
+
+_IMAGES_DIR = pathlib.Path(__file__).parents[2] / "images"
 
 
 def custom_tooltip(text, direction="right", width=240, margin=(0, 10), align="center"):
@@ -500,7 +503,7 @@ class SideBar(SubDash):
         if not is_home:
             items.append(
                 pn.pane.PNG(
-                    "images/logo_canapy_simple.png",
+                    str(_IMAGES_DIR / "logo_canapy_simple.png"),
                     height=69,
                     align="center",
                     margin=(10, 5, 15, 5),

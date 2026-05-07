@@ -2,7 +2,7 @@
 # Licence: BSD-3-Clause
 # Copyright: Axel Arnaud
 import panel as pn
-from ..helpers import SubDash, SideBar
+from ..helpers import SubDash, SideBar, _IMAGES_DIR
 
 WELCOME_TEXT = """
 **Welcome to Canapy** - a user friendly auto annotator for animal vocalizations.
@@ -133,7 +133,7 @@ class HomeDashboard(SubDash):
         self.sidebar = SideBar(self, "Home")
 
         logo = pn.pane.PNG(
-            "images/logo_canapy_detailled.png",
+            str(_IMAGES_DIR / "logo_canapy_detailled.png"),
             height=250,
             align="center",
             margin=(40, 0, 50, 0),
