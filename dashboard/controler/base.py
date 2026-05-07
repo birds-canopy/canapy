@@ -364,7 +364,7 @@ class Controler:
 
         if classes_to_remove:
             df.loc[df["label"].isin(classes_to_remove), "label"] = "TRASH"
-            msg = f"Not enough samples for {classes_to_remove}, classes have been removed"
+            msg = f"Not enough samples for {classes_to_remove} (min. {self.min_class_count}): these classes have been relabeled as TRASH"
             panel.state.notifications.warning(msg, duration=10000)
             logger.warning(msg)
 
