@@ -767,6 +767,7 @@ class SampleView(SubDash):
                 pn.Spacer(height=3),
                 pn.pane.HTML("<span style='font-size:10px;color:#6b7280;'>🎯 Exact segment only</span>"),
                 pn.pane.Audio(sp[2], sample_rate=round(sampling_rate), height=35, sizing_mode="stretch_width"),
+                pn.Spacer(height=8),
                 sizing_mode="stretch_width",
             )
             card_content = pn.FlexBox(
@@ -1571,7 +1572,7 @@ class SingleSampleRow(SubDash):
             self.text_input,
             width=150, align='center'
         )
-        
+
         self.layout = pn.Row(
             self.number_pane, file_tooltip, self.img, self.audio_col,
             pn.Spacer(width=20), self.stats_col, pn.Spacer(width=10), input_section,

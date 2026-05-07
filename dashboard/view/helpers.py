@@ -121,6 +121,18 @@ PAGE_HEADER_CSS = """
     color: #6b7280;
     margin: 0;
 }
+audio {
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+.sample-card > *, .sample-row-card > * {
+    min-width: 0;
+    flex-shrink: 1;
+}
+.sample-card, .sample-row-card {
+    overflow: hidden;
+}
 """
 
 SIDEBAR_BASE_CSS = """

@@ -311,7 +311,7 @@ class SingleSampleCorrectorView(SubDash):
             pn.Spacer(height=5),
             pn.pane.Audio(spec[2], sample_rate=sampling_rate, height=30, sizing_mode="stretch_width"),
             sizing_mode="stretch_width",
-            min_width=290,
+            min_width=220,
             max_width=340,
             styles={"overflow": "hidden"},
         )
@@ -337,17 +337,24 @@ class SingleSampleCorrectorView(SubDash):
             width=140,
         )
 
-        self.layout = pn.Row(
+        main_group = pn.Row(
             self.number_pane,
             file_tooltip,
             self.img,
             pn.Spacer(width=10),
             self.audio_col,
-            pn.Spacer(width=20),
+            sizing_mode="stretch_width",
+            align="center",
+        )
+
+        self.layout = pn.FlexBox(
+            main_group,
             input_section,
             css_classes=['sample-row-card'],
             sizing_mode="stretch_width",
-            align="center",
+            align_items="center",
+            flex_wrap="wrap",
+            gap=10,
         )
 
     @property
