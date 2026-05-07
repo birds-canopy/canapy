@@ -11,7 +11,7 @@ Canapy trains automatic annotators for animal vocalizations using [Reservoir Com
 ## Installation
 
 ```bash
-git clone -b canapy_2026 git@github.com:birds-canopy/canapy.git
+git clone git@github.com:birds-canopy/canapy.git
 pip install -e canapy/.
 ```
 
@@ -32,43 +32,48 @@ song_dataset/
     ├── song1.wav
     └── song2.wav
 ```
-or 
+
+or
 
 ```text
 song_dataset/
 ├── song1.wav
-└── song1.csv
-└── song2.wav
+├── song1.csv
+├── song2.wav
 └── song2.csv
 ```
+
 Aim for 30 min–1 hour of annotated data (10 min can already give good results on canary songs).
 
 ### 2. Launch the dashboard
 
 ```bash
-canapy dash -a song_dataset/annotations -s song_dataset/audio -o output
-```
-
-Or launch without arguments and use the **Load data** page in the dashboard (recommanded):
-
-```bash
 canapy dash
 ```
 
-The dashboard automatically opens at [localhost:9321](http://localhost:9321).
+The dashboard opens automatically at [localhost:9321](http://localhost:9321).
+
+You can also pass paths directly as arguments:
+
+```bash
+canapy dash -a song_dataset/annotations -s song_dataset/audio -o output
+```
 
 ---
 
 ## Using the dashboard
 
-The home page gives access to three pipelines. The typical workflow for training a new annotator is:
+The dashboard is organized around a sidebar giving access to all pages. The typical workflow for training a new annotator is:
 
 ```
-Load data → Preprocess → Train → Eval → (iterate) → Export
+Load data → Preprocess → Train → Eval → (iterate) → Export → Annotate
 ```
+
+### Home
+
+The **Home** page gives an overview of Canapy and its pipelines, with a FAQ section and links to the GitHub repository and the Mnemosyne INRIA team.
 
 ### Load data
-<img width="404" height="413" alt="image" src="https://github.com/user-attachments/assets/458edafc-3ea8-4e3f-a36e-9a616b13db86" />
 
 On the **Load data** page, specify where your data lives:
 
@@ -78,27 +83,22 @@ On the **Load data** page, specify where your data lives:
 - **Annotation format** and **audio extension**: set these to match your files.
 - The **sampling rate** is auto-detected from your audio files. Enable *Downsample* if you want audio resampled to that rate at load time.
 
-### Pipeline 1: Preprocess (Edit dataset)
-<img width="955" height="474" alt="image" src="https://github.com/user-attachments/assets/01e2926e-6722-482d-a4d7-8eac07dc8a9f" />
+### Preprocess (Edit dataset)
 
-Use this page to clean your dataset before training. It has three sections:
+Use this page to clean your dataset before training. It has two sections:
 
-**1. Class merge** — listen to each annotation class, compare them side by side, and rename/merge classes that are acoustically too similar. Type the new label in the text field and click *Apply*.
+Two collapsible modules are always accessible at the top of the page, regardless of the active section:
 
-**2. Sample correction** — review individual samples per class. After clicking *Calculate stats*, you can see the distribution of duration, frequency centroid, and mean slope for each class. Select a class to listen to its samples one by one and correct any mislabeled ones. Click *Save all* when done.
+- **Class spectrograms** — displays one representative mel spectrogram per class (the sample closest to the median duration). Useful for quickly spotting acoustically similar classes before merging.
+- **Trim silences** *(Preprocess only)* — balances the proportion of silence in the dataset. Set the target silence ratio (e.g. 20%) and Canapy center-crops silence segments that exceed it. Trimmed files are saved to `output/audio_trimmed/` and `output/annots_trimmed/`.
 
-**3. Trim silences** — balance the proportion of silence in your dataset. Use the **target silence ratio** slider (e.g. 0.2 = 20% silence) and Canapy will center-crop silence segments that exceed this ratio. Silence percentage below 50% are best. You should consider silences as an annotation label that Canapy will annotate, so rule of thumb : desired percentage of silence = 100/(number of annotation classes + 1) (except if you don't want Canapy to annotate silences). 
-Trimmed files are saved to `output/audio_trimmed/` and `output/annots_trimmed/`.
+**Class merge** — listen to each annotation class, compare them side by side, and rename or merge classes that are acoustically too similar. Type the new label in the text field and click *Apply*.
 
-You can then export corrected annotations and/or go back to the Home page and use these in training as corrected annotations are kept in memory.
+**Sample correction** — review individual samples per class. Select a class to listen to its samples one by one, view their spectrogram, and correct any mislabeled ones via the text input. Click *Save all* when done.
 
-### Pipeline 2: Train models
+You can export corrected annotations at any time using the *Export Annotations* button at the top of the page.
 
-#### Preprocessing step
-Same page as Pipeline 1. Apply any corrections you need, or skip directly to the next step.
-
-#### Train step
-<img width="961" height="234" alt="image" src="https://github.com/user-attachments/assets/5e02f7b1-8737-4b4a-a525-751119b75165" />
+### Train
 
 **Hyperparameter search (optional):** Before training, you can run an automatic HP search to find better ESN parameters for your dataset. It uses TPE (sequential) or parallel random search. Key settings (on the **Settings** page): `opt_max_evals`, `opt_n_jobs`, `opt_max_percentage`. Optimized parameters are preserved across training iterations — no need to re-run the search each time.
 
@@ -110,31 +110,29 @@ Click *Start Training*. Three ESN-based models are trained:
 | `nsyn` | Trained on randomly shuffled, class-balanced samples — context-free |
 | `ensemble` | Combines `syn` and `nsyn` by majority vote |
 
-
-
-#### Eval step
+### Eval
 
 After training, the **Eval** page shows:
 
 - **Confusion matrix** — which classes are being confused with each other.
 - **Per-class metrics table** — precision, recall, F1-score for each class (1.0 = perfect).
-- **Class merge / sample correction** — same tools as Preprocessing, but applied to misclassified samples from the model's output.
+- **Class merge / sample correction** — same tools as Preprocessing, but focused on misclassified samples from the model's output.
 
-If the results are not satisfying, you can merge classes and correct samples, and click *Next step* to retrain. **3–4 iterations** of train → eval is typical to converge. Corrections made in Eval are preserved across iterations.
+If results are not satisfying, correct samples or merge classes, then retrain. **3–4 iterations** of train → eval is typically enough to converge. All corrections are preserved across iterations.
 
-#### Export step
+### Export
 
-When you are satisfied with performance, click *Export* to save the trained models to the output folder.
+When you are satisfied with the model's performance, go to the **Export** page to save the trained models to the output folder. These exported models are then used in the **Annotate** pipeline. You can also export the current configuration (ESN and species parameters) from this page — or from the **Settings** page — to reuse it as a personal preset in future sessions.
 
-### Pipeline 3: Annotate unlabeled data
+### Annotate unlabeled data
 
-Load your unlabeled audio and trained models (via **Load data** or in **CLI** with the `-c` argument at launch):
+Load your unlabeled audio and trained models via the **Load data** page, or pass them directly at launch:
 
 ```bash
 canapy dash -d song_dataset/audio -c output/model -o output/annotations
 ```
 
-Select which model(s) to use (*Syn-ESN*, *NSyn-ESN*, *Ensemble*), click *Start annotation*, then *Export annotation* when done.
+Select which model(s) to use (*Syn-ESN*, *NSyn-ESN*, *Ensemble*), click *Start annotation*, then *Export annotation* when done. The export folder is named with a timestamp (`YYYY-MM-DD_HHhMMminSS`).
 
 > If you trained with multiple iterations, you can pick a specific one: load `output/model/3` instead of `output/model`.
 
@@ -148,14 +146,7 @@ The **Settings** page lets you configure the parameters used by Canapy:
 
 Click *Validate* to apply changes to the current session.
 
-#### Presets
-
-The **Presets** section in Setting provides pre-configured profiles for specific species (canary, bengalese finch, zebra finch, mouse, infant marmoset). 
-By default, the parameters loaded in Canapy are those from the canary preset.
-
-If you have used Canapy on a new species, You are welcomed to send us your configuration so we can add it to the preset folder. 
-
-You can also load your own configuration by clicking on **Load config**.
+**Presets** — the Settings page provides pre-configured profiles for specific species (canary, Bengalese finch, zebra finch, mouse, infant marmoset). The canary preset is loaded by default. You can also load your own configuration file via *Load config*. If you have tuned Canapy for a new species, feel free to send us your configuration so we can add it to the preset library.
 
 ---
 

@@ -8,10 +8,10 @@
 - [1. Installation](#installation)
 - [2. Prepare your dataset](#prepare_data)
 - [3. Run canapy dashboard](#dashboard)
+  - [Home](#home)
   - [Load data](#load-data)
-  - [Pipeline 1: Edit dataset](#pipeline-1-edit-dataset)
-  - [Pipeline 2: Train models](#pipeline-2-train-models)
-  - [Pipeline 3: Annotate unlabeled data](#3rd-pipeline-annotate-unlabeled-data)
+  - [Train models](#train-models) *(includes Preprocess, Train, Eval, Export)*
+  - [Annotate unlabeled data](#annotate-unlabeled-data)
   - [Settings page](#settings-page)
   - [Presets](#presets)
 - [4. Using quick commands](#quick_commands)
@@ -39,7 +39,7 @@ pip install -e <path to canapy directory containing pyproject.toml>
 **2nd option to install canapy**
 
 ```bash
-pip install -e git+[https://github.com/birds-canopy/canapy.git#egg=canapy-reborn](https://github.com/birds-canopy/canapy.git#egg=canapy-reborn)
+pip install -e git+https://github.com/birds-canopy/canapy.git#egg=canapy
 ```
 
 ## Prepare your dataset <a name="prepare_data"></a>
@@ -214,16 +214,44 @@ canapy dash -d song_dataset/audio -c models_folder -o output
 The dashboard should open in your browser, at localhost:9321. If not, simply reach localhost:9321 in your favorite browser.
 All the data produced by the dashboard (models and checkpoints or annotations) will be stored in `output/`.
 
-The first dashboard you will see is the home page. From there you can **Load data** as described earlier, **Edit dataset** to edit annotations, **Train models** to then use these to automatically annotate unlabeled audio, or **Annotate** using trained models. Let's go through these different pipelines.
+The sidebar on the left gives access to all pages. The typical workflow is:
 
-### Pipeline 1: Edit dataset
-Click on the button "Edit Dataset". The **Preprocessing** page will be loaded, with 2 sections.
+```
+Load data → Preprocess → Train → Eval → (iterate) → Export → Annotate
+```
 
-#### Section 1: Class merge
+### Home
+
+The **Home** page gives an overview of Canapy, its pipelines, and a FAQ. It also links to the GitHub repository and the Mnemosyne INRIA team page.
+
+Let's go through the different pages.
+
+### Train models
+In this pipeline, you can train models using annotated files, to then use them to automatically annotate unlabeled data.
+
+**/!\ The dataset used for training should be similar to the one you want to automatically annotate.**
+
+*Example: I have a large dataset of one bird annotation. I manually annotated a small part of it. I use the annotated part to train models. I then use the trained models to automatically annotate the unlabeled dataset.*
+
+#### Step 1: Preprocess
+
+The **Preprocessing** page has two main section tabs, plus two collapsible modules always visible above them.
+
+**Collapsible modules:**
+
+**Class Spectrograms** — displays one representative mel spectrogram per class (the sample closest to the median duration). Useful for quickly spotting acoustically similar classes before merging. This module is also available on the **Eval** page.
+
+**Trim Silences** *(Preprocess only)* — balances the proportion of silence in your dataset. Use the **target silence ratio** slider to set the desired fraction of silence (e.g. 20 means 20%). Canapy applies a **center-crop algorithm**: silence segments exceeding the target are trimmed symmetrically from their center.
+
+As a rule of thumb: `target silence ratio ≈ 100 / (number of annotation classes + 1)`, unless you do not want Canapy to annotate silences at all.
+
+Trimmed audio and annotations are saved to `output/audio_trimmed/` and `output/annots_trimmed/`. You can use these directly for training by reloading them from those directories.
+
+##### Section 1: Class merge
 In the class merge section, you can listen to annotation classes (*2. audio repertoire*), compare these and merge them if they are too similar.
 To merge classes, in *1. class correction*, specify the new label you want a class to be attributed to and click on the *apply* button.
 
-#### Section 2: Sample correction
+##### Section 2: Sample correction
 In this section, you can correct labels one by one (for example if there have been annotation errors). You can visualize mean statistics for each class (=labels).
 
 Canapy provides powerful statistics to help you decide which classes to merge. In *1. Global analysis & Selection*, after clicking on the *calculate stats* button, you can view the distribution of:
@@ -235,27 +263,11 @@ The **Mean Slope** is particularly useful for analyzing repetitive phrases (tril
 
 Below these stats, you can select a class and listen/view statistics for each individual sample of the class. If they are wrongly labeled, you can correct the label. Click on the "save all" button to save the label correction.
 
-After editing your dataset, you can export it with the *export* button, or go back to the home page. Label changes will be kept in memory for the training pipeline.
+After editing your dataset, you can export corrected annotations using the *Export Annotations* button at the top of the page. Label changes are also kept in memory for the training pipeline.
 
-#### Section 3: Trim silences
-This section allows you to balance the proportion of silence segments in your dataset relative to labeled vocalizations.
+Once you have preprocessed the dataset, or if you don't want to preprocess it, navigate to the **Train** page in the sidebar.
 
-Use the **target silence ratio** slider to set the desired fraction of silence in the dataset (e.g. 0.2 means 20% silence). Canapy will then apply a **center-crop algorithm**: silence segments that exceed the target ratio are trimmed symmetrically from their center, keeping just enough silence to meet the target.
-
-The trimmed audio and annotations are saved to `output/audio_trimmed/` and `output/annots_trimmed/` respectively. You can use the trimmed dataset directly for training by reloading it from those directories.
-
-### Pipeline 2: Train models
-In this pipeline, you can train models using annotated files, to then use them to automatically annotate unlabeled data.
-
-**/!\ The dataset used for training should be similar to the one you want to automatically annotate.**
-
-*Example: I have a large dataset of one bird annotation. I manually annotated a small part of it. I use the annotated part to train models. I then use the trained models to automatically annotate the unlabeled dataset.*
-
-#### 1st page: Preprocessing
-This page is the same as the **Edit dataset** page.
-Once you have preprocessed the dataset, or if you don't want to preprocess it, you can click on the *next step* button to go to the next step.
-
-#### 2nd page: Train
+#### Step 2: Train
 Click on the *Start Training* button to start training models.
 Two models are built during the training phase. They both are based on an Echo State Network (ESN), a kind of artificial neural network, and have the same parameters. They are, however, trained on two different tasks:
 
@@ -274,34 +286,40 @@ Key settings (configurable on the **Settings** page):
 
 Once an HP search has been performed, the optimized parameters are preserved in memory for subsequent training iterations. If you go through the eval page and start a new training pass, the previously found HP values are reused automatically — you do not need to re-run the search each time.
 
-At the end of the training sequence, click on *next step* to display the **eval** dashboard (it can take some time to display, don't worry, click only **once** on the button).
+Once training is complete, navigate to the **Eval** page in the sidebar.
 
-#### 3rd page: Eval
-The **eval** page is similar in some ways to the **preprocessing** page.
+#### Step 3: Eval
+The **Eval** page is similar in structure to the **Preprocess** page: two section tabs (Class merge, Sample correction) plus a collapsible **Class Spectrograms** module at the top (same as in Preprocess — no Trim Silences here).
+
+##### Evaluation metrics
+At the top of the Class merge section, you can see the performance of the trained models for each model, on both the train and test phases. The table on the right shows per-class precision, recall, and F1-score (1 = perfect). The confusion matrix on the left visualizes which classes are being confused.
 
 ##### Section 1: Class merge
-In *1. Evaluation Metrics*, you can see the performance of the trained models for each model for the train and the test phase. The spreadsheet on the right helps you assess the models' performance for each class and in general; 1 means the labels are perfectly classified. The confusion matrix on the left helps you visualize how classes can be misclassified.
-If a class is strongly misclassified as another class, they might be acoustically too similar; you can merge these below with the same modules as the **preprocessing** page.
+If a class is strongly misclassified as another, they may be acoustically too similar — merge them here using the same tool as in Preprocess.
 
 ##### Section 2: Sample correction
-Although the use is very similar to the **preprocessing** page, the principle differs. In this section, misclassified samples for each class are shown.
-You can view which classes have the most misclassified samples, and you can listen to these samples by clicking on the desired class button.
-If the misclassified sample was originally wrongly labeled, you can assign it the right label.
+In this section, misclassified samples for each class are shown (not all samples — only those the model got wrong).
+You can see which classes have the most misclassified samples, listen to them, and correct any that were originally wrongly labeled.
 
-If you are satisfied with the performance of the models, you can click on the *export* button to export the models. Else, you can click on the *next step* button to start training models again. You should do 3-4 iterations of training-evaluating to be sure that you have fixed all the annotations.
+If you are not yet satisfied, navigate back to the **Train** page to start another iteration. **3–4 iterations** of train → eval is typically enough to converge. All corrections are preserved across iterations.
 
-#### 4th page: Export
-This page will export the trained models. Once the models are exported (in the folder specified as output), you can go back home or quit canapy.
+#### Step 4: Export
 
-### 3rd Pipeline: Annotate unlabeled data
+Once you are satisfied with performance, go to the **Export** page (accessible from the sidebar). This page retrains the models on the full dataset (no train/test split) and saves them to disk. These exported models are what you will use in the **Annotate** pipeline.
 
-To use this pipeline, you need to have trained models loaded, see *Load data*.
+**Select models to export:** toggle *Syn-ESN* and/or *NSyn-ESN* (the ensemble is derived from both), set the output directory, and click *Export trained models*.
+
+**Export configuration:** the Export page also lets you save the current parameters (ESN settings, audio/species settings) as a `.toml` config file. This is independent of the model export — you can reload this file later via **Settings → Load config** to reuse it as a personal preset. The same *Export Config* button is available on the **Settings** page.
+
+### Annotate unlabeled data
+
+To use this pipeline, you need to have trained and exported models. Load them via **Load data** (Model directory field), see *Load data* section above.
 If you trained models with multiple iterations, load the desired iteration: instead of loading a path like `output/model`, load `output/model/4` for example.
 If you haven't closed Canapy since you trained models, you should make sure you load the correct dataset (i.e., the unlabeled one) and the exported models you just trained using **Load data**.
 
 Select which models you want to use to automatically annotate unlabeled data by clicking on the buttons *Syn-ESN*, *NSyn-ESN* and *Ensemble*.
 Click on the *Start annotation* button to automatically annotate using the desired models.
-Once the annotation is finished, click on *Export Annotation*. Annotations will be exported in the folder specified as output in **Load data** or in the launching command.
+Once the annotation is finished, click on *Export Annotation*. Annotations will be exported in the folder specified as output in **Load data** or in the launching command. The export folder is named with a timestamp in the format `YYYY-MM-DD_HHhMMminSS`.
 
 ### Settings page
 
@@ -330,13 +348,16 @@ After modifying parameters, click **Validate** to apply them to the current sess
 
 ### Presets
 
-The **Presets** page provides ready-made configuration profiles optimized for specific species or signal types. The following presets are available:
+The **Presets** section provides ready-made configuration profiles for specific species:
 - **Canary**
-- **Dolphin**
-- **Human**
+- **Bengalese finch**
 - **Zebra finch**
+- **Mouse** (binary classification)
+- **Infant marmoset**
 
-> **Note:** Presets are currently placeholders and are not yet fully configured. Selecting a preset will load the corresponding `.toml` configuration file, but the parameter values may not yet be tuned for the target species. This feature is intended to be expanded in future releases.
+Select a preset and click *Load* to apply its parameters to the current session. You can also load your own configuration file via *Load config*. To save your current parameters as a reusable config file, use the *Export Config* button (also available on the **Export** page).
+
+If you have tuned Canapy for a new species, feel free to share your configuration with us so we can add it to the preset library.
 
 ## Using quick commands <a name="quick_commands"></a>
 
