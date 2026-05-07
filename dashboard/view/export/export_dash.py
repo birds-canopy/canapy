@@ -38,6 +38,12 @@ EXPORT_CSS = """
     padding-bottom: 6px;
     margin-bottom: 10px;
 }
+.field-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 2px;
+}
 """
 
 
@@ -78,6 +84,7 @@ class ExportDashboard(SubDash):
 
         config_card = self._build_config_panel()
         monitor_card = self._build_monitor_panel()
+        export_config_card = self._build_export_config_panel()
 
         header = pn.Column(
             pn.pane.Markdown("# Export", css_classes=["page-title"], margin=0),
@@ -99,6 +106,8 @@ class ExportDashboard(SubDash):
                     monitor_card,
                     sizing_mode="stretch_width",
                 ),
+                pn.Spacer(height=16),
+                export_config_card,
                 sizing_mode="stretch_both",
                 margin=(20, 10),
             ),
@@ -182,6 +191,58 @@ class ExportDashboard(SubDash):
             sizing_mode="stretch_both",
         )
 
+    def _build_export_config_panel(self):
+        _EXPORT_CONFIG_CSS = """
+            button.bk-btn {
+                background-color: #dcfce7 !important;
+                color: #166534 !important;
+                border: 1px solid #86efac !important;
+                font-weight: bold !important;
+                border-radius: 6px !important;
+                font-size: 13px !important;
+            }
+            button.bk-btn:hover {
+                background-color: #bbf7d0 !important;
+            }
+        """
+        self._export_config_name_input = pn.widgets.TextInput(
+            value=self.controler.get_default_export_config_name(),
+            placeholder="filename.toml",
+            sizing_mode="stretch_width",
+            height=38,
+            margin=0,
+        )
+        self._export_config_btn = pn.widgets.Button(
+            name="Export Config",
+            height=38,
+            width=160,
+            stylesheets=[_EXPORT_CONFIG_CSS],
+            margin=0,
+        )
+        self._export_config_msg = pn.pane.HTML("", sizing_mode="stretch_width")
+        self._export_config_btn.on_click(self._on_click_export_config)
+
+        return pn.Column(
+            pn.pane.HTML("<div class='section-header'>Export Configuration</div>"),
+            pn.pane.HTML(
+                "<p style='font-size:13px;color:#6b7280;margin:0 0 10px 0;'>"
+                "Save the current hyperparameters and audio settings as a TOML file. "
+                "This is independent from the model export above — you can reload this config next time via Settings."
+                "</p>"
+            ),
+            pn.pane.HTML("<div class='field-label'>Config name</div>"),
+            pn.Row(
+                self._export_config_name_input,
+                self._export_config_btn,
+                align="center",
+                margin=0,
+            ),
+            pn.Spacer(height=4),
+            self._export_config_msg,
+            css_classes=["export-card"],
+            sizing_mode="stretch_width",
+        )
+
     def _browse_dir(self, event):
         directory = pick_directory("Select Export Directory")
         if directory:
@@ -262,6 +323,18 @@ class ExportDashboard(SubDash):
                 self.export_btn.loading = False
 
         threading.Thread(target=run, daemon=True).start()
+
+    def _on_click_export_config(self, event):
+        try:
+            path = self.controler.export_config(self._export_config_name_input.value)
+            self._export_config_msg.object = (
+                f"<span style='color:#16a34a;font-size:12px;'>Saved to <code>{path}</code></span>"
+            )
+            self._export_config_name_input.value = self.controler.get_default_export_config_name()
+        except Exception as e:
+            self._export_config_msg.object = (
+                f"<span style='color:#dc2626;font-size:12px;'>Error: {e}</span>"
+            )
 
     def begin(self):
         pass

@@ -804,11 +804,29 @@ class Controler:
             logger.critical(f"Failed to export predictions to {out_dir}: {e}")
             raise
 
-    def export_config(self) -> str:
+    def get_default_export_config_name(self) -> str:
+        base = self._config_display_name or "default"
+        # Strip .toml extension if present in the display name
+        if base.endswith(".toml"):
+            base = base[:-5]
+        project_root = Path(__file__).resolve().parents[2]
+        user_config_dir = project_root / "config" / "user"
+        n = 1
+        while True:
+            candidate = f"{base}_custom_{n}.toml"
+            if not (user_config_dir / candidate).exists():
+                return candidate
+            n += 1
+
+    def export_config(self, filename: str = None) -> str:
         project_root = Path(__file__).resolve().parents[2]
         user_config_dir = project_root / "config" / "user"
         user_config_dir.mkdir(parents=True, exist_ok=True)
-        config_path = user_config_dir / "user.config.toml"
+        if not filename:
+            filename = self.get_default_export_config_name()
+        if not filename.endswith(".toml"):
+            filename += ".toml"
+        config_path = user_config_dir / filename
         self.config.to_disk(config_path, format="toml")
         logger.info(f"Config exported to {config_path}")
         return str(config_path)

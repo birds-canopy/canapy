@@ -515,6 +515,11 @@ class SettingsDashboard(SubDash):
             direction="left",
         )
         self._export_config_btn.on_click(self._on_click_export_config)
+        self._export_config_name_input = pn.widgets.TextInput(
+            value=self.controler.get_default_export_config_name(),
+            placeholder="filename.toml",
+            sizing_mode="stretch_width",
+        )
         self._export_config_msg = pn.pane.Markdown(
             "", styles={"font-size": "12px", "color": "#166534"}, visible=False
         )
@@ -677,6 +682,13 @@ class SettingsDashboard(SubDash):
             self.config_load_status,
             pn.Spacer(height=12),
             pn.pane.HTML("<div class='settings-subsection-header'>Export Config</div>"),
+            pn.pane.HTML(
+                "<span style='font-size:12px;color:#6b7280;'>"
+                "Config name"
+                "</span>",
+                margin=(0, 0, 6, 0),
+            ),
+            self._export_config_name_input,
             pn.Row(self._export_config_tooltip, self._export_config_btn, align="end"),
             self._export_config_msg,
             css_classes=["settings-card"],
@@ -1027,9 +1039,10 @@ class SettingsDashboard(SubDash):
 
     def _on_click_export_config(self, event):
         try:
-            path = self.controler.export_config()
+            path = self.controler.export_config(self._export_config_name_input.value)
             self._export_config_msg.object = f"Saved to `{path}`"
             self._export_config_msg.styles = {"font-size": "12px", "color": "#166534"}
+            self._export_config_name_input.value = self.controler.get_default_export_config_name()
         except Exception as e:
             self._export_config_msg.object = f"Error: {e}"
             self._export_config_msg.styles = {"font-size": "12px", "color": "#be123c"}
