@@ -1,12 +1,13 @@
 [tool.poetry]
-name = "canapy-reborn"
+name = "canapy"
 version = "0.1.0"
-description = ""
-license = "MIT"
+description = "canapy is a user friendly auto annotator for animal vocalizations using reservoir computing"
+license = "BSD-3-Clause"
 authors = [
-  "Nathan Trouvain <nathan.trouvain/at/inria.fr>",
-  "Vincent Gardies <>",
+  "Axel Arnaud <axel.arnaud/at/inria.fr>",
+  "Nathan Trouvain <>",
   "Albane Arthuis <>",
+  "Xavier Hinaut <xavier.hinaut/at/inria/fr>",
 ]
 readme = "README.md"
 packages = [
