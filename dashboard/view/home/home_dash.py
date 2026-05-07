@@ -1,8 +1,18 @@
 import panel as pn
 from ..helpers import SubDash, SideBar
 
+WELCOME_TEXT = """
+**Welcome to Canapy** - a user friendly auto annotator for animal vocalizations.
+Here you can modify and correct your annotated-by-hand dataset to train models to auto annotate large datasets. 
+...
+
+📦 [GitHub Repository](https://github.com/birds-canopy/canapy/tree/main)
+
+🧠 [Our team : Mnemosyne INRIA](https://team.inria.fr/mnemosyne/fr/)
+"""
+
 TUTORIAL_TEXT = """
-*Welcome to Canapy* - a user friendly auto annotator for animal vocalizations. 
+*Welcome to Canapy* - a user friendly auto annotator for animal vocalizations.
 Here you can .....
 - Décrire le fonctionnement rapidement (syn-nsyn)
 Schéma ? (utiliser celui qu'on utilisera pour l'article)
@@ -42,16 +52,73 @@ HOME_CSS = """
     background: #f8fafc;
     border-radius: 10px;
     padding: 24px 28px;
-    margin-bottom: 24px;
+    margin-bottom: 16px;
     border: 1px solid #e2e8f0;
 }
-.home-section h2 {
-    font-size: 20px;
-    font-weight: 700;
-    color: #1e293b;
-    margin-bottom: 12px;
+.home-welcome {
+    background: #ffffff;
+    border-radius: 10px;
+    padding: 24px 28px;
+    margin-bottom: 16px;
+    border: 1px solid #e2e8f0;
 }
 """
+
+
+def _collapsible_section(title, content_md, collapsed=True):
+    toggle_btn = pn.widgets.Button(
+        name=title,
+        button_type="light",
+        sizing_mode="stretch_width",
+        stylesheets=[f"""
+            :host button {{
+                text-align: left;
+                font-size: 15px;
+                font-weight: 700;
+                color: #1e293b;
+                background: transparent;
+                border: none;
+                padding: 0;
+                cursor: pointer;
+            }}
+            :host button::before {{
+                content: "{'▶' if collapsed else '▼'}";
+                font-size: 11px;
+                margin-right: 8px;
+                color: #6b7280;
+            }}
+        """],
+    )
+    content = pn.Column(
+        pn.pane.Markdown(content_md, sizing_mode="stretch_width"),
+        sizing_mode="stretch_width",
+        visible=not collapsed,
+        margin=(12, 0, 0, 0),
+    )
+
+    OPEN_CSS = """
+        :host button { text-align: left; font-size: 15px; font-weight: 700;
+            color: #1e293b; background: transparent; border: none; padding: 0; cursor: pointer; }
+        :host button::before { content: "▼"; font-size: 11px; margin-right: 8px; color: #6b7280; }
+    """
+    CLOSED_CSS = """
+        :host button { text-align: left; font-size: 15px; font-weight: 700;
+            color: #1e293b; background: transparent; border: none; padding: 0; cursor: pointer; }
+        :host button::before { content: "▶"; font-size: 11px; margin-right: 8px; color: #6b7280; }
+    """
+
+    def on_toggle(event):
+        content.visible = not content.visible
+        toggle_btn.stylesheets = [OPEN_CSS if content.visible else CLOSED_CSS]
+
+    toggle_btn.on_click(on_toggle)
+
+    return pn.Column(
+        toggle_btn,
+        content,
+        sizing_mode="stretch_width",
+        css_classes=["home-section"],
+    )
 
 
 class HomeDashboard(SubDash):
@@ -69,22 +136,18 @@ class HomeDashboard(SubDash):
             margin=(40, 0, 50, 0),
         )
 
-        tutorial_section = pn.Column(
-            pn.pane.Markdown("## Tutorial"),
-            pn.pane.Markdown(TUTORIAL_TEXT, sizing_mode="stretch_width"),
+        welcome_section = pn.Column(
+            pn.pane.Markdown(WELCOME_TEXT, sizing_mode="stretch_width"),
             sizing_mode="stretch_width",
-            css_classes=["home-section"],
+            css_classes=["home-welcome"],
         )
 
-        faq_section = pn.Column(
-            pn.pane.Markdown("## FAQ"),
-            pn.pane.Markdown(FAQ_TEXT, sizing_mode="stretch_width"),
-            sizing_mode="stretch_width",
-            css_classes=["home-section"],
-        )
+        tutorial_section = _collapsible_section("Tutorial", TUTORIAL_TEXT, collapsed=True)
+        faq_section = _collapsible_section("FAQ", FAQ_TEXT, collapsed=False)
 
         main_content = pn.Column(
             logo,
+            welcome_section,
             tutorial_section,
             faq_section,
             sizing_mode="stretch_width",
