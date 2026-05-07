@@ -332,6 +332,9 @@ class Controler:
             for idx, new_label in corrections.items():
                 if idx in self.corpus.dataset.index:
                     self.corpus.dataset.at[idx, 'label'] = new_label
+                misclass = self._metrics_store.get("misclass")
+                if misclass is not None and idx in misclass.index:
+                    self._metrics_store["misclass"].at[idx, 'label'] = new_label
 
         self.compute_classes()
         logger.info(f"Applied live corrections ({target}) and updated class registry.")

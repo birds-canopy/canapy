@@ -70,7 +70,7 @@ class SampleCorrectionDashboard(SubDash):
 
         fig, self.counts = plot_bokeh_label_count(self.controler.misclassified_segments)
         fig.min_border = 0
-        bokeh_pane = pn.pane.Bokeh(fig, sizing_mode="stretch_width", height=280)
+        self.bokeh_pane = pn.pane.Bokeh(fig, sizing_mode="stretch_width", height=280)
 
         self.sample_container = pn.Column(
             pn.pane.Alert("Select a class above to start correcting.", alert_type="light"),
@@ -80,7 +80,7 @@ class SampleCorrectionDashboard(SubDash):
         )
 
         self.layout = pn.Column(
-            bokeh_pane,
+            self.bokeh_pane,
             pn.Spacer(height=20),
             pn.Column(
                 pn.pane.Markdown("### 1. Select a class to correct", margin=(10, 0, 10, 0)),
@@ -171,6 +171,9 @@ class SampleCorrectionDashboard(SubDash):
         }
         self.registry["sample"] = {}
         self.build_class_selectors()
+        fig, self.counts = plot_bokeh_label_count(self.controler.misclassified_segments)
+        fig.min_border = 0
+        self.bokeh_pane.object = fig
         for lbl, count in saved_counts.items():
             if lbl in self.registry["class"] and count > 0:
                 view = self.registry["class"][lbl]
@@ -180,6 +183,7 @@ class SampleCorrectionDashboard(SubDash):
         self.sample_container.objects = [
             pn.pane.Alert("Select a class above to start correcting.", alert_type="light")
         ]
+        self.repertoire_view.update_classes()
         self.parent.merge_dashboard.corrector.rebuild_grid()
 
     def on_click_save(self, events):

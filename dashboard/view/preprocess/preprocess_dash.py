@@ -1372,6 +1372,7 @@ class CorrectionTool(SubDash):
         self.sample_container.objects = [
             pn.pane.Alert("Select a class above to inspect samples.", alert_type="light")
         ]
+        self.update_boxplot_view()
         # Keep class merge grid in sync.
         self.parent.merge_tool.corrector.rebuild_grid()
 
