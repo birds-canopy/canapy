@@ -316,7 +316,7 @@ class Controler:
             panel.state.notifications.warning(
                 f"High silence ratio detected ({pct_str} of total duration). "
                 "Consider trimming silence before training.",
-                duration=8000,
+                duration=10000,
             )
             logger.warning(f"High silence ratio: {pct_str}")
         return ratio
@@ -365,7 +365,7 @@ class Controler:
         if classes_to_remove:
             df.loc[df["label"].isin(classes_to_remove), "label"] = "TRASH"
             msg = f"Not enough samples for {classes_to_remove}, classes have been removed"
-            panel.state.notifications.warning(msg, duration=0)
+            panel.state.notifications.warning(msg, duration=10000)
             logger.warning(msg)
 
         self.corpus = self.corpus.clone_with_df(df)
@@ -874,7 +874,7 @@ class Controler:
 
         if self.audio_directory is None:
             panel.state.notifications.error(
-                "No audio directory configured. Cannot trim silences.", duration=5000
+                "No audio directory configured. Cannot trim silences.", duration=10000
             )
             logger.error("trim_silences_hard: audio_directory is None.")
             return
@@ -917,7 +917,7 @@ class Controler:
             panel.state.notifications.warning(
                 f"Silence ratio ({ratio*100:.1f}%) is already at or below "
                 f"target ({target_ratio*100:.1f}%). Nothing to do.",
-                duration=5000,
+                duration=10000,
             )
             return
 
