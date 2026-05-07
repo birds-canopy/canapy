@@ -4,10 +4,10 @@ version = "0.1.0"
 description = "canapy is a user friendly auto annotator for animal vocalizations using reservoir computing"
 license = "BSD-3-Clause"
 authors = [
-  "Axel Arnaud <axel.arnaud/at/inria.fr>",
-  "Nathan Trouvain <>",
+  "Axel Arnaud <axel.arnaud@inria.fr>",
+  "Nathan Trouvain <nathan.trouvain@inria.fr>",
   "Albane Arthuis <>",
-  "Xavier Hinaut <xavier.hinaut/at/inria/fr>",
+  "Xavier Hinaut <xavier.hinaut@inria.fr>",
 ]
 readme = "README.md"
 packages = [
