@@ -58,11 +58,11 @@ class TrainDashboard(SubDash):
         is_retrain = self.controler._iter > 1
         header = pn.Column(
             pn.pane.Markdown(
-                f"# Train again — iteration {self.controler._iter}" if is_retrain else "# Train",
+                f"# Fit annotators again — iteration {self.controler._iter}" if is_retrain else "# Fit annotators",
                 css_classes=["page-title"], margin=0,
             ),
             pn.pane.Markdown(
-                "Train and evaluate the annotator models.",
+                "Train the annotator models to fit them to your dataset.",
                 css_classes=["page-subtitle"],
                 margin=0,
             ),
