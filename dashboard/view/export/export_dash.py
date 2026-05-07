@@ -18,16 +18,6 @@ EXPORT_CSS = """
     border: 1px solid #e5e7eb;
     box-sizing: border-box;
 }
-.page-title {
-    font-size: 24px;
-    font-weight: 700;
-    margin: 0;
-}
-.page-subtitle {
-    font-size: 14px;
-    color: #6b7280;
-    margin: 0;
-}
 .section-header {
     font-size: 11px;
     font-weight: 600;

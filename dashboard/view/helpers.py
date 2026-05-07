@@ -88,6 +88,19 @@ def pick_file(title="Select File", filetypes=None, initialdir=None):
         root.destroy()
         return path or None
 
+PAGE_HEADER_CSS = """
+.page-title {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0;
+}
+.page-subtitle {
+    font-size: 14px;
+    color: #6b7280;
+    margin: 0;
+}
+"""
+
 SIDEBAR_BASE_CSS = """
 .sidebar-container {
     position: fixed;
@@ -276,6 +289,7 @@ class SideBar(SubDash):
         super().__init__(parent)
 
         pn.config.raw_css.append(SIDEBAR_BASE_CSS)
+        pn.config.raw_css.append(PAGE_HEADER_CSS)
 
         self.title = title
         c = self.controler

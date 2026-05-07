@@ -19,17 +19,6 @@ MAX_SAMPLE_DISPLAY = 10
 
 # CSS Global (similaire à LoadData)
 EVAL_CSS = """
-.page-title {
-    font-size: 32px;
-    font-weight: 700;
-    color: #212529;
-    margin-bottom: 5px;
-}
-.page-subtitle {
-    font-size: 18px;
-    color: #868e96;
-    margin-bottom: 30px;
-}
 .selector-bar {
     background: white;
     padding: 15px;

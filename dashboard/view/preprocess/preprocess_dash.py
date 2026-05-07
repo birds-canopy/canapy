@@ -20,17 +20,6 @@ PREPROCESS_CSS = """
 :host {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
-.page-title {
-    font-size: 30px;
-    font-weight: 700;
-    color: #212529;
-    margin-bottom: 5px;
-}
-.page-subtitle {
-    font-size: 16px;
-    color: #868e96;
-    margin-bottom: 20px;
-}
 .selector-bar {
     background: white;
     padding: 10px 15px;

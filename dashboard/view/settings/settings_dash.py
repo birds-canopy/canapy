@@ -706,7 +706,7 @@ class SettingsDashboard(SubDash):
         )
 
         main_content = pn.Column(
-            pn.pane.HTML("<h1 style='color:#1e293b;margin:0 0 6px 0;'>Settings</h1>"),
+            pn.pane.Markdown("# Settings", css_classes=["page-title"], margin=(0, 0, 6, 0)),
             pn.Spacer(height=20),
             pn.Row(
                 species_card,

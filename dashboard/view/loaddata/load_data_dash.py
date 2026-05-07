@@ -73,18 +73,6 @@ FORM_CSS = """
         padding: 10px;
     }
 }
-.page-title {
-    font-size: 24px;
-    font-weight: 800;
-    color: var(--text-main);
-    margin-bottom: 5px;
-    letter-spacing: -0.025em;
-}
-.page-subtitle {
-    font-size: 14px;
-    color: var(--text-muted);
-    margin-bottom: 15px;
-}
 .section-header {
     font-size: 11px;
     font-weight: 700;
@@ -158,7 +146,7 @@ class LoadDataDashboard(SubDash):
         self.data_loaded = False
 
         self.header = pn.Column(
-            pn.pane.Markdown("Load Data", css_classes=['page-title'], margin=0),
+            pn.pane.Markdown("# Load Data", css_classes=['page-title'], margin=0),
             pn.pane.Markdown("Configure your dataset sources and output targets.", css_classes=['page-subtitle'], margin=0),
             sizing_mode="stretch_width"
         )
