@@ -1,5 +1,5 @@
 # Author: Nathan Trouvain at 29/06/2023 <nathan.trouvain@inria.fr>
-# Licence: MIT License
+# Licence: BSD-3-Clause
 # Copyright: Xavier Hinaut (2018) <xavier.hinaut@inria.fr>
 import crowsetta
 import numpy as np

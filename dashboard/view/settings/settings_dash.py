@@ -1,5 +1,5 @@
 # Author: Axel Arnaud
-# Licence: MIT License
+# Licence: BSD-3-Clause
 # Copyright: Axel Arnaud
 import logging
 import math

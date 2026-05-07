@@ -1,3 +1,6 @@
+# Author: Axel Arnaud
+# Licence: BSD-3-Clause
+# Copyright: Axel Arnaud
 import pickle
 from types import SimpleNamespace
 

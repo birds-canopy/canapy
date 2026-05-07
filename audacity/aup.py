@@ -1,3 +1,6 @@
+# Author: Axel Arnaud
+# Licence: BSD-3-Clause
+# Copyright: Axel Arnaud
 #!/usr/bin/env python
 # (c) 2016 David A. van Leeuwen
 ##

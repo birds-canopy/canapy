@@ -1,3 +1,6 @@
+# Author: Axel Arnaud
+# Licence: BSD-3-Clause
+# Copyright: Axel Arnaud
 from canapy.corpus import Corpus
 from canapy.annotator.synannotator import SynAnnotator
 from canapy.config import default_config

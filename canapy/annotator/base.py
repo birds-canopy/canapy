@@ -1,6 +1,6 @@
 # Authors: Nathan Trouvain at 29/06/2023 <nathan.trouvain<at>inria.fr>
 #          Vincent Gardies at 10/07/2023 <vincent.gardies<at>inria.fr>
-# Licence: MIT License
+# Licence: BSD-3-Clause
 # Copyright: Nathan Trouvain
 
 import abc

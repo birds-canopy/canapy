@@ -1,3 +1,6 @@
+# Author: Axel Arnaud
+# Licence: BSD-3-Clause
+# Copyright: Axel Arnaud
 """
 A simple tool to convert Audacity projects with audio annotations to .wav files and .csv comma-separated dataset.
 The resulting dataset contains five features per annotations:

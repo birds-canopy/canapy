@@ -1,3 +1,6 @@
+# Author: Axel Arnaud
+# Licence: BSD-3-Clause
+# Copyright: Axel Arnaud
 """
 This module provides annotator classes and a registry for audio classification in Canapy.
 

@@ -1,5 +1,5 @@
 # Author: Axel Arnaud at 20/01/2026 <axel.arnaud<at>inria.fr>
-# Licence: MIT License
+# Licence: BSD-3-Clause
 # Copyright: Axel Arnaud
 import logging
 from pathlib import Path

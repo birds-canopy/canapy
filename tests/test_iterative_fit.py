@@ -1,3 +1,6 @@
+# Author: Axel Arnaud
+# Licence: BSD-3-Clause
+# Copyright: Axel Arnaud
 """
 Tests for the iterative (seq-by-seq) ESN fit mode.
 

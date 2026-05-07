@@ -1,5 +1,5 @@
 # Author: Nathan Trouvain at 27/06/2023 <nathan.trouvain<at>inria.fr>
-# Licence: MIT License
+# Licence: BSD-3-Clause
 # Copyright: Nathan Trouvain
 from .base import Transform
 from .commons.audio import compute_mfcc

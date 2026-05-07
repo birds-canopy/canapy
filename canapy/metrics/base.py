@@ -1,5 +1,5 @@
 # Author: Nathan Trouvain at 07/07/2023 <nathan.trouvain<at>inria.fr>
-# Licence: MIT License
+# Licence: BSD-3-Clause
 # Copyright: Nathan Trouvain
 import pandas as pd
 import Levenshtein
