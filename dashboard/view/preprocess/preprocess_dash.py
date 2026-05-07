@@ -8,7 +8,7 @@ matplotlib.use("agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import librosa
-from ..helpers import SubDash, Registry, SideBar, custom_tooltip, pick_directory
+from ..helpers import SubDash, Registry, SideBar, custom_tooltip, pick_directory, dataset_info_badge
 
 pn.extension("tabulator")
 
@@ -208,6 +208,7 @@ class PreprocessDashboard(SubDash):
                     css_classes=["page-subtitle"],
                     margin=0,
                 ),
+                dataset_info_badge(self.controler),
                 sizing_mode="stretch_width",
             ),
             pn.Column(

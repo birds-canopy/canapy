@@ -29,6 +29,28 @@ def custom_tooltip(text, direction="right", width=240, margin=(0, 10), align="ce
     return pn.pane.HTML(html, align=align, margin=margin)
 
 
+def dataset_info_badge(controler):
+    df = controler.corpus.dataset
+    silence_tag = controler.config.transforms.annots.silence_tag
+    total_s = (df["offset_s"] - df["onset_s"]).sum()
+    hours = int(total_s // 3600)
+    minutes = int((total_s % 3600) // 60)
+    seconds = total_s % 60
+    if hours > 0:
+        dur_str = f"{hours}h {minutes}m {seconds:.0f}s"
+    elif minutes > 0:
+        dur_str = f"{minutes}m {seconds:.0f}s"
+    else:
+        dur_str = f"{seconds:.1f}s"
+    n_samples = len(df[df["label"] != silence_tag])
+    return pn.pane.HTML(
+        f"<span style='font-size:12px;color:#6b7280;'>"
+        f"<b>{n_samples}</b> samples (excl. silence) &nbsp;·&nbsp; <b>{dur_str}</b> total"
+        f"</span>",
+        margin=(4, 0, 0, 0),
+    )
+
+
 def pick_directory(title="Select Directory", initialdir=None):
     """Open a folder picker dialog. Uses osascript on macOS to avoid the
     NSWindow-must-be-on-main-thread crash when called from a Panel callback."""

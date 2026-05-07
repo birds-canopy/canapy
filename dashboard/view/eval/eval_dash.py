@@ -8,7 +8,7 @@ import matplotlib
 matplotlib.use("agg")
 import matplotlib.pyplot as plt
 
-from ..helpers import SubDash, SideBar, Registry
+from ..helpers import SubDash, SideBar, Registry, dataset_info_badge
 
 logger = logging.getLogger("canapy")
 
@@ -48,6 +48,7 @@ class EvalDashboard(SubDash):
                     "satisfied with the performances.",
                     css_classes=['page-subtitle'], margin=0
                 ),
+                dataset_info_badge(self.controler),
                 sizing_mode="stretch_width",
             ),
             sizing_mode="stretch_width",

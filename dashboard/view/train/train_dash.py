@@ -3,8 +3,7 @@ import threading
 import time
 import panel as pn
 
-from ..helpers import SubDash
-from ..helpers import SideBar
+from ..helpers import SubDash, SideBar, dataset_info_badge
 
 logger = logging.getLogger("canapy-dashboard")
 
@@ -67,6 +66,7 @@ class TrainDashboard(SubDash):
                 css_classes=["page-subtitle"],
                 margin=0,
             ),
+            dataset_info_badge(self.controler),
             margin=(0, 0, 12, 0),
         )
 
