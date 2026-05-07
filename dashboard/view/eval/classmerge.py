@@ -277,7 +277,7 @@ class RepertoireView(SubDash):
 
         self.select_left = pn.widgets.Select(
             name="Class A",
-            options=[lbl for lbl in self.controler.classes if lbl != "SIL"],
+            options=sorted(lbl for lbl in self.controler.corpus.dataset["label"].unique() if lbl != self.controler.config.transforms.annots.silence_tag),
             sizing_mode="stretch_width",
         )
         self.select_left.param.watch(self.on_select_left, "value")
@@ -293,7 +293,7 @@ class RepertoireView(SubDash):
         if num_panel == 2:
             self.select_right = pn.widgets.Select(
                 name="Class B",
-                options=[lbl for lbl in self.controler.classes if lbl != "SIL"],
+                options=sorted(lbl for lbl in self.controler.corpus.dataset["label"].unique() if lbl != self.controler.config.transforms.annots.silence_tag),
                 sizing_mode="stretch_width",
             )
             self.select_right.param.watch(self.on_select_right, "value")
@@ -318,7 +318,7 @@ class RepertoireView(SubDash):
         )
 
     def update_classes(self):
-        new_classes = [lbl for lbl in self.controler.classes if lbl != "SIL"]
+        new_classes = sorted(lbl for lbl in self.controler.corpus.dataset["label"].unique() if lbl != self.controler.config.transforms.annots.silence_tag)
         self.registry.clean()
         self.controler._repertoire_cache.clear()
         self.select_left.options = new_classes
@@ -455,8 +455,9 @@ class CorrectorView(SubDash):
         info = pn.pane.Markdown("Rename classes to merge them.", styles={'font-size': '13px', 'color': '#6b7280'})
         self.grid = pn.FlexBox(justify_content='center', gap=10)
         
+        silence_tag = self.controler.config.transforms.annots.silence_tag
         for l in self.controler.classes:
-            if l != self.controler.config.transforms.annots.silence_tag:
+            if l != silence_tag:
                 self.grid.append(pn.widgets.TextInput(name=l, placeholder=l, width=120, css_classes=['corrector-input']))
 
         self.save_btn = pn.widgets.Button(name="Apply", button_type="primary", sizing_mode="stretch_width")
@@ -493,4 +494,6 @@ class CorrectorView(SubDash):
             self.controler.apply_live_corrections(new_corrections, "class")
             self.rebuild_grid()
             self.parent.repertoire.update_classes()
+            self.parent.parent.sample_dashboard.repertoire_view.update_classes()
+            self.parent.parent.sample_dashboard.build_class_selectors()
             self.save_msg.object = "Applied!"; self.save_msg.visible = True

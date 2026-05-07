@@ -441,7 +441,7 @@ class PreprocessDashboard(SubDash):
         def run():
             try:
                 df = self.controler.corpus.dataset
-                classes = sorted([c for c in df["label"].unique() if c != "SIL"])
+                classes = sorted(c for c in df["label"].unique() if c != self.controler.config.transforms.annots.silence_tag)
                 total = len(classes)
                 for i, cls in enumerate(classes):
                     self.spec_status.object = f"Class {i + 1}/{total}: {cls}"
@@ -599,8 +599,9 @@ class CorrectorView(SubDash):
             styles={"font-size": "13px", "color": "#6b7280"},
         )
         self.grid = pn.FlexBox(justify_content="center", gap=10)
+        silence_tag = self.controler.config.transforms.annots.silence_tag
         for l in self.controler.classes:
-            if l != self.controler.config.transforms.annots.silence_tag:
+            if l != silence_tag:
                 self.grid.append(
                     pn.widgets.TextInput(
                         name=l,
@@ -657,7 +658,7 @@ class RepertoireView(SubDash):
         self.registry = Registry()
         self.select_left = pn.widgets.Select(
             name="Class A",
-            options=[lbl for lbl in self.controler.classes if lbl != "SIL"],
+            options=sorted(lbl for lbl in self.controler.corpus.dataset["label"].unique() if lbl != self.controler.config.transforms.annots.silence_tag),
             sizing_mode="stretch_width",
         )
         self.select_left.param.watch(self.on_select_left, "value")
@@ -673,7 +674,7 @@ class RepertoireView(SubDash):
         if num_panel == 2:
             self.select_right = pn.widgets.Select(
                 name="Class B",
-                options=[lbl for lbl in self.controler.classes if lbl != "SIL"],
+                options=sorted(lbl for lbl in self.controler.corpus.dataset["label"].unique() if lbl != self.controler.config.transforms.annots.silence_tag),
                 sizing_mode="stretch_width",
             )
             self.select_right.param.watch(self.on_select_right, "value")
@@ -697,7 +698,7 @@ class RepertoireView(SubDash):
         )
 
     def update_classes(self):
-        new_classes = [lbl for lbl in self.controler.classes if lbl != "SIL"]
+        new_classes = sorted(lbl for lbl in self.controler.corpus.dataset["label"].unique() if lbl != self.controler.config.transforms.annots.silence_tag)
         self.registry.clean()
         self.controler._repertoire_cache.clear()
         self.select_left.options = new_classes
@@ -879,7 +880,7 @@ class CorrectionTool(SubDash):
 
     def _initial_stats_data(self):
         df = self.controler.corpus.dataset
-        classes = sorted([c for c in df["label"].unique() if c != "SIL"])
+        classes = sorted(c for c in df["label"].unique() if c != self.controler.config.transforms.annots.silence_tag)
         rows = []
         for c in classes:
             sub = df[df["label"] == c]
@@ -895,7 +896,7 @@ class CorrectionTool(SubDash):
 
     def build_stats_layout(self):
         df = self.controler.corpus.dataset
-        self.all_classes = sorted([c for c in df["label"].unique() if c != "SIL"])
+        self.all_classes = sorted(c for c in df["label"].unique() if c != self.controler.config.transforms.annots.silence_tag)
         self._updating_view = False
         MAX_PER_PAGE = 40
         n_pages = max(1, -(-len(self.all_classes) // MAX_PER_PAGE))  # ceil div
@@ -1146,7 +1147,7 @@ class CorrectionTool(SubDash):
             df["centroid"] = np.nan
         if "slope" not in df.columns:
             df["slope"] = np.nan
-        classes = sorted([c for c in df["label"].unique() if c != "SIL"])
+        classes = sorted(c for c in df["label"].unique() if c != self.controler.config.transforms.annots.silence_tag)
         total = len(classes)
 
         def run():
@@ -1266,7 +1267,7 @@ class CorrectionTool(SubDash):
         self.stats_table.value = df_table.sort_values("Class").reset_index(drop=True)
 
         # Refresh selectors and histogram
-        self.all_classes = sorted([c for c in df_corpus["label"].unique() if c != "SIL"])
+        self.all_classes = sorted(c for c in df_corpus["label"].unique() if c != self.controler.config.transforms.annots.silence_tag)
         self.registry["class"] = {}
         self.registry["sample"] = {}
         self.build_class_selectors()
@@ -1278,7 +1279,8 @@ class CorrectionTool(SubDash):
     def build_class_selectors(self):
         grid = pn.FlexBox(justify_content="start", gap=10, align_items="center")
         unique_labels = self.controler.corpus.dataset["label"].unique()
-        classes = sorted([c for c in unique_labels if c != "SIL"])
+        silence_tag = self.controler.config.transforms.annots.silence_tag
+        classes = sorted(c for c in unique_labels if c != silence_tag)
         dataset = self.controler.corpus.dataset
         for lbl in classes:
             n_samples = len(dataset.query("label==@lbl"))
@@ -1323,7 +1325,7 @@ class CorrectionTool(SubDash):
         df = self.controler.corpus.dataset
 
         # Update all_classes from the now-corrected corpus.
-        self.all_classes = sorted([c for c in df["label"].unique() if c != "SIL"])
+        self.all_classes = sorted(c for c in df["label"].unique() if c != self.controler.config.transforms.annots.silence_tag)
 
         # Update stats table: recompute Count & Med Dur; keep audio stats for existing rows.
         df_table = self.stats_table.value.copy()

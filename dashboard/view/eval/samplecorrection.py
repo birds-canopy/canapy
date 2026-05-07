@@ -129,8 +129,10 @@ class SampleCorrectionDashboard(SubDash):
         self.class_selectors.objects = []
         self.registry["class"] = {}
         misclass = self.controler.misclassified_segments
-        for lbl in misclass.label.unique():
-            n_error = len(misclass.query("label==@lbl"))
+        silence_tag = self.controler.config.transforms.annots.silence_tag
+        all_labels = sorted(lbl for lbl in self.controler.corpus.dataset["label"].unique() if lbl != silence_tag)
+        for lbl in all_labels:
+            n_error = len(misclass.query("label==@lbl")) if lbl in misclass["label"].values else 0
             display = ClassSelectionView(lbl, n_error, self)
             self.registry["class"][lbl] = display
             self.class_selectors.append(display.layout)
@@ -240,8 +242,10 @@ class SampleCorrectorView(SubDash):
     def __init__(self, parent, label):
         super().__init__(parent)
 
-        self.misclassified_segments = self.controler.misclassified_segments.query(
-            "label==@label"
+        misclass = self.controler.misclassified_segments.query("label==@label")
+        self.misclassified_segments = (
+            misclass if not misclass.empty
+            else self.controler.corpus.dataset.query("label==@label")
         )
         self.label = label
         self.registry = Registry()
