@@ -438,7 +438,7 @@ class AnnotateDashboard(SubDash):
         try:
             out_dir = Path(self.export_dir_input.value.strip()) if self.export_dir_input.value.strip() else Path(self.controler.output_directory) / "annotated_external"
             from datetime import datetime
-            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            ts = datetime.now().strftime("%Y-%m-%d_%Hh%Mmin%S")
             for name, pred in self._predictions.items():
                 target = out_dir / ts / name
                 self.controler.export_predictions(pred, target)
