@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "canapy"
-version = "0.1.3"
+version = "0.1.4"
 description = "canapy is a user friendly auto annotator for animal vocalizations using reservoir computing"
 license = "BSD-3-Clause"
 authors = [
@@ -15,7 +15,7 @@ packages = [
   { include = "dashboard" },
   { include = "config" },
 ]
-include = ["**/*.config.toml", "images/*.png"]
+include = ["**/*.config.toml", "dashboard/images/*.png"]
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.12"

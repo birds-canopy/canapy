@@ -9,7 +9,7 @@ import uuid
 import panel as pn
 from ..controler import Controler
 
-_IMAGES_DIR = pathlib.Path(__file__).parents[2] / "images"
+_IMAGES_DIR = pathlib.Path(__file__).parents[1] / "images"
 
 
 def custom_tooltip(text, direction="right", width=240, margin=(0, 10), align="center"):
