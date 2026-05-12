@@ -9,7 +9,37 @@ Canapy trains automatic annotators for animal vocalizations using [Reservoir Com
 > For the full reference documentation, see [README_extended.md](README_extended.md).
 
 ## Installation
+Canapy requires Python 3.11. If you don't have it, you can create a virtual environment with the right version using conda or uv:
 
+### conda
+```bash
+conda create -n canapy python=3.11
+conda activate canapy
+```
+
+### uv
+```bash
+pip install uv
+uv venv canapy --python 3.11
+source canapy/bin/activate   # macOS/Linux
+canapy\Scripts\activate      # Windows
+```
+
+### venv (if Python 3.11 is already installed)
+```bash
+python3.11 -m venv canapy
+source canapy/bin/activate   # macOS/Linux
+canapy\Scripts\activate      # Windows
+```
+
+Once your environment is active, install Canapy:
+
+### from PyPI
+```bash
+pip install canapy
+```
+
+### or from source
 ```bash
 git clone git@github.com:birds-canopy/canapy.git
 pip install -e canapy/.
