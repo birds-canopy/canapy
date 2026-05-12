@@ -551,6 +551,9 @@ class PreprocessDashboard(SubDash):
                     target_ratio=target_ratio,
                     progress_callback=update_progress,
                 )
+                # Dataset changed — any previous fit is no longer valid against this data.
+                self.controler.fit_done = False
+                self.controler.eval_done = False
                 self.trim_status.object = "Done! Reloading view..."
                 pn.state.execute(lambda: self.controler.load_page("preprocess"))
             except Exception as e:

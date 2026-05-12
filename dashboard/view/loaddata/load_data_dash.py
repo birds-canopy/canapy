@@ -145,9 +145,29 @@ class LoadDataDashboard(SubDash):
         self.sidebar = SideBar(self, "Load Data")
         self.data_loaded = False
 
+        two_paths_banner = pn.pane.HTML("""
+<div style="display:flex;gap:12px;margin:12px 0 4px 0;">
+  <div style="flex:1;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:10px 14px;">
+    <div style="font-size:12px;font-weight:700;color:#166534;margin-bottom:4px;">Train a new model</div>
+    <div style="font-size:12px;color:#374151;line-height:1.5;">
+      Fill in a data directory below, then follow the full pipeline:<br>
+      <span style="color:#6b7280;">Settings → Preprocess → Train → Eval → Export → Annotate</span>
+    </div>
+  </div>
+  <div style="flex:1;background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:10px 14px;">
+    <div style="font-size:12px;font-weight:700;color:#1d4ed8;margin-bottom:4px;">Already have a model?</div>
+    <div style="font-size:12px;color:#374151;line-height:1.5;">
+      Load your exported model below (section&nbsp;4).<br>
+      <span style="color:#6b7280;">Once loaded, you can jump straight to Annotate.</span>
+    </div>
+  </div>
+</div>
+""", sizing_mode="stretch_width", margin=0)
+
         self.header = pn.Column(
             pn.pane.Markdown("# Load Data", css_classes=['page-title'], margin=0),
             pn.pane.Markdown("Configure your dataset sources and output targets.", css_classes=['page-subtitle'], margin=0),
+            two_paths_banner,
             sizing_mode="stretch_width"
         )
         
@@ -210,9 +230,11 @@ class LoadDataDashboard(SubDash):
         self.model_block, self.model_input, self.model_browse = \
             create_input_block(
                 "Model Directory (-m)",
-                "Optional — load pre-trained models",
+                "Optional — load a previously exported model",
                 self._browse_model,
-                "Select the directory where trained models and checkpoints will be loaded from."
+                "Load a model exported by Canapy in a previous session.\n"
+                "Once loaded, the Annotate page becomes available directly\n"
+                "without going through the training pipeline."
             )
         
         self.output_block, self.output_input, self.output_browse = \
@@ -339,7 +361,6 @@ class LoadDataDashboard(SubDash):
             self.target_sr_block,
 
             pn.pane.HTML("<div class='section-header'>3. Configuration</div>"),
-            self.model_block,
             self.output_block,
             
             pn.Spacer(height=5),
@@ -350,6 +371,15 @@ class LoadDataDashboard(SubDash):
                 sizing_mode="stretch_width"
             ),
             
+            pn.pane.HTML("""
+<div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:10px 14px;margin-top:10px;">
+  <span style="font-size:12px;font-weight:700;color:#1d4ed8;">Already have a trained model?</span>
+  <span style="font-size:12px;color:#374151;"> — Load it here to skip the training pipeline and go directly to <b>Annotate</b>.</span>
+</div>
+""", sizing_mode="stretch_width", margin=(0, 0, 6, 0)),
+            pn.pane.HTML("<div class='section-header'>4. Pre-trained Model (optional)</div>"),
+            self.model_block,
+
             pn.Spacer(height=15),
             self.global_status,
             pn.Spacer(height=5),
@@ -545,9 +575,9 @@ class LoadDataDashboard(SubDash):
             _long_files = _find_long_audio_files(audio_dir, self.audio_ext_input.value, _MAX_DURATION_S)
 
             if has_model:
-                msg = "Data & Models loaded! (Annotation enabled)"
+                msg = "Data & model loaded! → You can now go to **Annotate** directly, or retrain via the pipeline."
             else:
-                msg = "Data loaded successfully! (Training pipeline enabled)"
+                msg = "Data loaded! → Head to **Settings** to review your parameters before training."
 
             if _long_files:
                 _names = ", ".join(f"<code>{p.name}</code>" for p in _long_files[:3])

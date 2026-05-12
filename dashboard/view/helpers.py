@@ -358,15 +358,21 @@ class SideBar(SubDash):
             accessible["eval"] = False
             accessible["export"] = False
 
-        suggest_eval         = fit_done and not eval_done and not is_home
-        suggest_train_export = eval_done and not export_done and not is_home
+        suggest_settings           = has_data and not fit_done and current_key in ("home", "loaddata")
+        suggest_preprocess_and_fit = current_key == "settings"
+        suggest_fit_only           = current_key == "preprocess"
+        suggest_eval               = fit_done and not eval_done and not is_home
+        suggest_train_export       = eval_done and not export_done and not is_home
 
         def _style(page_key):
             if not accessible[page_key]:
                 return _DISABLED_BTN_CSS
             if current_key == page_key:
                 return _CURRENT_BTN_CSS
-            if (page_key == "eval" and suggest_eval) or \
+            if (page_key == "settings"   and suggest_settings) or \
+               (page_key == "preprocess" and suggest_preprocess_and_fit) or \
+               (page_key == "train"      and (suggest_preprocess_and_fit or suggest_fit_only)) or \
+               (page_key == "eval"       and suggest_eval) or \
                (page_key in ("train", "export") and suggest_train_export):
                 return _NEXT_STEP_BTN_CSS
             return _ACCESSIBLE_BTN_CSS
@@ -521,6 +527,12 @@ class SideBar(SubDash):
         )
         self._spinner = spinner
 
+        iterate_label = pn.pane.HTML(
+            "<div style='text-align:center;font-size:10px;color:#9ca3af;"
+            "padding:0 4px;line-height:1.3;'>↻ iterate to improve</div>",
+            margin=(0, 0, 0, 0),
+        )
+
         items += [
             btn_loaddata,
             pn.Spacer(height=4),
@@ -529,11 +541,11 @@ class SideBar(SubDash):
             btn_preprocess,
             pn.Spacer(height=4),
             btn_train,
-            pn.Spacer(height=4),
+            iterate_label,
             btn_eval,
             pn.Spacer(height=4),
             btn_export,
-            pn.Spacer(height=4),
+            pn.pane.HTML("<div class='nav-divider'></div>"),
             btn_annotate,
             pn.layout.Spacer(sizing_mode="stretch_height"),
             spinner,
