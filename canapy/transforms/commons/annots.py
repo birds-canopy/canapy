@@ -47,7 +47,7 @@ def remove_short_labels(corpus, **kwargs):
     config = corpus.config.transforms.annots
 
     durations = df["offset_s"] - df["onset_s"]
-    durations.round(decimals=round(-np.log10(config.time_precision)))
+    durations = durations.round(decimals=round(-np.log10(config.time_precision)))
 
     too_short = df[durations < config.min_label_duration].index
 
@@ -68,11 +68,8 @@ def merge_labels(corpus, **kwargs):
 
     gemini_groups = (
         (df["label"].shift(fill_value=str(np.nan)) != df["label"])
-        & ~(df["label"].isin(config.lonely_labels))
-        & (
-            df["onset_s"].shift(fill_value=0.0) - df["offset_s"]
-            <= config.min_silence_gap
-        )
+        | df["label"].isin(config.lonely_labels)
+        | (df["onset_s"] - df["offset_s"].shift(fill_value=0.0) > config.min_silence_gap)
     ).cumsum()
 
     # We define aggregation functions this way so that we don't inadvertedly
