@@ -1116,7 +1116,6 @@ class Controler:
             best_params = optimize_hyperparameters_isolated(
                 c,
                 syn_annotator.config,
-                annotator_type="syn",
                 n_iter=self.opt_max_evals,
                 max_percentage=self.opt_max_percentage,
                 parallel=self.opt_parallel,
