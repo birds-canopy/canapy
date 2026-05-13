@@ -94,10 +94,10 @@ class Corpus:
     spec_directory: Optional[Union[Path, str]] = attr.field(converter=as_path)
     annots_directory: Optional[Union[Path, str]] = attr.field(converter=as_path)
     annot_format: str = attr.field(default="marron1csv")
-    annotations: GenericSeq = attr.field(default=GenericSeq(annots=list()))
+    annotations: GenericSeq = attr.field(factory=lambda: GenericSeq(annots=[]))
     config: Config = attr.field(default=default_config)
     dataset: Optional[pd.DataFrame] = attr.field(default=None)
-    data_resources: Optional[Dict[str, Any]] = attr.field(default=dict())
+    data_resources: Optional[Dict[str, Any]] = attr.field(factory=dict)
     audio_ext: Optional[str] = attr.field(default=".wav")
     spec_ext: Optional[str] = attr.field(default=".npy")
 
