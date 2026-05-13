@@ -192,6 +192,7 @@ class Ensemble(Annotator):
         mode : str, default='hard_vote'
             Type of vote to determine the best prediction
         """
+        super().__init__()
         if mode not in MODE_REGISTRY:
             raise ValueError(
                 f"'mode' should be one of {', '.join(list(MODE_REGISTRY.keys()))}."

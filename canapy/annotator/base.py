@@ -27,8 +27,9 @@ class Annotator(abc.ABC):
 
     """
 
-    _trained: bool = False
-    _vocab: list = list()
+    def __init__(self):
+        self._trained = False
+        self._vocab = []
 
     @classmethod
     def from_disk(

@@ -70,6 +70,7 @@ class SynAnnotator(Annotator):
             The path to the spectrogram files.
 
         """
+        super().__init__()
         self.config = config
         self.transforms = SynESNTransform()
         # self.spec_directory = spec_directory

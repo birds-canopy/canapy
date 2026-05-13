@@ -67,6 +67,7 @@ class NSynAnnotator(Annotator):
             The path to the spectrogram files.
 
         """
+        super().__init__()
         self.config = config
         self.transforms = NSynESNTransform()
         # self.spec_directory = spec_directory

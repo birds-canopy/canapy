@@ -104,8 +104,8 @@ def frame_df_to_annots_df(
     # Merge repeated labels
     gemini_groups = (
         (df["label"].shift(fill_value=str(np.nan)) != df["label"])
-        & ~(df["label"].isin(lonely_labels))
-        & (df["onset_s"].shift(fill_value=0.0) - df["offset_s"] <= min_silence_gap)
+        | df["label"].isin(lonely_labels)
+        | (df["onset_s"] - df["offset_s"].shift(fill_value=0.0) > min_silence_gap)
     ).cumsum()
 
     df = (
