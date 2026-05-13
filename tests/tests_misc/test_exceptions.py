@@ -37,12 +37,8 @@ class TestMissingData:
             raise MissingData(msg)
         assert msg in str(exc_info.value)
 
-    def test_not_caught_as_wrong_type(self):
-        with pytest.raises(MissingData):
-            try:
-                raise MissingData("x")
-            except NotTrainableError:
-                pass
+    def test_not_subclass_of_not_trainable_error(self):
+        assert not issubclass(MissingData, NotTrainableError)
 
 
 class TestNotTrainedError:
@@ -59,9 +55,5 @@ class TestNotTrainedError:
             raise NotTrainedError(msg)
         assert msg in str(exc_info.value)
 
-    def test_distinct_from_other_errors(self):
-        with pytest.raises(NotTrainedError):
-            try:
-                raise NotTrainedError("x")
-            except MissingData:
-                pass
+    def test_not_subclass_of_missing_data(self):
+        assert not issubclass(NotTrainedError, MissingData)

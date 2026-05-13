@@ -36,3 +36,17 @@ def test_config_setattr():
 
     c.b = dict(a=1, b=2)
     assert isinstance(c.b, Config)
+
+
+def test_load_config_preserves_list_and_nested(tmp_path):
+    p = str(tmp_path / "config3.toml")
+    config_stub.to_disk(p)
+    c = Config.from_file(p)
+    assert c.b == [1, "a", 2.0]
+    assert isinstance(c.c, Config)
+    assert c.c.e == "fff"
+
+
+def test_config_solve_nested_path():
+    c = Config(model=dict(syn=dict(units=100)))
+    assert c.solve("model/syn/units") == 100

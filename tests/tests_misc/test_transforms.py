@@ -48,7 +48,7 @@ def test_compute_mfcc_for_balanced_dataset(corpus):
 
     corpus = compute_mfcc_for_balanced_dataset(corpus, resource_name="mfccs")
 
-    print(corpus)
+    assert "mfccs" in corpus.data_resources
 
 
 def test_encode_labels(corpus):

@@ -142,9 +142,10 @@ def test_from_directory_without_annotations_dataset_not_none(audio_only_corpus):
     assert audio_only_corpus.dataset is not None
 
 
-def test_from_directory_redo_transforms_does_not_raise(spec_directory):
+def test_from_directory_redo_transforms_returns_corpus(spec_directory):
     corpus = Corpus.from_directory(
         spec_directory=str(spec_directory),
         redo_transforms=True,
     )
-    assert corpus is not None
+    assert isinstance(corpus, Corpus)
+    assert corpus.spec_directory is not None

@@ -61,6 +61,7 @@ class TestPlotSegmentMelspectrogram:
     def test_returns_figure(self, wav_path):
         fig = plot_segment_melspectrogram(wav_path, onset_s=0.1, offset_s=0.5)
         assert isinstance(fig, matplotlib.figure.Figure)
+        assert len(fig.axes) > 0
 
     def test_return_audio_true_gives_three_values(self, wav_path):
         result = plot_segment_melspectrogram(wav_path, onset_s=0.1, offset_s=0.5, return_audio=True)
@@ -69,6 +70,8 @@ class TestPlotSegmentMelspectrogram:
         assert isinstance(fig, matplotlib.figure.Figure)
         assert isinstance(full_audio, np.ndarray)
         assert isinstance(sample_audio, np.ndarray)
+        # the segment extract must be shorter than the full recording
+        assert len(sample_audio) < len(full_audio)
 
     def test_return_audio_false_returns_figure_only(self, wav_path):
         result = plot_segment_melspectrogram(wav_path, onset_s=0.1, offset_s=0.5, return_audio=False)

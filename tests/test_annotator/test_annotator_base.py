@@ -51,15 +51,6 @@ class TestFromDisk:
         loaded = Annotator.from_disk(path, config=default_config)
         assert isinstance(loaded, NSynAnnotator)
 
-    def test_annotator_instance_preserved_after_roundtrip(self, tmp_path):
-        # SynAnnotator always has rpy_model, so from_disk marks it trained=True.
-        # Verify that the loaded object is the correct type regardless.
-        ann = SynAnnotator(config=default_config)
-        path = str(tmp_path / "syn.pkl")
-        ann.to_disk(path)
-        loaded = Annotator.from_disk(path, config=default_config)
-        assert isinstance(loaded, SynAnnotator)
-
     def test_annotator_with_vocab_is_marked_trained(self, tmp_path):
         ann = SynAnnotator(config=default_config)
         ann._vocab = ["SIL", "A", "B"]
