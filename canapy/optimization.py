@@ -328,37 +328,6 @@ def _load_selected_seqids_to_memmap(
 # 6. OBJECTIVE METHOD
 # =============================================================================
 
-def _fit_esn_seq_by_seq(model, X_seqs, Y_seqs):
-    """
-    Memory-efficient ESN fit: pipeline reservoir → Ridge one sequence at a time.
-
-    model.fit(X_seqs, Y_seqs) first runs the reservoir on every sequence and
-    keeps all state matrices in RAM simultaneously
-    (n_total_frames × n_units × sizeof(float)), then feeds them to Ridge.
-    With many long sequences and 8 parallel workers this saturates memory.
-
-    Here we interleave reservoir.run and readout.worker: states for sequence N
-    are computed, consumed by worker (→ tiny XtX / XtY), and deleted before
-    sequence N+1 is processed.  Peak RAM per worker = one sequence's states
-    instead of the whole dataset's states.
-    """
-    # One-sequence fit to trigger reservoirpy initialisation (sets input/output dims)
-    model.fit([np.asarray(X_seqs[0])], [np.asarray(Y_seqs[0])])
-
-    reservoir = model.reservoir
-    readout   = model.readout
-
-    def _gen():
-        for x_seq, y_seq in zip(X_seqs, Y_seqs):
-            reservoir.reset()
-            states = np.asarray(reservoir.run(x_seq))
-            yield readout.worker(states, y_seq)
-            del states
-
-    # Overwrite the Wout computed from the single-sequence init above
-    readout.master(_gen())
-
-
 def objective(dataset, config, **kwargs):
     """
     Method executed by each worker.
@@ -452,7 +421,6 @@ def objective(dataset, config, **kwargs):
 def optimize_hyperparameters(
     corpus: Corpus,
     config: Dict,
-    annotator_type: str = "syn",
     n_iter: int = 100,
     max_percentage: float = 1.0,
     parallel: bool = False,
@@ -653,7 +621,7 @@ def optimize_hyperparameters(
 # 8. ISOLATED SUBPROCESS WRAPPER
 # =============================================================================
 
-def _subprocess_target(queue, corpus, config, annotator_type, n_iter, max_percentage, parallel, n_jobs, hp_val_ratio=0.2, seed=42, progress_queue=None):
+def _subprocess_target(queue, corpus, config, n_iter, max_percentage, parallel, n_jobs, hp_val_ratio=0.2, seed=42, progress_queue=None):
     """
     Entry point for the isolated optimization subprocess.
     Must be a module-level function so multiprocessing can pickle it.
@@ -687,7 +655,6 @@ def _subprocess_target(queue, corpus, config, annotator_type, n_iter, max_percen
     try:
         result = optimize_hyperparameters(
             corpus, config,
-            annotator_type=annotator_type,
             n_iter=n_iter,
             max_percentage=max_percentage,
             parallel=parallel,
@@ -771,7 +738,6 @@ def _rss_of_group(pgid):
 def optimize_hyperparameters_isolated(
     corpus: Corpus,
     config: Dict,
-    annotator_type: str = "syn",
     n_iter: int = 100,
     max_percentage: float = 1.0,
     parallel: bool = False,
@@ -820,7 +786,7 @@ def optimize_hyperparameters_isolated(
 
     p = ctx.Process(
         target=_subprocess_target,
-        args=(queue, corpus, config, annotator_type, n_iter, max_percentage, parallel, n_jobs, hp_val_ratio, seed, progress_queue),
+        args=(queue, corpus, config, n_iter, max_percentage, parallel, n_jobs, hp_val_ratio, seed, progress_queue),
         daemon=False,
     )
     p.start()
