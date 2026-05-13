@@ -3,10 +3,9 @@
 # Copyright: Nathan Trouvain
 from canapy.annotator.synannotator import SynAnnotator
 
-def test_synannotator(corpus, spec_directory, output_directory):
+def test_synannotator(corpus, output_directory):
     annotator = SynAnnotator(
         config=corpus.config,
-        spec_directory=spec_directory,
     )
 
     annotator.fit(corpus)

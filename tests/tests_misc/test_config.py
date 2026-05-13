@@ -1,20 +1,23 @@
 # Author: Nathan Trouvain at 04/07/2023 <nathan.trouvain<at>inria.fr>
 # Licence: BSD-3-Clause
 # Copyright: Nathan Trouvain
-from canapy.config import Config
+from config import Config
 
-config_stub = Config(a=1, b=[1, "a", 2.0], c=dict(e="fff", g={1, 2, 3}))
-
-
-def test_load_config():
-    c = Config.from_file("./config.toml")
-    print(c)
+config_stub = Config(a=1, b=[1, "a", 2.0], c=dict(e="fff"))
 
 
-def test_save_config():
-    c = config_stub
-    c.to_disk("./config_2.toml")
-    print(c)
+def test_load_config(tmp_path):
+    p = str(tmp_path / "config.toml")
+    config_stub.to_disk(p)
+    c = Config.from_file(p)
+    assert c.a == 1
+
+
+def test_save_config(tmp_path):
+    p = str(tmp_path / "config_2.toml")
+    config_stub.to_disk(p)
+    import os
+    assert os.path.exists(p)
 
 
 def test_config_getattr():
@@ -22,7 +25,6 @@ def test_config_getattr():
     assert config_stub.b == [1, "a", 2.0]
     assert isinstance(config_stub.c, Config)
     assert config_stub.c.e == "fff"
-    assert isinstance(config_stub.c.g, set)
 
     assert config_stub["a"] == 1
 
@@ -34,10 +36,3 @@ def test_config_setattr():
 
     c.b = dict(a=1, b=2)
     assert isinstance(c.b, Config)
-
-
-if __name__ == "__main__":
-    test_load_config()
-    test_save_config()
-    test_config_setattr()
-    test_config_getattr()

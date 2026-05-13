@@ -6,11 +6,8 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from canapy.annotator.commons.postprocess import (
-    frames_to_timed_df,
-    frames_to_seconds,
-    frame_df_to_annots_df,
-)
+from canapy.timings import frames_to_timed_df, frames_to_seconds
+from canapy.annotator.commons.postprocess import frame_df_to_annots_df
 
 
 def test_frames_to_timed_df(cls_frame_predictions):

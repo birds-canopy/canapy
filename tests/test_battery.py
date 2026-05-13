@@ -451,10 +451,6 @@ class TestCorrections:
         )
         assert len(corrector.correction_history) == 1
 
-    @pytest.mark.xfail(
-        reason="Bug codebase: Corrector.checkpoint() écrit le fichier sans extension "
-               "'.toml', mais from_checkpoints() cherche '*.toml' → fichier introuvable."
-    )
     def test_corrector_from_checkpoints(self, simple_corpus, tmp_path):
         from canapy.correction.base import Corrector
         ckpt_dir = tmp_path / "ckpts3"
@@ -469,9 +465,6 @@ class TestCorrections:
         corrector2 = Corrector.from_checkpoints(ckpt_dir)
         assert len(corrector2.correction_history) == 1
 
-    @pytest.mark.xfail(
-        reason="Dépend de from_checkpoints — même bug d'extension .toml."
-    )
     def test_correct_from_history(self, simple_corpus, tmp_path):
         from canapy.correction.base import Corrector
         ckpt_dir = tmp_path / "ckpts4"
@@ -734,28 +727,25 @@ class TestOptimizationHelpers:
         assert Xc.shape[0] == 7
         assert Yc.shape[0] == 7
 
-    def test_select_representative_sequences_fewer(self):
-        from canapy.optimization import _select_representative_sequences
+    def test_select_sequences_by_frames_subset(self):
+        from canapy.optimization import _select_sequences_by_frames
         rng = np.random.default_rng(0)
-        n_classes = 3
-        X = [rng.random((20, 5)) for _ in range(10)]
-        # One-hot Y
-        Y = []
-        for i in range(10):
-            labels = np.zeros((20, n_classes))
-            labels[:, i % n_classes] = 1
-            Y.append(labels)
-        Xs, Ys = _select_representative_sequences(X, Y, n_select=4, rng=rng)
-        assert len(Xs) == 4
-        assert len(Ys) == 4
+        seqids = [f"seq{i}" for i in range(10)]
+        frame_estimates = {s: 100 for s in seqids}
+        class_weights = {s: 1.0 for s in seqids}
+        selected = _select_sequences_by_frames(seqids, frame_estimates, class_weights, max_percentage=0.3, rng=rng)
+        # 30% of 1000 total frames = 300 frames → roughly 3 sequences selected
+        assert 1 <= len(selected) <= len(seqids)
+        assert all(s in seqids for s in selected)
 
-    def test_select_representative_sequences_all_when_n_ge_total(self):
-        from canapy.optimization import _select_representative_sequences
+    def test_select_sequences_by_frames_all_when_percentage_ge_1(self):
+        from canapy.optimization import _select_sequences_by_frames
         rng = np.random.default_rng(0)
-        X = [np.ones((5, 3)) for _ in range(4)]
-        Y = [np.eye(3)[:3] for _ in range(4)]
-        Xs, Ys = _select_representative_sequences(X, Y, n_select=10, rng=rng)
-        assert len(Xs) == 4  # all returned when n_select >= n_total
+        seqids = [f"seq{i}" for i in range(4)]
+        frame_estimates = {s: 50 for s in seqids}
+        class_weights = {s: 1.0 for s in seqids}
+        selected = _select_sequences_by_frames(seqids, frame_estimates, class_weights, max_percentage=1.0, rng=rng)
+        assert set(selected) == set(seqids)
 
 
 if __name__ == "__main__":

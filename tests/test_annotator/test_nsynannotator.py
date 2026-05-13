@@ -4,10 +4,9 @@
 from canapy.annotator.nsynannotator import NSynAnnotator
 
 
-def test_nsynannotator(corpus, spec_directory, output_directory):
+def test_nsynannotator(corpus, output_directory):
     annotator = NSynAnnotator(
         config=corpus.config,
-        spec_directory=spec_directory,
     )
     annotator.fit(corpus)
 
