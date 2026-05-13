@@ -118,6 +118,9 @@ class Aup:
             raise ValueError("Channel number out of bounds")
         return Channel(self, channel)
 
+    def close(self):
+        pass
+
     def __enter__(self):
         return self
 
