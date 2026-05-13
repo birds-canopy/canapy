@@ -31,7 +31,7 @@ def correct_annots(corpus, corrections):
 @attr.define()
 class Corrector:
     checkpoint_directory: Union[Path, str] = attr.field(converter=Path)
-    correction_history: List[Dict] = attr.field(default=list())
+    correction_history: List[Dict] = attr.field(factory=list)
 
     @classmethod
     def from_checkpoints(cls, checkpoint_directory):
@@ -76,7 +76,7 @@ class Corrector:
         return new_corpus
 
     def correct_from_history(self, corpus, checkpoint_step):
-        if checkpoint_step > len(self.correction_history):
+        if checkpoint_step >= len(self.correction_history):
             raise ValueError(
                 f"Checkpoint step {checkpoint_step} can't be found in Corrector "
                 f"history. Maximum checkpoint step: {len(self.correction_history)}."
@@ -94,13 +94,16 @@ class Corrector:
         self.correction_history.append(corrections)
 
         ckpt_step = str(len(self.correction_history))
-        ckpt_correction_file = self.checkpoint_directory / ("correction-" + ckpt_step)
+        ckpt_correction_file = self.checkpoint_directory / ("correction-" + ckpt_step + ".toml")
         self.checkpoint_directory.mkdir(parents=True, exist_ok=True)
 
         corr = copy.deepcopy(corrections)
         with open(ckpt_correction_file, "w+") as fp:
             # TOML keys can't be integers. Convert the corrected indexes to str.
-            corr["annot"] = {str(k): v for k, v in corr["annot"].items()}
+            if corr["annot"] is not None:
+                corr["annot"] = {str(k): v for k, v in corr["annot"].items()}
+            else:
+                corr["annot"] = {}
             toml.dump(corr, fp)
 
         return self
