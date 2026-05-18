@@ -6,12 +6,44 @@ from ..helpers import SubDash, SideBar, _IMAGES_DIR
 
 WELCOME_TEXT = """
 **Welcome to Canapy** - a user friendly auto annotator for animal vocalizations.
-Here you can modify and correct your annotated-by-hand dataset to train models to auto annotate large datasets. 
+Here you can modify and correct your annotated-by-hand dataset to train models to auto annotate large datasets.
 ...
 
 📦 [GitHub Repository](https://github.com/birds-canopy/canapy/tree/main)
 
 🧠 [Our team : Mnemosyne INRIA](https://team.inria.fr/mnemosyne/fr/)
+"""
+
+POWERED_BY_HTML = """
+<div style="
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-top: 14px;
+    margin-top: 14px;
+    border-top: 1px solid #e2e8f0;
+    font-size: 12px;
+    color: #94a3b8;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+">
+    <span style="letter-spacing: 0.05em; text-transform: uppercase; font-weight: 600;">Powered by</span>
+    <a href="https://reservoirpy.readthedocs.io/" target="_blank" style="
+        display: inline-flex; align-items: center; gap: 5px;
+        background: #eff6ff; color: #3b82f6;
+        padding: 3px 10px; border-radius: 99px;
+        font-weight: 600; font-size: 12px;
+        text-decoration: none; border: 1px solid #bfdbfe;
+        transition: background 0.15s;
+    ">⚡ ReservoirPy</a>
+    <a href="https://crowsetta.readthedocs.io/" target="_blank" style="
+        display: inline-flex; align-items: center; gap: 5px;
+        background: #f0fdf4; color: #16a34a;
+        padding: 3px 10px; border-radius: 99px;
+        font-weight: 600; font-size: 12px;
+        text-decoration: none; border: 1px solid #bbf7d0;
+        transition: background 0.15s;
+    ">🐦 Crowsetta</a>
+</div>
 """
 
 TUTORIAL_TEXT = """
@@ -141,6 +173,7 @@ class HomeDashboard(SubDash):
 
         welcome_section = pn.Column(
             pn.pane.Markdown(WELCOME_TEXT, sizing_mode="stretch_width"),
+            pn.pane.HTML(POWERED_BY_HTML, sizing_mode="stretch_width"),
             sizing_mode="stretch_width",
             css_classes=["home-welcome"],
         )

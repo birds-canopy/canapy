@@ -4,6 +4,10 @@
 
 --------
 
+*Powered by: [ReservoirPy](https://reservoirpy.readthedocs.io/) · [Crowsetta](https://crowsetta.readthedocs.io/)*
+
+--------
+
 Canapy trains automatic annotators for animal vocalizations using [Reservoir Computing](https://reservoirpy.readthedocs.io/) (Echo State Networks). It comes with an interactive dashboard to guide you through the full pipeline: dataset preparation, model training, evaluation, and annotation.
 
 > For the full reference documentation, see [README_extended.md](README_extended.md).

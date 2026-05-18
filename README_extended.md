@@ -1,6 +1,11 @@
 # Canapy
 
 **Automatic audio annotation tools for animal vocalizations**
+
+--------
+
+*Powered by: [ReservoirPy](https://reservoirpy.readthedocs.io/) · [Crowsetta](https://crowsetta.readthedocs.io/)*
+
 --------
 
 **Summary:**
