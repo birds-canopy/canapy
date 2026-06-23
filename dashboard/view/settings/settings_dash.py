@@ -803,8 +803,10 @@ class SettingsDashboard(SubDash):
             )
 
     def _browse_config(self, _):
-        config_dir = Path(__file__).parents[3] / "config"
-        initialdir = str(config_dir) if config_dir.exists() else None
+        if getattr(self.controler, "config_path", None):
+            initialdir = str(Path(self.controler.config_path).parent)
+        else:
+            initialdir = str(Path.cwd())
         path = pick_file(
             title="Select Config File",
             filetypes=[("TOML files", "*.toml"), ("All files", "*.*")],

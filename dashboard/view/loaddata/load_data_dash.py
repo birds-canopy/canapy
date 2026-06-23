@@ -436,7 +436,7 @@ class LoadDataDashboard(SubDash):
         if output_path and output_path.exists():
             initialdir = str(output_path)
         else:
-            initialdir = str(Path(__file__).parents[3])
+            initialdir = str(Path.cwd())
         directory = pick_directory("Select Model Directory (-m)", initialdir=initialdir)
         if directory:
             self.model_input.value = directory
