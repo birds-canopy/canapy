@@ -125,7 +125,7 @@ class Controler:
     _training_params_dirty: bool = attr.field(alias="_training_params_dirty", default=False)
     _settings_dirty: bool = attr.field(alias="_settings_dirty", default=False)
     _config_display_name: Optional[str] = attr.field(alias="_config_display_name", default=None)
-    opt_parallel: bool = attr.field(default=False)
+    opt_parallel: bool = attr.field(default=True)
     opt_max_percentage: float = attr.field(default=1)
     opt_n_jobs: int = attr.field(default=os.cpu_count() or 8)
     opt_max_evals: int = attr.field(default=100)
