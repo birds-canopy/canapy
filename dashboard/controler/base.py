@@ -51,30 +51,6 @@ VALID_STEPS = {"home", "preprocess", "train", "eval", "export", "annotate", "loa
 # Used as a fallback when no working directory has been selected (e.g. headless CLI).
 _PACKAGE_CONFIG_DIR = Path(__file__).resolve().parents[2] / "config"
 
-# Small state file used to remember the last working directory across sessions.
-_STATE_FILE = Path.home() / ".canapy" / "last_working_directory"
-
-
-def _remember_working_directory(path):
-    """Persist the last selected working directory so it can be pre-filled next launch."""
-    try:
-        _STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        _STATE_FILE.write_text(str(path))
-    except OSError as e:
-        logger.warning(f"Could not remember working directory: {e}")
-
-
-def load_remembered_working_directory():
-    """Return the last working directory selected in a previous session, or None."""
-    try:
-        if _STATE_FILE.is_file():
-            p = Path(_STATE_FILE.read_text().strip())
-            if p.is_dir():
-                return p
-    except OSError:
-        pass
-    return None
-
 
 @attr.define
 class Controler:
@@ -143,7 +119,6 @@ class Controler:
             try:
                 self.working_directory.mkdir(parents=True, exist_ok=True)
                 self._sync_working_config()
-                _remember_working_directory(self.working_directory)
             except OSError as e:
                 logger.warning(f"Could not initialize working directory config: {e}")
 
@@ -276,7 +251,6 @@ class Controler:
         if not self.is_ready:
             self.output_directory = path / "canapy_output"
             self.spec_directory = self.output_directory / "spectrograms"
-        _remember_working_directory(path)
         logger.info(f"Working directory set to {path}")
 
     def go_settings(self):
