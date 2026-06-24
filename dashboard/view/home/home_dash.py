@@ -6,7 +6,6 @@ from pathlib import Path
 
 import panel as pn
 from ..helpers import SubDash, SideBar, _IMAGES_DIR, pick_directory
-from ...controler.base import load_remembered_working_directory
 
 WELCOME_TEXT = """
 **Welcome to Canapy** - a user friendly auto annotator for animal vocalizations.
@@ -51,12 +50,35 @@ POWERED_BY_HTML = """
 """
 
 TUTORIAL_TEXT = """
-*Welcome to Canapy* - a user friendly auto annotator for animal vocalizations.
-Here you can .....
-- Décrire le fonctionnement rapidement (syn-nsyn)
-Schéma ? (utiliser celui qu'on utilisera pour l'article)
-- Comment annoter automatiquement (entrainer sur un dataset du meme animal/ type d'animal si pas de variété inter individu)
-...
+Canapy learns to annotate animal vocalizations from a **small set of hand-labeled
+recordings** (≈ 10–60 min), then annotates hours of new audio for you. It trains
+[Reservoir Computing](https://reservoirpy.readthedocs.io/) models (Echo State Networks).
+
+**The workflow** follows the sidebar, top to bottom:
+
+1. **Load data** — point Canapy to your audio (mono WAV) and annotations
+   (*marron1csv* CSV: `wave, start, end, syll`).
+2. **Settings** *(optional)* — load a species preset (canary, finch, mouse…) or a
+   config you exported, or tune the parameters by hand.
+3. **Preprocess** — clean the dataset: merge acoustically similar classes, correct
+   mislabeled samples, trim silences.
+4. **Train** — three models are trained: `syn` (uses song context), `nsyn`
+   (context-free) and `ensemble` (majority vote). An automatic hyperparameter
+   search is available beforehand if needed.
+5. **Eval** — read the confusion matrix and per-class metrics, fix the mistakes,
+   and retrain. **3–4 Train → Eval iterations** are usually enough.
+6. **Export** — save the trained models (and optionally your config) once you're happy.
+7. **Annotate** — load unlabeled audio + your exported models, run the annotation,
+   and export the results.
+
+**Two ways to start**
+- *Train a new model* → begin at **Load data** and follow the pipeline.
+- *Already have a model?* → load it in **Load data** and jump straight to **Annotate**.
+
+One model is trained per species (or per individual if vocalizations vary a lot).
+
+---
+📖 Need more detail? See the [extended documentation](https://github.com/birds-canopy/canapy/blob/main/README_extended.md).
 """
 
 FAQ_TEXT = """
@@ -268,8 +290,8 @@ class HomeDashboard(SubDash):
                 sizing_mode="stretch_width",
             )
 
-        # Pre-fill with the last used directory, falling back to the current dir.
-        prefill = str(load_remembered_working_directory() or Path(os.getcwd()))
+        # Pre-fill with the directory Canapy was launched from.
+        prefill = str(Path(os.getcwd()))
 
         self._workdir_input = pn.widgets.TextInput(
             value=prefill,
