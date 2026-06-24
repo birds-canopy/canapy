@@ -10,6 +10,16 @@ from ..helpers import SubDash, SideBar, dataset_info_badge
 
 logger = logging.getLogger("canapy-dashboard")
 
+
+def _fmt_duration(seconds):
+    """Format a number of seconds as a compact human-readable duration (e.g. '2m 5s')."""
+    s = int(round(seconds))
+    if s >= 3600:
+        return f"{s // 3600}h {(s % 3600) // 60}m"
+    if s >= 60:
+        return f"{s // 60}m {s % 60}s"
+    return f"{s}s"
+
 TRAIN_CSS = """
 .train-card {
     background-color: #ffffff;
@@ -326,10 +336,19 @@ class TrainerDashboard(SubDash):
             if not self._opt_running:
                 return
             pct = int(done / total * 100) if total > 0 else 0
+            elapsed = time.time() - tic
+            # tqdm-style ETA: extrapolate remaining time from the average time
+            # per completed trial. Only meaningful once at least one trial is done.
+            eta_txt = ""
+            if done > 0 and total > 0:
+                remaining = elapsed / done * (total - done)
+                eta_txt = f" · ~{_fmt_duration(remaining)} left"
             try:
                 with pn.io.unlocked():
                     self.opt_progress.value = pct
-                    self.opt_progress_text.object = f"Trial {done} / {total}"
+                    self.opt_progress_text.object = (
+                        f"Trial {done} / {total}{eta_txt} · elapsed {_fmt_duration(elapsed)}"
+                    )
             except Exception:
                 pass
 
