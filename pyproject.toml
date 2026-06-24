@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "canapy"
-version = "0.1.4"
+version = "0.1.5"
 description = "canapy is a user friendly auto annotator for animal vocalizations using reservoir computing"
 license = "BSD-3-Clause"
 authors = [
