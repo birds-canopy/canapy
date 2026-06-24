@@ -506,17 +506,15 @@ class SideBar(SubDash):
 
         items = []
 
-        if not is_home:
-            items.append(
-                pn.pane.PNG(
-                    str(_IMAGES_DIR / "logo_canapy_simple.png"),
-                    height=69,
-                    align="center",
-                    margin=(10, 5, 15, 5),
-                )
+        items.append(
+            pn.pane.PNG(
+                str(_IMAGES_DIR / "logo_canapy_simple.png"),
+                height=69,
+                align="center",
+                margin=(10, 5, 15, 5),
             )
-        else:
-            items.append(pn.Spacer(height=10))
+        )
+
 
         spinner = pn.indicators.LoadingSpinner(
             value=False,
