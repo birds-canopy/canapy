@@ -67,21 +67,81 @@ def init_esn_model(model_config, input_dim, audio_features, seed=None, workers=N
     )
 
 def fit_esn_seq_by_seq(model, X_seqs, Y_seqs):
-    """Memory-efficient ESN fit: interleave reservoir.run and readout.worker
-    one sequence at a time so peak RAM = one state matrix instead of all of them.
-    Mathematically equivalent to model.fit(X_seqs, Y_seqs).
+    """Memory-efficient, sequence-by-sequence offline training of an ESN readout.
+
+    Mathematically equivalent to ``model.fit(X_seqs, Y_seqs)`` but with a much
+    smaller peak memory footprint.
+
+    Why 
+    ---------------
+    Training the Ridge readout solves the Tikhonov regression
+
+        Wout = (XᵀX + λI)⁻¹ XᵀY
+
+    where X is the stacked matrix of reservoir states over all training
+    timesteps (shape [total_timesteps, n_units]) and Y the matching
+    targets. The solution only depends on two fixed-size "sufficient
+    statistics" that are independent of the number of timesteps:
+
+        - XᵀX  of shape [n_units, n_units]    
+        - XᵀY  of shape [n_units, n_outputs]
+
+    ReservoirPy's Ridge.worker/Ridge.master already build Wout from
+    these per-sequence partial sums (worker reduces one sequence to its
+    XᵀX/XᵀY contribution, master accumulates them and solves). The
+    problem is the driver: Model.fit runs the reservoir over the whole
+    dataset and stores the entire state matrix X in memory before handing
+    it to the readout. For long songs / large corpora, that stacked X is the
+    memory bottleneck : its size grows with the total number of frames.
+
+    What this does instead
+    -------------------------------
+    It keeps the same math but never materialises the full X: it processes
+    one sequence at a time, run the reservoir, immediately reduce the resulting
+    states to their XᵀX/XᵀY contribution, then free them. Peak RAM is
+    therefore the state matrix of a single sequence, not of the whole dataset.
+
+    See "A practical guide to applying Echo State Networks" by Lukosevicius for ref.
+    
+    Parameters
+    ----------
+    model : reservoirpy.ESN
+        An ESN (reservoir + Ridge readout). Modified in place; its readout is
+        trained when the call returns.
+    X_seqs, Y_seqs : sequence of arrays
+        One input array and one target array per training sequence, each of
+        shape [timesteps, features] / [timesteps, n_outputs].
     """
+    # Run a throwaway fit on a single sequence to infer readout input/output dimensions. 
+    # Overwritten by readout.master() call
     model.fit([np.asarray(X_seqs[0])], [np.asarray(Y_seqs[0])])
     reservoir = model.reservoir
     readout   = model.readout
 
     def _gen():
+        # Lazily yield each sequence's partial sufficient statistics. Because
+        # this is a generator, only one sequence's states live in memory at a
+        # time: master() pulls them one by one and accumulates immediately.
         for x_seq, y_seq in zip(X_seqs, Y_seqs):
+            # Clear the reservoir's internal state so each sequence is encoded
+            # independently, starting from a zero state (matching how Model.fit
+            # treats a list of sequences as independent series).
             reservoir.reset()
+            # Encode this one sequence: states has shape [timesteps, n_units].
+            # This is the only large array kept alive at any moment.
             states = np.asarray(reservoir.run(x_seq))
+            # Reduce the sequence to its fixed-size contribution to the normal
+            # equations: worker() returns (XᵀX, XᵀY, sum_x, sum_y, n_samples)
+            # for this sequence. Sizes no longer depend on timesteps.
             yield readout.worker(states, y_seq)
+            # Drop the big state matrix right away so its memory can be reused
+            # by the next sequence. this is what bounds peak RAM.
             del states
 
+    # master() consumes the generator, summing every sequence's XᵀX and XᵀY into
+    # the global accumulators, applies the ridge term and (optional) bias
+    # centering, then solves for Wout. The result is identical to the one
+    # model.fit() would have produced from the full stacked X.
     readout.master(_gen())
 
 
