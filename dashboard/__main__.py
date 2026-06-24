@@ -165,6 +165,14 @@ def display_dashboard(
         out = kwargs.get("output_directory")
         working_directory = Path(out).resolve().parent if out else Path.cwd()
 
+    # Otherwise, if Canapy is launched from a directory that already looks like a
+    # working directory (it contains both canapy_output/ and config/), reuse it
+    # directly and skip the working-directory selection on the Home page.
+    if working_directory is None:
+        cwd = Path.cwd()
+        if (cwd / "canapy_output").is_dir() and (cwd / "config").is_dir():
+            working_directory = cwd
+
     pn.extension(notifications=True)
 
     dashboard = CanapyDashboard(
