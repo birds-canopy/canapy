@@ -650,7 +650,7 @@ class SettingsDashboard(SubDash):
         self.preset_apply_btn.on_click(self._apply_preset)
 
         species_card = pn.Column(
-            pn.pane.HTML("<div class='settings-section-header'>Species</div>"),
+            pn.pane.HTML("<div class='settings-section-header'>Species Presets</div>"),
             pn.pane.HTML(
                 "<span style='font-size:12px;color:#6b7280;'>"
                 "Select a preset to pre-fill species parameters."
