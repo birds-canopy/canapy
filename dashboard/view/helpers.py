@@ -358,6 +358,11 @@ class SideBar(SubDash):
             accessible["eval"] = False
             accessible["export"] = False
 
+        # Master gate: nothing is reachable until a working directory is chosen
+        # (on the Home page). Home and Quit remain available.
+        if not getattr(c, "working_directory_set", True):
+            accessible = {k: False for k in accessible}
+
         suggest_settings           = has_data and not fit_done and current_key in ("home", "loaddata")
         suggest_preprocess_and_fit = current_key == "settings"
         suggest_fit_only           = current_key == "preprocess"

@@ -31,6 +31,7 @@ class CanapyDashboard(pn.viewable.Viewer):
     output_directory: Optional[Path] = attr.field(default=None, converter=as_path)
     spec_directory: Optional[Path] = attr.field(default=None, converter=as_path)
     config_path: Optional[Path] = attr.field(default=None, converter=as_path)
+    working_directory: Optional[Path] = attr.field(default=None, converter=as_path)
     model_path: Optional[Path] = attr.field(default=None, converter=as_path)
     port: Optional[int] = attr.field(default=None)
     annot_format: str = attr.field(default="marron1csv")
@@ -38,7 +39,9 @@ class CanapyDashboard(pn.viewable.Viewer):
     annotators: List = attr.field(default=["syn-esn", "nsyn-esn", "ensemble"])
 
     def __attrs_post_init__(self):
-        if self.output_directory is None:
+        if self.output_directory is None and self.working_directory is not None:
+            self.output_directory = Path(self.working_directory) / "canapy_output"
+        elif self.output_directory is None:
             self.output_directory = Path.cwd() / "canapy_output"
 
         self.spec_directory = (
@@ -53,6 +56,7 @@ class CanapyDashboard(pn.viewable.Viewer):
             output_directory=self.output_directory,
             spec_directory=self.spec_directory,
             config_path=self.config_path,
+            working_directory=self.working_directory,
             model_root=self.model_path,
             dashboard=self,
             annot_format=self.annot_format,

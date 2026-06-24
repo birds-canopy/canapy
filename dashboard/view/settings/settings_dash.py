@@ -7,7 +7,7 @@ from pathlib import Path
 import panel as pn
 from ..helpers import SubDash, SideBar, pick_file, custom_tooltip
 
-_PRESETS_DIR = Path(__file__).parents[3] / "config" / "presets"
+
 
 _PRESET_PALETTE = [
     "#aec7e8", "#ffbb78", "#98df8a", "#ff9896",
@@ -705,9 +705,37 @@ class SettingsDashboard(SubDash):
             min_width=320,
         )
 
+        intro_banner = pn.pane.HTML("""
+<div style="display:flex;gap:10px;margin:4px 0 2px 0;">
+  <div style="flex:1;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:9px 12px;">
+    <div style="font-size:12px;font-weight:700;color:#166534;margin-bottom:3px;">🐦 Use a species preset</div>
+    <div style="font-size:11.5px;color:#374151;line-height:1.45;">
+      Working on a known species (canary, finch, mouse…)? Load a preset to pre-fill the species parameters.
+    </div>
+  </div>
+  <div style="flex:1;background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:9px 12px;">
+    <div style="font-size:12px;font-weight:700;color:#1d4ed8;margin-bottom:3px;">📂 Load your own config</div>
+    <div style="font-size:11.5px;color:#374151;line-height:1.45;">
+      Reuse a <code>.toml</code> you exported in a previous session.
+    </div>
+  </div>
+  <div style="flex:1;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:9px 12px;">
+    <div style="font-size:12px;font-weight:700;color:#b45309;margin-bottom:3px;">✏️ Set them by hand</div>
+    <div style="font-size:11.5px;color:#374151;line-height:1.45;">
+      Edit the species parameters directly for a new species or fine-tuning.
+    </div>
+  </div>
+</div>
+<div style="font-size:11.5px;color:#6b7280;line-height:1.45;margin:8px 2px 0 2px;">
+  A preset or config is only a <b>starting point</b>. You can still tweak any field afterwards. Some settings
+  (e.g. <b>Hyperparameter Search</b>) don't depend on your species and can be changed anytime.
+</div>
+""", sizing_mode="stretch_width", margin=0)
+
         main_content = pn.Column(
             pn.pane.Markdown("# Settings", css_classes=["page-title"], margin=(0, 0, 6, 0)),
-            pn.Spacer(height=20),
+            intro_banner,
+            pn.Spacer(height=16),
             pn.Row(
                 species_card,
                 pn.Spacer(width=24),
@@ -734,11 +762,15 @@ class SettingsDashboard(SubDash):
     def _build_preset_selector(self):
         status = pn.pane.HTML("", margin=(4, 0, 0, 0))
 
-        if not _PRESETS_DIR.exists():
+        # Presets live in the working directory's config/ folder (or the package
+        # config/ as a fallback when no working directory is set).
+        presets_dir = self.controler.config_dir / "presets"
+
+        if not presets_dir.exists():
             return pn.pane.HTML("<i style='color:#9ca3af;font-size:12px;'>No presets directory found.</i>"), status
 
         preset_files = sorted(
-            p for p in _PRESETS_DIR.iterdir()
+            p for p in presets_dir.iterdir()
             if p.suffix in (".toml", ".yml", ".yaml") and p.is_file()
         )
 
@@ -806,7 +838,9 @@ class SettingsDashboard(SubDash):
         if getattr(self.controler, "config_path", None):
             initialdir = str(Path(self.controler.config_path).parent)
         else:
-            initialdir = str(Path.cwd())
+            # Default to where exported configs are stored in the working directory.
+            user_dir = self.controler.config_dir / "user"
+            initialdir = str(user_dir if user_dir.exists() else self.controler.base_dir)
         path = pick_file(
             title="Select Config File",
             filetypes=[("TOML files", "*.toml"), ("All files", "*.*")],

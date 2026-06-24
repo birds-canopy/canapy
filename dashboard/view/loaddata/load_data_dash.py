@@ -413,19 +413,19 @@ class LoadDataDashboard(SubDash):
         self.audio_block.visible = is_separate
     
     def _browse_combined(self, event):
-        directory = pick_directory("Select Data Directory")
+        directory = pick_directory("Select Data Directory", initialdir=str(self.controler.base_dir))
         if directory:
             self.combined_input.value = directory
             logger.info(f"Selected combined directory: {directory}")
 
     def _browse_annots(self, event):
-        directory = pick_directory("Select Annotations Directory")
+        directory = pick_directory("Select Annotations Directory", initialdir=str(self.controler.base_dir))
         if directory:
             self.annots_input.value = directory
             logger.info(f"Selected annotations directory: {directory}")
 
     def _browse_audio(self, event):
-        directory = pick_directory("Select Audio Directory")
+        directory = pick_directory("Select Audio Directory", initialdir=str(self.controler.base_dir))
         if directory:
             self.audio_input.value = directory
             logger.info(f"Selected audio directory: {directory}")
@@ -436,14 +436,14 @@ class LoadDataDashboard(SubDash):
         if output_path and output_path.exists():
             initialdir = str(output_path)
         else:
-            initialdir = str(Path.cwd())
+            initialdir = str(self.controler.base_dir)
         directory = pick_directory("Select Model Directory (-m)", initialdir=initialdir)
         if directory:
             self.model_input.value = directory
             logger.info(f"Selected model directory: {directory}")
 
     def _browse_output(self, event):
-        directory = pick_directory("Select Output Directory")
+        directory = pick_directory("Select Output Directory", initialdir=str(self.controler.base_dir))
         if directory:
             self.output_input.value = directory
             logger.info(f"Selected output directory: {directory}")
@@ -471,7 +471,7 @@ class LoadDataDashboard(SubDash):
             self.global_status.visible = True
             
             if not self.output_input.value or self.output_input.value.strip() == "":
-                default_out = Path.cwd() / "output"
+                default_out = self.controler.base_dir / "canapy_output"
                 try:
                     default_out.mkdir(parents=True, exist_ok=True)
                     self.output_input.value = str(default_out)
@@ -520,15 +520,19 @@ class LoadDataDashboard(SubDash):
             self.controler.audio_directory = audio_dir
             self.controler.annots_directory = annots_dir
             self.controler.output_directory = output_dir
+            # Keep spectrograms inside the output directory (e.g. canapy_output/spectrograms)
+            # instead of letting Corpus default them next to the audio files.
+            self.controler.spec_directory = output_dir / "spectrograms"
             self.controler.config_path = None
             self.controler.model_root = model_root
             config_path = None
             self.controler.annot_format = "marron1csv"
             self.controler.audio_ext = self.audio_ext_input.value
-            
+
             logger.info("Creating corpus...")
             self.controler.corpus = Corpus.from_directory(
                 audio_directory=audio_dir,
+                spec_directory=self.controler.spec_directory,
                 annots_directory=annots_dir,
                 config_path=config_path if config_path else None,
                 annot_format=self.controler.annot_format,

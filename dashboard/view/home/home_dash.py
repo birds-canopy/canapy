@@ -1,8 +1,12 @@
 # Author: Axel Arnaud
 # Licence: BSD-3-Clause
 # Copyright: Axel Arnaud
+import os
+from pathlib import Path
+
 import panel as pn
-from ..helpers import SubDash, SideBar, _IMAGES_DIR
+from ..helpers import SubDash, SideBar, _IMAGES_DIR, pick_directory
+from ...controler.base import load_remembered_working_directory
 
 WELCOME_TEXT = """
 **Welcome to Canapy** - a user friendly auto annotator for animal vocalizations.
@@ -97,6 +101,27 @@ HOME_CSS = """
     margin-bottom: 16px;
     border: 1px solid #e2e8f0;
 }
+.home-workdir-callout {
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+    border: 2px solid #f59e0b;
+    border-radius: 14px;
+    padding: 26px 30px;
+    margin-bottom: 20px;
+    box-shadow: 0 6px 20px rgba(245, 158, 11, 0.25);
+    animation: workdir-pulse 2.2s ease-in-out infinite;
+}
+@keyframes workdir-pulse {
+    0%, 100% { box-shadow: 0 6px 20px rgba(245, 158, 11, 0.25); }
+    50%      { box-shadow: 0 6px 28px rgba(245, 158, 11, 0.55); }
+}
+.home-workdir-set {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-left: 4px solid #22c55e;
+    border-radius: 10px;
+    padding: 12px 18px;
+    margin-bottom: 16px;
+}
 """
 
 
@@ -178,11 +203,14 @@ class HomeDashboard(SubDash):
             css_classes=["home-welcome"],
         )
 
+        workdir_section = self._build_workdir_section()
+
         tutorial_section = _collapsible_section("Tutorial", TUTORIAL_TEXT, collapsed=True)
         faq_section = _collapsible_section("FAQ", FAQ_TEXT, collapsed=False)
 
         main_content = pn.Column(
             logo,
+            workdir_section,
             welcome_section,
             tutorial_section,
             faq_section,
@@ -203,3 +231,116 @@ class HomeDashboard(SubDash):
             sizing_mode="stretch_both",
             margin=0,
         )
+
+    def _build_workdir_section(self):
+        """Working-directory selector. Until a directory is validated, the whole
+        sidebar stays locked (see SideBar gating). Once set, all Canapy data —
+        output/, the config/ folder (presets + exported configs), etc. — lives
+        inside this directory, which is reachable even on a pip install."""
+        c = self.controler
+
+        if c.working_directory_set:
+            change_btn = pn.widgets.Button(
+                name="Change", width=90, height=32,
+                stylesheets=[
+                    "button.bk-btn { background:#ffffff !important; color:#15803d !important; "
+                    "border:1px solid #86efac !important; font-weight:600 !important; "
+                    "font-size:12px !important; border-radius:7px !important; box-shadow:none !important; } "
+                    "button.bk-btn:hover { background:#f0fdf4 !important; }"
+                ],
+                align="center",
+            )
+            change_btn.on_click(self._on_change_workdir)
+            return pn.Row(
+                pn.pane.HTML(
+                    "<div style='display:flex;align-items:center;gap:12px;'>"
+                    "<span style='font-size:20px;'>📂</span>"
+                    "<div style='line-height:1.35;'>"
+                    "<span style='font-size:11px;font-weight:700;text-transform:uppercase;"
+                    "letter-spacing:0.05em;color:#16a34a;'>✓ Working directory</span><br>"
+                    f"<code style='font-size:13px;color:#374151;'>{c.working_directory}</code>"
+                    "</div></div>",
+                    sizing_mode="stretch_width",
+                    align="center",
+                ),
+                change_btn,
+                css_classes=["home-workdir-set"],
+                sizing_mode="stretch_width",
+            )
+
+        # Pre-fill with the last used directory, falling back to the current dir.
+        prefill = str(load_remembered_working_directory() or Path(os.getcwd()))
+
+        self._workdir_input = pn.widgets.TextInput(
+            value=prefill,
+            placeholder="Path to your working directory...",
+            sizing_mode="stretch_width",
+            stylesheets=[
+                "input { border:2px solid #f59e0b !important; border-radius:8px !important; "
+                "font-size:14px !important; padding:8px 10px !important; }"
+            ],
+        )
+        browse_btn = pn.widgets.Button(
+            name="📁 Browse…", button_type="default", width=120, height=42,
+        )
+        browse_btn.on_click(self._on_browse_workdir)
+        validate_btn = pn.widgets.Button(
+            name="Validate →", width=140, height=42,
+            stylesheets=[
+                "button.bk-btn { background:#f59e0b !important; color:#1f2937 !important; "
+                "border:none !important; font-weight:800 !important; font-size:15px !important; "
+                "border-radius:8px !important; box-shadow:0 2px 6px rgba(245,158,11,0.4) !important; } "
+                "button.bk-btn:hover { background:#d97706 !important; }"
+            ],
+        )
+        validate_btn.on_click(self._on_validate_workdir)
+
+        self._workdir_msg = pn.pane.HTML("", sizing_mode="stretch_width")
+
+        return pn.Column(
+            pn.pane.HTML(
+                "<div style='display:flex;align-items:center;gap:10px;'>"
+                "<span style='font-size:13px;font-weight:800;text-transform:uppercase;"
+                "letter-spacing:0.06em;color:#b45309;background:#fde68a;"
+                "padding:4px 10px;border-radius:999px;'>🔒 Action required</span></div>"
+                "<div style='font-size:22px;font-weight:800;color:#78350f;margin-top:12px;'>"
+                "Choose a working directory</div>"
+                "<div style='font-size:14px;color:#92400e;margin-top:8px;line-height:1.5;'>"
+                "Canapy stores everything here: "
+                "trained models, exported annotations, and the "
+                "<code>config/</code> folder with species presets and your exported "
+                "configurations. Pick a folder you can easily find again.</div>"
+            ),
+            pn.Spacer(height=16),
+            pn.Row(self._workdir_input, browse_btn, validate_btn, sizing_mode="stretch_width"),
+            self._workdir_msg,
+            css_classes=["home-workdir-callout"],
+            sizing_mode="stretch_width",
+        )
+
+    def _on_browse_workdir(self, _):
+        initial = self._workdir_input.value.strip() or os.getcwd()
+        directory = pick_directory("Select Working Directory", initialdir=initial)
+        if directory:
+            self._workdir_input.value = directory
+
+    def _on_validate_workdir(self, _):
+        path = self._workdir_input.value.strip()
+        if not path:
+            self._workdir_msg.object = (
+                "<span style='font-size:12px;color:#dc2626;'>Please enter a directory path.</span>"
+            )
+            return
+        try:
+            self.controler.set_working_directory(path)
+        except OSError as e:
+            self._workdir_msg.object = (
+                f"<span style='font-size:12px;color:#dc2626;'>Could not use this directory: {e}</span>"
+            )
+            return
+        # Re-render Home: the sidebar unlocks now that a working directory is set.
+        self.controler.dashboard.switch_panel()
+
+    def _on_change_workdir(self, _):
+        self.controler.working_directory = None
+        self.controler.dashboard.switch_panel()

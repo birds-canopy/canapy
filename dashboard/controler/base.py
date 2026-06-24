@@ -47,6 +47,34 @@ def _sort_annotators(annotators: List):
 
 VALID_STEPS = {"home", "preprocess", "train", "eval", "export", "annotate", "loaddata", "settings"}
 
+# Read-only config/ directory shipped inside the package (presets + defaults).
+# Used as a fallback when no working directory has been selected (e.g. headless CLI).
+_PACKAGE_CONFIG_DIR = Path(__file__).resolve().parents[2] / "config"
+
+# Small state file used to remember the last working directory across sessions.
+_STATE_FILE = Path.home() / ".canapy" / "last_working_directory"
+
+
+def _remember_working_directory(path):
+    """Persist the last selected working directory so it can be pre-filled next launch."""
+    try:
+        _STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _STATE_FILE.write_text(str(path))
+    except OSError as e:
+        logger.warning(f"Could not remember working directory: {e}")
+
+
+def load_remembered_working_directory():
+    """Return the last working directory selected in a previous session, or None."""
+    try:
+        if _STATE_FILE.is_file():
+            p = Path(_STATE_FILE.read_text().strip())
+            if p.is_dir():
+                return p
+    except OSError:
+        pass
+    return None
+
 
 @attr.define
 class Controler:
@@ -59,6 +87,7 @@ class Controler:
     output_directory: Optional[Path] = attr.field(default=None, converter=as_path)
     spec_directory: Optional[Path] = attr.field(default=None, converter=as_path)
     config_path: Optional[Path] = attr.field(default=None, converter=as_path)
+    working_directory: Optional[Path] = attr.field(default=None, converter=as_path)
 
     corpus: Optional[Corpus] = attr.field(default=None)
     config: Optional[Mapping] = attr.field(default=None)
@@ -106,6 +135,18 @@ class Controler:
     _opt_pgid: Optional[int] = attr.field(default=None, init=False)
 
     def __attrs_post_init__(self):
+        # A working directory may be provided up-front (deduced from CLI args).
+        # In that case, prepare its config/ folder immediately so presets and
+        # exported configs are read/written from there rather than site-packages.
+        if self.working_directory is not None:
+            self.working_directory = Path(self.working_directory).expanduser().resolve()
+            try:
+                self.working_directory.mkdir(parents=True, exist_ok=True)
+                self._sync_working_config()
+                _remember_working_directory(self.working_directory)
+            except OSError as e:
+                logger.warning(f"Could not initialize working directory config: {e}")
+
         if (
             self.audio_directory is None
             or self.annots_directory is None
@@ -177,6 +218,66 @@ class Controler:
     @property
     def is_ready(self) -> bool:
         return self._is_ready
+
+    @property
+    def working_directory_set(self) -> bool:
+        """True once the user has chosen (or the CLI has deduced) a working directory."""
+        return self.working_directory is not None
+
+    @property
+    def base_dir(self) -> Path:
+        """Directory file/folder pickers should open in by default: the working
+        directory once chosen, otherwise the launch directory."""
+        return self.working_directory if self.working_directory is not None else Path.cwd()
+
+    @property
+    def config_dir(self) -> Path:
+        """Directory holding presets and user-exported configs.
+
+        Points to ``<working_directory>/config`` once a working directory is set,
+        otherwise falls back to the read-only ``config/`` shipped in the package
+        (used by the headless CLI which has no working directory).
+        """
+        if self.working_directory is not None:
+            return self.working_directory / "config"
+        return _PACKAGE_CONFIG_DIR
+
+    def _sync_working_config(self):
+        """Populate ``<working_directory>/config`` from the package.
+
+        Presets are always refreshed from the shipped package (so version updates
+        propagate), while ``user/`` (the user's exported configs) is created if
+        missing but never overwritten.
+        """
+        dst = self.working_directory / "config"
+        (dst / "user").mkdir(parents=True, exist_ok=True)
+
+        src_presets = _PACKAGE_CONFIG_DIR / "presets"
+        if src_presets.is_dir():
+            dst_presets = dst / "presets"
+            dst_presets.mkdir(parents=True, exist_ok=True)
+            for f in src_presets.iterdir():
+                if f.is_file():
+                    shutil.copy2(f, dst_presets / f.name)
+
+    def set_working_directory(self, path):
+        """Select the working directory and prepare its config/ folder.
+
+        Called from the Home page once the user validates a directory. Also sets a
+        default output directory (``<working_directory>/output``) when none is set.
+        """
+        path = Path(path).expanduser().resolve()
+        path.mkdir(parents=True, exist_ok=True)
+        self.working_directory = path
+        self._sync_working_config()
+        # Before any dataset is loaded, the output directory is only a placeholder
+        # default, so point it inside the freshly chosen working directory. Once data
+        # is loaded (is_ready), the user's explicit output choice is left untouched.
+        if not self.is_ready:
+            self.output_directory = path / "canapy_output"
+            self.spec_directory = self.output_directory / "spectrograms"
+        _remember_working_directory(path)
+        logger.info(f"Working directory set to {path}")
 
     def go_settings(self):
         self._settings_return_step = self._step
@@ -370,12 +471,17 @@ class Controler:
 
         self.corpus = self.corpus.clone_with_df(df)
 
-    def export_corpus(self):
+    def export_corpus(self, output_dir=None):
         try:
             if hasattr(self, '_correction_store') and self._correction_store:
                 self.apply_corrections()
 
-            export_dir = self.output_directory / "corrected_annotations"
+            # When the user picks an explicit export directory, write there;
+            # otherwise fall back to <output_directory>/corrected_annotations.
+            if output_dir:
+                export_dir = Path(output_dir)
+            else:
+                export_dir = self.output_directory / "corrected_annotations"
             export_dir.mkdir(parents=True, exist_ok=True)
             self.corpus.to_directory(str(export_dir))
             logger.info(f"Dataset exported to: {export_dir}")
@@ -812,8 +918,7 @@ class Controler:
         # Strip .toml extension if present in the display name
         if base.endswith(".toml"):
             base = base[:-5]
-        project_root = Path(__file__).resolve().parents[2]
-        user_config_dir = project_root / "config" / "user"
+        user_config_dir = self.config_dir / "user"
         n = 1
         while True:
             candidate = f"{base}_custom_{n}.toml"
@@ -822,8 +927,7 @@ class Controler:
             n += 1
 
     def export_config(self, filename: str = None) -> str:
-        project_root = Path(__file__).resolve().parents[2]
-        user_config_dir = project_root / "config" / "user"
+        user_config_dir = self.config_dir / "user"
         user_config_dir.mkdir(parents=True, exist_ok=True)
         if not filename:
             filename = self.get_default_export_config_name()

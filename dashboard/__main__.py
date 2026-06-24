@@ -157,11 +157,20 @@ def display_dashboard(
         annots_directory = data_directory
         audio_directory = data_directory
 
+    # Expert direct-launch: when data directories are passed on the command line,
+    # we deduce the working directory (so the Home selection step is skipped).
+    # It is the parent of the output directory when given, else the current dir.
+    working_directory = None
+    if audio_directory is not None and annots_directory is not None:
+        out = kwargs.get("output_directory")
+        working_directory = Path(out).resolve().parent if out else Path.cwd()
+
     pn.extension(notifications=True)
-    
+
     dashboard = CanapyDashboard(
         annots_directory=annots_directory,
         audio_directory=audio_directory,
+        working_directory=working_directory,
         *args,
         **kwargs
     )

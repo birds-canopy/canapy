@@ -506,7 +506,7 @@ class PreprocessDashboard(SubDash):
         threading.Thread(target=run, daemon=True).start()
 
     def _browse_export_dir(self, event):
-        directory = pick_directory("Select Export Directory")
+        directory = pick_directory("Select Export Directory", initialdir=str(self.controler.base_dir))
         if directory:
             self.export_dir_input.value = directory
 

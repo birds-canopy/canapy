@@ -248,7 +248,7 @@ class AnnotateDashboard(SubDash):
         )
 
     def _browse_dataset(self, event):
-        directory = pick_directory("Select Audio Folder to Annotate")
+        directory = pick_directory("Select Audio Folder to Annotate", initialdir=str(self.controler.base_dir))
         if directory:
             self.dataset_input.value = directory
 
@@ -431,7 +431,7 @@ class AnnotateDashboard(SubDash):
             self.btn_run.disabled = False
 
     def _browse_export_dir(self, event):
-        directory = pick_directory("Select Export Directory")
+        directory = pick_directory("Select Export Directory", initialdir=str(self.controler.base_dir))
         if directory:
             self.export_dir_input.value = directory
 
