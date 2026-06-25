@@ -239,6 +239,13 @@ class Controler:
         missing but never overwritten.
         """
         dst = self.working_directory / "config"
+
+        # If the chosen working directory IS the package root (its config/ is the
+        # package's own config/), there is nothing to copy. Presets already are there
+        if dst.resolve() == _PACKAGE_CONFIG_DIR.resolve():
+            (dst / "user").mkdir(parents=True, exist_ok=True)
+            return
+
         (dst / "user").mkdir(parents=True, exist_ok=True)
 
         src_presets = _PACKAGE_CONFIG_DIR / "presets"
@@ -246,8 +253,13 @@ class Controler:
             dst_presets = dst / "presets"
             dst_presets.mkdir(parents=True, exist_ok=True)
             for f in src_presets.iterdir():
-                if f.is_file():
-                    shutil.copy2(f, dst_presets / f.name)
+                if not f.is_file():
+                    continue
+                target = dst_presets / f.name
+                # Guard against copying a file onto itself.
+                if target.exists() and target.resolve() == f.resolve():
+                    continue
+                shutil.copy2(f, target)
 
     def set_working_directory(self, path):
         """Select the working directory and prepare its config/ folder.
@@ -261,7 +273,7 @@ class Controler:
         self._sync_working_config()
         # Before any dataset is loaded, the output directory is only a placeholder
         # default, so point it inside the freshly chosen working directory. Once data
-        # is loaded (is_ready), the user's explicit output choice is left untouched.
+        # is loaded, the user output choice is left untouched.
         if not self.is_ready:
             self.output_directory = path / "canapy_output"
             self.spec_directory = self.output_directory / "spectrograms"
