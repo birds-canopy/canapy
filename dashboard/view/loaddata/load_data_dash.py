@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 import panel as pn
 from ..helpers import SubDash, SideBar, pick_directory, custom_tooltip
+from ...controler.base import next_versioned_dir
 from canapy.corpus import Corpus
 from canapy.correction import Corrector
 from canapy.transforms.commons.training import split_train_test
@@ -319,7 +320,13 @@ class LoadDataDashboard(SubDash):
             self.model_input.value = str(self.controler.model_root)
 
         if getattr(self.controler, 'output_directory', None):
-            self.output_input.value = str(self.controler.output_directory)
+            out_dir = Path(self.controler.output_directory)
+            # If the default output already holds a trained model, suggest a fresh
+            # versioned folder (canapy_output_2, …) so a new run doesn't overwrite or
+            # mix with the previous one. The user can still edit this back to reuse it.
+            if (out_dir / "model").exists() and getattr(self.controler, "working_directory", None):
+                out_dir = next_versioned_dir(self.controler.working_directory, "canapy_output")
+            self.output_input.value = str(out_dir)
 
         if getattr(self.controler, 'audio_ext', None):
             self.audio_ext_input.value = self.controler.audio_ext

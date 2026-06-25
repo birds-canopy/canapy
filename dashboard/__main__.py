@@ -170,7 +170,8 @@ def display_dashboard(
     # directly and skip the working-directory selection on the Home page.
     if working_directory is None:
         cwd = Path.cwd()
-        if (cwd / "canapy_output").is_dir() and (cwd / "config").is_dir():
+        has_output = any(p.is_dir() for p in cwd.glob("canapy_output*"))
+        if has_output and (cwd / "config").is_dir():
             working_directory = cwd
 
     pn.extension(notifications=True)

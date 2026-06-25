@@ -429,6 +429,7 @@ def optimize_hyperparameters(
     seed: int = 42,
     progress_file: str = None,
     progress_queue=None,
+    report_path: str = None,
 ):
     logger.info("Starting hyperparameter optimization pipeline...")
 
@@ -497,8 +498,19 @@ def optimize_hyperparameters(
             "seed": ["randint", 0, 10000],
         }
 
+        # By default ReservoirPy writes trial results to "<cwd>/canapy_opt/results/".
+        # When a report_path is given (a versioned dir like ".../canapy_opt_2"), we
+        # use its name as the experiment name and its parent as the base directory,
+        # so each search gets an isolated folder and runs never mix.
+        if report_path:
+            exp_name = os.path.basename(os.path.normpath(report_path))
+            report_base = os.path.dirname(os.path.normpath(report_path))
+        else:
+            exp_name = "canapy_opt"
+            report_base = None
+
         research_config = {
-            "exp": "canapy_opt",
+            "exp": exp_name,
             "hp_max_evals": n_iter,
             "hp_method": "random" if parallel else "tpe",
             "hp_space": hp_space,
@@ -586,6 +598,7 @@ def optimize_hyperparameters(
                     research_objective,
                     dataset_tuple,
                     config_path,
+                    report_path=report_base,
                     n_jobs=n_jobs,
                 )
             else:
@@ -593,6 +606,7 @@ def optimize_hyperparameters(
                     research_objective,
                     dataset_tuple,
                     config_path,
+                    report_path=report_base,
                 )
         finally:
             if _progress_stop is not None:
@@ -621,7 +635,7 @@ def optimize_hyperparameters(
 # 8. ISOLATED SUBPROCESS WRAPPER
 # =============================================================================
 
-def _subprocess_target(queue, corpus, config, n_iter, max_percentage, parallel, n_jobs, hp_val_ratio=0.2, seed=42, progress_queue=None):
+def _subprocess_target(queue, corpus, config, n_iter, max_percentage, parallel, n_jobs, hp_val_ratio=0.2, seed=42, progress_queue=None, report_path=None):
     """
     Entry point for the isolated optimization subprocess.
     Must be a module-level function so multiprocessing can pickle it.
@@ -662,6 +676,7 @@ def _subprocess_target(queue, corpus, config, n_iter, max_percentage, parallel, 
             hp_val_ratio=hp_val_ratio,
             seed=seed,
             progress_queue=progress_queue,
+            report_path=report_path,
         )
         queue.put(("ok", result))
     except MemoryError:
@@ -747,6 +762,7 @@ def optimize_hyperparameters_isolated(
     progress_callback=None,
     timeout: int = None,
     pgid_callback=None,
+    report_path: str = None,
 ):
     """
     Run optimize_hyperparameters in a fresh spawned subprocess.
@@ -786,7 +802,7 @@ def optimize_hyperparameters_isolated(
 
     p = ctx.Process(
         target=_subprocess_target,
-        args=(queue, corpus, config, n_iter, max_percentage, parallel, n_jobs, hp_val_ratio, seed, progress_queue),
+        args=(queue, corpus, config, n_iter, max_percentage, parallel, n_jobs, hp_val_ratio, seed, progress_queue, report_path),
         daemon=False,
     )
     p.start()

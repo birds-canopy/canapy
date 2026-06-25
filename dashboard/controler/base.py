@@ -52,6 +52,20 @@ VALID_STEPS = {"home", "preprocess", "train", "eval", "export", "annotate", "loa
 _PACKAGE_CONFIG_DIR = Path(__file__).resolve().parents[2] / "config"
 
 
+def next_versioned_dir(parent: Path, base_name: str) -> Path:
+    """Return the first non-existing directory among ``base_name``, ``base_name_2``,
+    ``base_name_3``… inside ``parent``. Used to keep successive runs from mixing
+    (e.g. canapy_opt / canapy_opt_2, canapy_output / canapy_output_2)."""
+    parent = Path(parent)
+    candidate = parent / base_name
+    if not candidate.exists():
+        return candidate
+    n = 2
+    while (parent / f"{base_name}_{n}").exists():
+        n += 1
+    return parent / f"{base_name}_{n}"
+
+
 @attr.define
 class Controler:
     dashboard: panel.viewable.Viewer = attr.field()
@@ -1190,6 +1204,12 @@ class Controler:
         def _set_pgid(pgid):
             self._opt_pgid = pgid
 
+        # Give each search its own versioned folder at the working-directory root
+        # (canapy_opt, canapy_opt_2, …) so trial logs from different runs never mix.
+        opt_report_path = None
+        if self.working_directory is not None:
+            opt_report_path = str(next_versioned_dir(self.working_directory, "canapy_opt"))
+
         try:
             best_params = optimize_hyperparameters_isolated(
                 c,
@@ -1202,6 +1222,7 @@ class Controler:
                 seed=self.opt_seed,
                 progress_callback=progress_callback,
                 pgid_callback=_set_pgid,
+                report_path=opt_report_path,
             )
         finally:
             self._opt_pgid = None
