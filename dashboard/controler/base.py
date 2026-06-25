@@ -786,14 +786,17 @@ class Controler:
 
     def load_external_corpus(self, folder: str) -> "Corpus":
         logger.info(f"Loading external corpus from {folder}")
-        return Corpus.from_directory(
+        corpus = Corpus.from_directory(
             audio_directory=folder,
             spec_directory=self.spec_directory,
             annots_directory=None,
-            config_path=self.config_path,
             annot_format=self.annot_format,
             audio_ext=self.audio_ext,
         )
+        # Annotate the external audio with the session's live config (which matches
+        # the trained models' parameters), not a config reloaded from disk.
+        corpus.config = self.config
+        return corpus
 
     def _load_annotator_from_disk(self, name: str, model_path: Path):
         logger.info(f"Loading annotator '{name}' from {model_path}")
@@ -978,14 +981,12 @@ class Controler:
             self._original_annots_directory = self.annots_directory
 
         # Reload a temporary corpus from the originals to use as trimming source.
-        _hp_attrs = ("sr", "leak", "ridge", "iss", "isd", "isd2")
-        _saved_hp = {k: self.config.data["model"]["syn"].get(k) for k in _hp_attrs}
-        config_path = Path(self.config_path) if self.config_path is not None else None
+        # Only its dataset (annotations / durations) is read below, so its config
+        # is irrelevant here.
         source_corpus = Corpus.from_directory(
             audio_directory=self._original_audio_directory,
             spec_directory=self.spec_directory,
             annots_directory=self._original_annots_directory,
-            config_path=config_path,
             annot_format=self.annot_format,
             audio_ext=self.audio_ext,
         )
@@ -1131,21 +1132,18 @@ class Controler:
         self.audio_directory = trimmed_audio_dir
         self.annots_directory = trimmed_annots_dir
 
-        config_path = Path(self.config_path) if self.config_path is not None else None
         self.corpus = Corpus.from_directory(
             audio_directory=trimmed_audio_dir,
             spec_directory=self.spec_directory,
             annots_directory=trimmed_annots_dir,
-            config_path=config_path,
             annot_format=self.annot_format,
             audio_ext=self.audio_ext,
         )
-        self.config = self.corpus.config
-
-        # Reapply HP params that were set by optimization (lost during corpus reload)
-        for k, v in _saved_hp.items():
-            if v is not None:
-                self.config.data["model"]["syn"][k] = v
+        # Keep the live, edited config as the single source of truth: reattach it to
+        # the rebuilt corpus instead of reloading from disk (which would discard
+        # preset selections and manual parameter changes). This also makes the old
+        # HP-param reapply hack unnecessary.
+        self.corpus.config = self.config
         self.corpus = split_train_test(self.corpus, redo=True)
         self.compute_classes()
         self.initialize_annots()

@@ -865,8 +865,11 @@ class SettingsDashboard(SubDash):
         try:
             from config.config import Config as _Config
             loaded = _Config.from_file(path)
+            # Merge the file's values into the live in-memory config (same mechanism
+            # as presets). We deliberately do NOT set controler.config_path here:
+            # that would make the file "sticky" and silently override later preset
+            # selections or manual edits whenever the corpus is rebuilt.
             _deep_update(self.controler.config.data, loaded.data)
-            self.controler.config_path = path
             self.controler._config_display_name = path.stem
             self._refresh_widgets_from_config()
             self._apply(None, _silent=True)
