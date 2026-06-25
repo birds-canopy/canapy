@@ -150,8 +150,11 @@ class TrainDashboard(SubDash):
 
         self._hp_info_alert = pn.pane.Alert(
             "Runs a hyperparameter search on the ESN reservoir. "
-            "This may take several minutes. Configure dataset percentage and number of jobs in Settings.",
-            alert_type="info",
+            "<b>This is a heavy task</b>: it may take several minutes, can slow your "
+            "computer down, and may even crash Canapy on large datasets. If that "
+            "happens, lower the <b>number of parallel workers (n_jobs)</b> or the "
+            "<b>dataset percentage</b> in Settings.",
+            alert_type="warning",
             margin=(0, 0, 10, 0),
         )
 
@@ -168,6 +171,7 @@ class TrainDashboard(SubDash):
             pn.Row(td.optimize_btn, td.stop_search_btn, td.opt_indicator, align="center", margin=(0, 0, 6, 0)),
             td.opt_progress,
             td.opt_progress_text,
+            td.mem_warn_box,
             td.opt_status,
             visible=is_retrain,
             sizing_mode="stretch_width",
@@ -284,6 +288,34 @@ class TrainerDashboard(SubDash):
             visible=False,
         )
         self._opt_running = False
+
+        # Dynamic memory warning (shown by the optimization watchdog when the
+        # search nears the machine's RAM limit). The search keeps running; the
+        # user chooses to continue or stop.
+        self.mem_warn_alert = pn.pane.Alert(
+            "<b>High memory usage.</b> The hyperparameter search is now using close "
+            "to all of your computer's RAM. It may slow your computer down and can "
+            "crash Canapy. You can stop the search and lower the number of parallel "
+            "workers (n_jobs) or the dataset percentage in Settings, or continue at "
+            "your own risk.",
+            alert_type="danger",
+            margin=(8, 0, 6, 0),
+        )
+        self.mem_continue_btn = pn.widgets.Button(
+            name="Continue anyway", button_type="default", width=160,
+        )
+        self.mem_stop_btn = pn.widgets.Button(
+            name="Stop search", button_type="danger", width=130,
+        )
+        self.mem_continue_btn.on_click(self._on_mem_continue)
+        self.mem_stop_btn.on_click(self._on_mem_stop)
+        self.mem_warn_box = pn.Column(
+            self.mem_warn_alert,
+            pn.Row(self.mem_continue_btn, self.mem_stop_btn, align="center"),
+            visible=False,
+            sizing_mode="stretch_width",
+        )
+
         self.params_display = pn.pane.Markdown(
             f"**Current params:** {self.controler._config_display_name or 'default'}",
             styles={"font-size": "13px", "color": "#374151"},
@@ -352,9 +384,22 @@ class TrainerDashboard(SubDash):
             except Exception:
                 pass
 
+        def _on_memory_warning():
+            # Called from the watchdog thread when the search nears the RAM limit.
+            def _show():
+                self.mem_warn_box.visible = True
+            try:
+                with pn.io.unlocked():
+                    _show()
+            except Exception:
+                _safe_ui(_show)
+
         def run():
             try:
-                best_params = self.controler.optimize_models(progress_callback=_on_progress)
+                best_params = self.controler.optimize_models(
+                    progress_callback=_on_progress,
+                    memory_warning_callback=_on_memory_warning,
+                )
                 duration = time.time() - tic
                 if best_params is None:
                     _safe_ui(lambda: setattr(self.opt_status, 'object',
@@ -383,8 +428,18 @@ class TrainerDashboard(SubDash):
                 _safe_ui(lambda: setattr(self.stop_search_btn, 'visible', False))
                 _safe_ui(lambda: setattr(self.opt_progress, 'visible', False))
                 _safe_ui(lambda: setattr(self.opt_progress_text, 'visible', False))
+                _safe_ui(lambda: setattr(self.mem_warn_box, 'visible', False))
 
         threading.Thread(target=run, daemon=True).start()
+
+    def _on_mem_continue(self, event):
+        """User chose to continue despite the memory warning: just dismiss it."""
+        self.mem_warn_box.visible = False
+
+    def _on_mem_stop(self, event):
+        """User chose to stop from the memory warning dialog."""
+        self.mem_warn_box.visible = False
+        self.on_click_stop_search(event)
 
     def _commit_refit(self):
         """Finalise the transition from eval when the user actually starts training."""

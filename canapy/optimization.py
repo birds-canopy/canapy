@@ -722,8 +722,10 @@ def _killpg_safe(pgid):
             pass  # process group already gone — clean exit
 
 
-def _rss_of_group(pgid):
-    """Return total RSS (bytes) of the subprocess and all its descendants.
+def _uss_of_group(pgid):
+    """Return total USS (unique/private memory, bytes) of the subprocess and all
+    its descendants.
+
 
     On Unix: sums all processes sharing the process group ID (pgid == subprocess PID).
     On Windows: walks the process tree rooted at pgid (== subprocess PID) via psutil.
@@ -733,18 +735,19 @@ def _rss_of_group(pgid):
     if _IS_WINDOWS:
         try:
             root = psutil.Process(pgid)
-            for proc in [root] + root.children(recursive=True):
-                try:
-                    total += proc.memory_info().rss
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    pass
+            procs = [root] + root.children(recursive=True)
         except (psutil.NoSuchProcess, psutil.AccessDenied):
-            pass
+            procs = []
+        for proc in procs:
+            try:
+                total += proc.memory_full_info().uss
+            except (psutil.NoSuchProcess, psutil.AccessDenied, OSError):
+                pass
     else:
-        for proc in psutil.process_iter(["pid", "memory_info"]):
+        for proc in psutil.process_iter(["pid"]):
             try:
                 if os.getpgid(proc.pid) == pgid:
-                    total += proc.memory_info().rss
+                    total += proc.memory_full_info().uss
             except (OSError, psutil.NoSuchProcess, psutil.AccessDenied):
                 pass
     return total
@@ -763,6 +766,7 @@ def optimize_hyperparameters_isolated(
     timeout: int = None,
     pgid_callback=None,
     report_path: str = None,
+    memory_warning_callback=None,
 ):
     """
     Run optimize_hyperparameters in a fresh spawned subprocess.
@@ -787,15 +791,16 @@ def optimize_hyperparameters_isolated(
     ctx = multiprocessing.get_context("spawn")
     queue = ctx.Queue()
 
-    # Leave at least 2 GB free for the OS + UI.
+    # Warn when the optimization's private memory (USS) approaches the machine's
+    # total RAM minus a safety headroom. 
     _SAFETY_HEADROOM = 2 * 1024 ** 3
-    rss_threshold = max(
+    mem_threshold = max(
         512 * 1024 ** 2,
-        psutil.virtual_memory().available - _SAFETY_HEADROOM,
+        psutil.virtual_memory().total - _SAFETY_HEADROOM,
     )
     logger.info(
-        f"RSS watchdog threshold: {rss_threshold / 1e9:.1f} GB "
-        f"(available: {psutil.virtual_memory().available / 1e9:.1f} GB)"
+        f"Memory watchdog threshold (USS): {mem_threshold / 1e9:.1f} GB "
+        f"(total RAM: {psutil.virtual_memory().total / 1e9:.1f} GB)"
     )
 
     progress_queue = ctx.Queue() if progress_callback is not None else None
@@ -814,18 +819,24 @@ def optimize_hyperparameters_isolated(
             pass
 
     stop_event = threading.Event()
-    oom_terminated = threading.Event()
+    warned = threading.Event()
 
     def _watchdog():
         while not stop_event.is_set():
-            if _rss_of_group(pgid) > rss_threshold:
-                logger.error(
-                    f"Watchdog: process group {pgid} exceeded RSS threshold "
-                    f"{rss_threshold / 1e9:.1f} GB — sending SIGKILL to group."
+            if not warned.is_set() and _uss_of_group(pgid) > mem_threshold:
+                warned.set()
+                # Do NOT kill: just notify the UI once so the user can decide to
+                # continue or stop. The search keeps running in the meantime.
+                logger.warning(
+                    f"Optimization private memory exceeded "
+                    f"{mem_threshold / 1e9:.1f} GB — notifying user."
                 )
-                oom_terminated.set()
-                _killpg_safe(pgid)
-                return
+                if memory_warning_callback is not None:
+                    try:
+                        memory_warning_callback()
+                    except Exception:
+                        pass
+                return  # one-shot: warn at most once per search
             _time.sleep(0.5)
 
     def _poll():
@@ -864,12 +875,6 @@ def optimize_hyperparameters_isolated(
         # Reap the subprocess if still technically alive after the kill.
         if p.is_alive():
             p.join(timeout=5)
-
-    if oom_terminated.is_set():
-        raise RuntimeError(
-            "Dataset too large for optimization on your machine. "
-            "Try reducing the dataset percentage or the number of parallel jobs."
-        )
 
     if timeout is not None and not p.is_alive() and p.exitcode is not None and p.exitcode < 0:
         # Killed by signal (e.g. timeout SIGKILL) without putting anything on queue

@@ -1163,7 +1163,7 @@ class Controler:
 
         logger.info(f"trim_silences_hard complete. Corpus reloaded from {trimmed_audio_dir}.")
 
-    def optimize_models(self, progress_callback=None):
+    def optimize_models(self, progress_callback=None, memory_warning_callback=None):
         logger.info("Starting optimization from Controller...")
 
         target_name = "syn-esn"
@@ -1233,6 +1233,7 @@ class Controler:
                 progress_callback=progress_callback,
                 pgid_callback=_set_pgid,
                 report_path=opt_report_path,
+                memory_warning_callback=memory_warning_callback,
             )
         finally:
             self._opt_pgid = None
