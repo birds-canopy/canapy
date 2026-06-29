@@ -1,6 +1,7 @@
 # Author: Nathan Trouvain at 07/07/2023 <nathan.trouvain<at>inria.fr>
 # Licence: BSD-3-Clause
 # Copyright: Nathan Trouvain
+import logging
 import toml
 import copy
 
@@ -8,6 +9,48 @@ from pathlib import Path
 from typing import Union, List, Dict
 
 import attr
+
+logger = logging.getLogger("canapy")
+
+# Separator used to build a stable, human-readable annotation key.
+ANNOT_KEY_SEP = "::"
+
+
+def make_annot_key(notated_path, onset_s):
+    """Build a stable identifier for an annotation.
+
+    Annotation corrections used to be keyed by the dataset's positional index
+    (a ``RangeIndex``), but transforms such as ``merge_labels`` or
+    ``remove_short_labels`` reset that index, so a key captured in one view
+    could silently point to another row (or to nothing) once committed.
+
+    ``(notated_path, onset_s)`` uniquely identifies a segment and survives
+    re-indexing, which makes corrections robust to those transforms.
+    """
+    return f"{notated_path}{ANNOT_KEY_SEP}{float(onset_s):.6f}"
+
+
+def match_annotation(df, key, time_precision=1e-3):
+    """Return the index labels of rows in ``df`` matching a stable annotation key.
+
+    Returns an empty index when the annotation no longer exists (e.g. it was
+    merged into another segment), so callers can report it instead of crashing.
+    Legacy/malformed keys (e.g. a positional index from an old checkpoint) also
+    resolve to an empty index rather than raising.
+    """
+    key = str(key)
+    if ANNOT_KEY_SEP not in key:
+        return df.index[:0]
+    notated_path, onset_str = key.rsplit(ANNOT_KEY_SEP, 1)
+    try:
+        onset_s = float(onset_str)
+    except ValueError:
+        return df.index[:0]
+    atol = max(float(time_precision), 1e-6)
+    mask = (df["notated_path"].astype(str) == notated_path) & (
+        (df["onset_s"] - onset_s).abs() <= atol
+    )
+    return df.index[mask]
 
 
 def correct_classes(corpus, corrections):
@@ -18,9 +61,22 @@ def correct_classes(corpus, corrections):
 
 def correct_annots(corpus, corrections):
     df = corpus.dataset.copy()
+    time_precision = corpus.config.transforms.annots.time_precision
 
-    for index, corr in corrections.items():
-        df.at[int(index), "label"] = corr
+    unresolved = []
+    for key, corr in corrections.items():
+        matches = match_annotation(df, key, time_precision)
+        if len(matches) == 0:
+            unresolved.append(key)
+            continue
+        df.loc[matches, "label"] = corr
+
+    if unresolved:
+        logger.warning(
+            f"{len(unresolved)} annotation correction(s) skipped: no matching "
+            f"segment in the current corpus (the annotation may have been merged "
+            f"or removed). Keys: {unresolved}"
+        )
 
     silence_tag = corpus.config.transforms.annots.silence_tag
     df = df[df["label"] != silence_tag]
@@ -48,8 +104,9 @@ class Corrector:
                     f"Should have 'class' and 'annot' keys."
                 )
 
-            # key should be an integer index, but TOML parses it to str
-            correction["annot"] = {int(k): v for k, v in correction["annot"].items()}
+            # Annotation keys are stable string identifiers (see make_annot_key),
+            # which TOML stores and loads back as-is. No int conversion.
+            correction["annot"] = dict(correction["annot"])
 
             correction_history.append(correction)
 
@@ -99,7 +156,8 @@ class Corrector:
 
         corr = copy.deepcopy(corrections)
         with open(ckpt_correction_file, "w+") as fp:
-            # TOML keys can't be integers. Convert the corrected indexes to str.
+            # Annotation keys are already stable strings (see make_annot_key);
+            # str() keeps backward compatibility with any legacy integer keys.
             if corr["annot"] is not None:
                 corr["annot"] = {str(k): v for k, v in corr["annot"].items()}
             else:

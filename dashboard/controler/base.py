@@ -14,7 +14,7 @@ import panel
 
 from canapy.corpus import Corpus
 from canapy.annotator import get_annotator, get_annotator_names, Annotator
-from canapy.correction import Corrector
+from canapy.correction import Corrector, match_annotation
 from canapy.metrics import (
     sklearn_confusion_matrix,
     sklearn_classification_report,
@@ -430,12 +430,25 @@ class Controler:
             self.corpus = merge_labels(self.corpus)
 
         elif target == "annot":
-            for idx, new_label in corrections.items():
-                if idx in self.corpus.dataset.index:
-                    self.corpus.dataset.at[idx, 'label'] = new_label
-                misclass = self._metrics_store.get("misclass")
-                if misclass is not None and idx in misclass.index:
-                    self._metrics_store["misclass"].at[idx, 'label'] = new_label
+            time_precision = self.config.transforms.annots.time_precision
+            df = self.corpus.dataset
+            misclass = self._metrics_store.get("misclass")
+            unresolved = []
+            for key, new_label in corrections.items():
+                matches = match_annotation(df, key, time_precision)
+                if len(matches):
+                    df.loc[matches, 'label'] = new_label
+                else:
+                    unresolved.append(key)
+                if misclass is not None:
+                    m_matches = match_annotation(misclass, key, time_precision)
+                    if len(m_matches):
+                        misclass.loc[m_matches, 'label'] = new_label
+            if unresolved:
+                logger.warning(
+                    f"{len(unresolved)} live annotation correction(s) could not be "
+                    f"located in the current corpus and were skipped: {unresolved}"
+                )
 
         self.compute_classes()
         logger.info(f"Applied live corrections ({target}) and updated class registry.")

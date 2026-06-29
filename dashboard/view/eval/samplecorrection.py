@@ -6,6 +6,7 @@ import pathlib
 import panel as pn
 
 from canapy.plots import plot_bokeh_label_count
+from canapy.correction import make_annot_key
 
 from .classmerge import RepertoireView
 from ..helpers import SubDash, Registry, SideBar, custom_tooltip
@@ -264,11 +265,15 @@ class SampleCorrectorView(SubDash):
             segments, self.misclassified_segments.iterrows()
         )):
             display_num = i + 1
-            if self.registry.get(idx) is None:
+            # Key corrections by a stable identifier (notated_path, onset_s)
+            # instead of the volatile dataset index, so they survive the
+            # re-indexing caused by class merges / preprocessing.
+            key = make_annot_key(annots.notated_path, annots.onset_s)
+            if self.registry.get(key) is None:
                 display = SingleSampleCorrectorView(annots, segment, self.parent, display_num)
-                self.registry[idx] = display
+                self.registry[key] = display
             else:
-                display = self.registry[idx]
+                display = self.registry[key]
             container.append(display.layout)
         return container
 

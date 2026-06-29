@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import librosa
 from ..helpers import SubDash, Registry, SideBar, custom_tooltip, pick_directory, dataset_info_badge
+from canapy.correction import make_annot_key
 
 pn.extension("tabulator")
 
@@ -1468,9 +1469,11 @@ class SampleListView(SubDash):
         rows = []
         for i, (segment, (idx, row)) in enumerate(zip(segments, batch.iterrows())):
             display_num = start + i + 1
-            if self.registry.get(idx) is None:
-                self.registry[idx] = SingleSampleRow(row, segment, self.parent, idx, display_num)
-            rows.append(self.registry[idx].layout)
+            # Stable identifier, robust to dataset re-indexing (see make_annot_key).
+            key = make_annot_key(row.notated_path, row.onset_s)
+            if self.registry.get(key) is None:
+                self.registry[key] = SingleSampleRow(row, segment, self.parent, key, display_num)
+            rows.append(self.registry[key].layout)
         self._container.objects = rows
 
     def _on_page_change_top(self, event):

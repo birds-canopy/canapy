@@ -385,6 +385,13 @@ class Corpus:
                     f"than one notated file: {annots}"
                 )
 
+            if pd.isna(notated_path[0]):
+                raise ValueError(
+                    f"Cannot build corpus: annotation(s) without a source file "
+                    f"(notated_path is missing). This usually means a correction "
+                    f"referenced a row that no longer exists. Offending rows:\n{annots}"
+                )
+
             notated_path = pathlib.Path(notated_path[0])
 
             if "annot_path" in annots:

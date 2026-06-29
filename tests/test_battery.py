@@ -424,10 +424,28 @@ class TestCorrections:
         assert simple_corpus.dataset["label"].tolist() == original_labels
 
     def test_correct_annots(self, simple_corpus):
-        from canapy.correction.base import correct_annots
-        # Correct index 0 to "z"
-        corrected = correct_annots(simple_corpus, {0: "z"})
+        from canapy.correction.base import correct_annots, make_annot_key
+        # Corrections are keyed by a stable (notated_path, onset_s) identifier,
+        # not by the volatile dataset index.
+        row = simple_corpus.dataset.iloc[0]
+        key = make_annot_key(row.notated_path, row.onset_s)
+        corrected = correct_annots(simple_corpus, {key: "z"})
         assert "z" in corrected.dataset["label"].values
+
+    def test_correct_annots_stale_key_skipped(self, simple_corpus):
+        """A correction whose segment no longer exists is skipped, not crashing."""
+        from canapy.correction.base import correct_annots, make_annot_key
+        n_before = len(simple_corpus.dataset)
+        corrected = correct_annots(simple_corpus, {make_annot_key("ghost.wav", 9.9): "z"})
+        assert corrected.dataset["notated_path"].isna().sum() == 0
+        assert len(corrected.dataset) == n_before
+        assert "z" not in corrected.dataset["label"].values
+
+    def test_correct_annots_legacy_int_key_skipped(self, simple_corpus):
+        """Legacy positional-index keys (old checkpoints) resolve to no-op, no crash."""
+        from canapy.correction.base import correct_annots
+        corrected = correct_annots(simple_corpus, {0: "z"})
+        assert corrected.dataset["notated_path"].isna().sum() == 0
 
     def test_corrector_correct_class(self, simple_corpus, tmp_path):
         from canapy.correction.base import Corrector
