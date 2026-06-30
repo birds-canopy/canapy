@@ -102,7 +102,8 @@ class CanapyDashboard(pn.viewable.Viewer):
 
     def show(self, **kwargs):
         logger.info("Starting server...")
-        super().show(title="Canapy", port=self.port, threaded=True, open=True)
+        # Run the server in the main thread (blocking) rather than threaded=True.
+        super().show(title="Canapy", port=self.port, threaded=False, open=True)
 
     def stop(self):
         logger.info("Server shut down.")

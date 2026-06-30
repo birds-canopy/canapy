@@ -18,7 +18,7 @@ class DataFormatError(Exception):
     pass
 
 
-class Marron1SeqSchema(pandera.SchemaModel):
+class Marron1SeqSchema(pandera.DataFrameModel):
     wave: Series[pd.StringDtype] = pandera.Field(coerce=True)
     start: Series[float] = pandera.Field(coerce=True)
     end: Series[float] = pandera.Field(coerce=True)

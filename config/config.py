@@ -54,14 +54,14 @@ class _BaseConfig(UserDict):
             yield key, getattr(self, key)
 
     def solve(self, path: str):
-        """Get items by key paths of the form:
+        r"""Get items by key paths of the form:
         value = dict['key1/key2/key3']
         Useful for nested dictionnaries only.
-        You may escape the '/' chararcter in 
+        You may escape the '/' chararcter in
         a key name using '\/'.
         """
         # Colons are a rather safe substitute
-        substitute = path.replace("\/", ":")
+        substitute = path.replace(r"\/", ":")
         parts = [p.replace(":", "/") for p in substitute.split("/")]
         v = self.data
         for part in parts:
