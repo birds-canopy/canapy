@@ -126,6 +126,9 @@ class NSynAnnotator(Annotator):
 
             """
 
+            # Re-initialize the model so each fit starts from a fresh readout.
+            self.rpy_model = self.initialize()
+
             corpus = self.transforms(
                 corpus,
                 purpose="training",
