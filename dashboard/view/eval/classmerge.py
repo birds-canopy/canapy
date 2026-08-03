@@ -138,6 +138,17 @@ _REPORT_TOOLTIP = (
     "Colours go from red (0%) to green (100%)."
 )
 
+_CM_TOOLTIP = (
+    "<b>How to read the confusion matrix:</b><br>"
+    "Each <b>row</b> is a true label, each <b>column</b> is what the model predicted.<br>"
+    "Cell colour = <b>recall</b>: the fraction of that true label predicted as the column label "
+    "(rows sum to 100%).<br>"
+    "The <b>diagonal</b> is correct classifications — a strong dark-blue diagonal is good. "
+    "Off-diagonal cells show which labels get confused.<br><br>"
+    "<b>Scale</b>: Linear shows recall directly; Log spreads out small off-diagonal values "
+    "so rare confusions become visible. 0 stays white."
+)
+
 _SUMMARY_ROWS = {"accuracy", "macro avg", "weighted avg"}
 
 _MODEL_COLORS = [
@@ -221,14 +232,34 @@ class MetricsView(SubDash):
         for split, metrics in self.controler.metrics.items():
             sub_tabs = pn.Tabs(dynamic=True, sizing_mode="stretch_width")
             for name, cm in metrics["cm"].items():
-                p = plot_bokeh_confusion_matrix(cm, self.controler.classes, title=None)
-                p.min_border = 10
+                classes = self.controler.classes
+                _p0 = plot_bokeh_confusion_matrix(cm, classes, title=None, scale="linear")
+                _p0.min_border = 10
+                bk = pn.pane.Bokeh(_p0)
+
+                def _update(event, cm=cm, classes=classes, bk=bk):
+                    scale = "log" if event.new == "Log" else "linear"
+                    p = plot_bokeh_confusion_matrix(cm, classes, title=None, scale=scale)
+                    p.min_border = 10
+                    bk.object = p
+
+                scale_toggle = pn.widgets.RadioButtonGroup(
+                    options=["Linear", "Log"], value="Linear", button_type="default",
+                    width=140, height=30,
+                )
+                scale_toggle.param.watch(_update, "value")
 
                 heatmap_card = pn.Column(
-                    pn.pane.Bokeh(p),
+                    pn.Row(
+                        pn.pane.HTML("<span style='font-size:12px;color:#64748b;font-weight:600;'>Scale</span>"),
+                        scale_toggle,
+                        custom_tooltip(_CM_TOOLTIP, direction="right", margin=(0, 0, 0, 6)),
+                        align="center", margin=(0, 0, 6, 0),
+                    ),
+                    bk,
                     css_classes=['inner-metric-card'],
                     width=620,
-                    height=540,
+                    height=580,
                 )
 
                 df = pd.DataFrame(metrics["report"][name]).T
@@ -385,7 +416,7 @@ class SampleView(SubDash):
         for i, sp in enumerate(specs):
             visual_block = pn.Row(
                 pn.pane.Markdown(f"**#{offset+i+1}**", styles={'font-size': '11px', 'color': '#6b7280'}, width=30, align='center'),
-                pn.pane.Matplotlib(sp[0], format="png", tight=True, sizing_mode="stretch_width", height=100),
+                pn.pane.Matplotlib(sp[0], format="png", dpi=200, tight=True, sizing_mode="stretch_width", height=100),
                 sizing_mode="stretch_width",
                 styles={"min-width": "120px", "max-width": "320px"},
                 margin=(0, 10, 0, 0),

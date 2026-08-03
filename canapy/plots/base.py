@@ -11,14 +11,17 @@ import matplotlib.figure
 
 from bokeh.plotting import figure
 from bokeh.models import ColumnDataSource
-from bokeh.models import LinearColorMapper, BasicTicker
+from bokeh.models import LinearColorMapper, LogColorMapper, BasicTicker, LogTicker
 from bokeh.models import ColorBar
 from bokeh.models import WheelZoomTool
+from bokeh.palettes import Blues256
 
 from ..timings import seconds_to_audio, audio_to_frames
 
+_BLUES_WHITE_TO_DARK = tuple(reversed(Blues256))
 
-def plot_bokeh_confusion_matrix(cm, classes=None, title=None):
+
+def plot_bokeh_confusion_matrix(cm, classes=None, title=None, scale="linear"):
 
     if classes is None:
         classes = [str(i) for i in range(cm.shape[0])]
@@ -41,7 +44,14 @@ def plot_bokeh_confusion_matrix(cm, classes=None, title=None):
         }
     )
 
-    colormap = LinearColorMapper(palette="Magma256", low=0.1, high=1)
+    if scale == "log":
+        positive = cm[cm > 0]
+        low = float(positive.min()) if positive.size else 1e-3
+        colormap = LogColorMapper(palette=_BLUES_WHITE_TO_DARK, low=low, high=1)
+        ticker = LogTicker()
+    else:
+        colormap = LinearColorMapper(palette=_BLUES_WHITE_TO_DARK, low=0, high=1)
+        ticker = BasicTicker()
 
     p = figure(
         title=title,
@@ -52,7 +62,8 @@ def plot_bokeh_confusion_matrix(cm, classes=None, title=None):
         tooltips=[("True", "@ylabel"), ("Predicted", "@xlabel"), ("Recall", "@confusion{0.000}")],
         active_scroll="wheel_zoom",
         active_drag="box_zoom",
-        sizing_mode="stretch_both"
+        sizing_mode="stretch_both",
+        output_backend="svg",
     )
 
     p.grid.grid_line_color = None
@@ -76,7 +87,7 @@ def plot_bokeh_confusion_matrix(cm, classes=None, title=None):
 
     color_bar = ColorBar(
         color_mapper=colormap,
-        ticker=BasicTicker(),
+        ticker=ticker,
         label_standoff=12,
         border_line_color=None,
         location=(0, 0),
@@ -100,6 +111,7 @@ def plot_bokeh_label_count(df):
         x_range=s.index.values.tolist(),
         height=350,
         tooltips=[("class", "@x"), ("", "@top")],
+        output_backend="svg",
     )
 
     p.xaxis.major_label_orientation = np.pi / 3

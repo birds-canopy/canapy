@@ -304,6 +304,7 @@ class SingleSampleCorrectorView(SubDash):
         self.img = pn.pane.Matplotlib(
             spec[0],
             format="png",
+            dpi=200,
             tight=True,
             height=80,
             sizing_mode="stretch_width",

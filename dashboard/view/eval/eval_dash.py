@@ -197,6 +197,7 @@ class EvalDashboard(SubDash):
                                 pn.pane.Matplotlib(
                                     fig,
                                     format="png",
+                                    dpi=200,
                                     tight=True,
                                     sizing_mode="stretch_width",
                                     height=200,
