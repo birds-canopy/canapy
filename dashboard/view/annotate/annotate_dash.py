@@ -2,18 +2,22 @@
 # Licence: BSD-3-Clause
 # Copyright: Axel Arnaud
 import logging
+import threading
 import time
 from pathlib import Path
 import panel as pn
 import pandas as pd
 import soundfile as sf
 from ..helpers import SubDash, SideBar, pick_directory
+from ..segmentation import SyllableSegmentationPanel
 from canapy.corpus import Corpus
+from canapy.segmentation import AlreadySegmented, to_syllable_level
 
 logger = logging.getLogger("canapy-dashboard")
 
 AUDIO_EXTENSIONS = (".wav", ".flac", ".mp3", ".ogg")
 KNOWN_ANNOTATORS = ["syn-esn", "nsyn-esn", "ensemble"]
+SUB_ANNOTATORS = ("syn-esn", "nsyn-esn")
 
 ANNOTATE_CSS = """
 .annotate-card {
@@ -82,6 +86,7 @@ class AnnotateDashboard(SubDash):
 
         config_card = self._build_config_panel()
         monitor_card = self._build_monitor_panel()
+        self.segmentation_panel = SyllableSegmentationPanel(self)
 
         header = pn.Column(
             pn.pane.Markdown("# Annotate", css_classes=["page-title"], margin=0),
@@ -103,6 +108,8 @@ class AnnotateDashboard(SubDash):
                     monitor_card,
                     sizing_mode="stretch_width",
                 ),
+                pn.Spacer(height=16),
+                self.segmentation_panel.layout,
                 sizing_mode="stretch_both",
                 margin=(20, 10),
             ),
@@ -185,6 +192,17 @@ class AnnotateDashboard(SubDash):
         )
         self.btn_export.on_click(self._on_export)
 
+        self.btn_export_segmented = pn.widgets.Button(
+            name="Export Segmented Annotations",
+            button_type="success",
+            button_style="outline",
+            height=38,
+            sizing_mode="stretch_width",
+            disabled=True,
+            margin=(6, 0, 0, 0),
+        )
+        self.btn_export_segmented.on_click(self._on_export_segmented)
+
         self.info_msg = pn.pane.HTML("", sizing_mode="stretch_width")
 
         return pn.Column(
@@ -218,6 +236,7 @@ class AnnotateDashboard(SubDash):
                 margin=0,
             ),
             self.btn_export,
+            self.btn_export_segmented,
             pn.Spacer(height=6),
             self.info_msg,
             css_classes=["annotate-card"],
@@ -340,6 +359,9 @@ class AnnotateDashboard(SubDash):
             )
             return
 
+        self.segmentation_panel.reset()
+        self.btn_export_segmented.disabled = True
+
         if "ensemble" in chosen:
             if not self.toggle_syn.value:  self.toggle_syn.value = True
             if not self.toggle_nsyn.value: self.toggle_nsyn.value = True
@@ -413,7 +435,9 @@ class AnnotateDashboard(SubDash):
                 _set_status(self.ens_status, "skipped")
 
             self._predictions = all_preds
+            self.segmentation_panel.set_predictions(all_preds)
             self.btn_export.disabled = False
+            self.btn_export_segmented.disabled = False
             self.export_dir_input.disabled = False
             self.export_dir_browse_btn.disabled = False
             self.info_msg.object = (
@@ -429,6 +453,36 @@ class AnnotateDashboard(SubDash):
             self.ens_indicator.value = False
         finally:
             self.btn_run.disabled = False
+
+    def _segment_predictions(self, predictions):
+        """Split predicted phrases into syllables, one annotator at a time.
+
+        Returns an empty dict when nothing could be segmented, having set the
+        message saying why. The caller still writes the model's own
+        annotations, so pressing this button never leaves without an export.
+        """
+        segmented = {}
+        for name, pred in predictions.items():
+            try:
+                pred.config = self.controler.config
+                segmented[name] = to_syllable_level(pred)
+            except AlreadySegmented:
+                self.segmentation_panel.mark_unavailable()
+                self.info_msg.object = (
+                    "<span style='color:#d97706;font-size:12px;'>Predictions are "
+                    "already at syllable level; exported without splitting "
+                    "them again.</span>"
+                )
+                return {}
+            except Exception as error:
+                logger.exception(f"Syllable segmentation failed for {name}")
+                self.info_msg.object = (
+                    f"<span style='color:#dc2626;font-size:12px;'>"
+                    f"Segmentation error ({name}): {error}. Predictions "
+                    f"exported unsegmented.</span>"
+                )
+                return {}
+        return segmented
 
     def _browse_export_dir(self, event):
         directory = pick_directory("Select Export Directory", initialdir=str(self.controler.base_dir))
@@ -451,7 +505,59 @@ class AnnotateDashboard(SubDash):
         except Exception as e:
             self.info_msg.object = f"<span style='color:#dc2626;font-size:12px;'>Export error: {e}</span>"
 
+    def _on_export_segmented(self, event):
+        """Split the predictions with the panel's settings, then write them.
+
+        The model's own annotations are written alongside, so one folder holds
+        both levels.
+        """
+        if not self._predictions:
+            return
+        self.btn_export_segmented.disabled = True
+        self.btn_export_segmented.loading = True
+        self.info_msg.object = (
+            "<span style='color:#d97706;font-size:12px;'>Segmenting predictions...</span>"
+        )
+
+        def run():
+            try:
+                out_dir = self._export_root()
+                from datetime import datetime
+                ts = datetime.now().strftime("%Y-%m-%d_%Hh%Mmin%S")
+
+                segmented = self._segment_predictions(self._predictions)
+
+                for name, pred in self._predictions.items():
+                    self.controler.export_predictions(pred, out_dir / ts / name)
+                for name, pred in segmented.items():
+                    self.controler.export_predictions(
+                        pred, out_dir / ts / f"{name}_syllables")
+
+                # on failure the message naming the cause is already up, and
+                # saying "exported" over it would hide it
+                if segmented:
+                    self.info_msg.object = (
+                        f"<span style='color:#16a34a;font-size:12px;'>Exported "
+                        f"phrases and syllables to: {out_dir.name}/{ts}</span>"
+                    )
+            except Exception as error:
+                logger.exception("Segmented export failed")
+                self.info_msg.object = (
+                    f"<span style='color:#dc2626;font-size:12px;'>"
+                    f"Export error: {error}</span>"
+                )
+            finally:
+                self.btn_export_segmented.disabled = False
+                self.btn_export_segmented.loading = False
+
+        threading.Thread(target=run, daemon=True).start()
+
+    def _export_root(self):
+        value = self.export_dir_input.value.strip()
+        return Path(value) if value else Path(self.controler.output_directory) / "annotated_external"
+
     def _scan_models(self):
+        """Which annotators this page can run, and where they were found."""
         found = {}
         model_root = getattr(self.controler, "model_root", None)
         if model_root is None:
@@ -463,6 +569,8 @@ class AnnotateDashboard(SubDash):
             candidate = export_dir / name
             if candidate.exists():
                 found[name] = str(candidate)
+        if "ensemble" not in found and all(n in found for n in SUB_ANNOTATORS):
+            found["ensemble"] = str(export_dir)
         return found
 
     def _validate_audio_on_init(self):

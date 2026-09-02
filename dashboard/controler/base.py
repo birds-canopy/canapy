@@ -19,6 +19,7 @@ from canapy.metrics import (
     sklearn_confusion_matrix,
     sklearn_classification_report,
     segment_error_rate,
+    frame_error_rate,
     compute_sklearn_metrics,
 )
 from canapy.plots import plot_segment_melspectrogram
@@ -28,6 +29,7 @@ from canapy.transforms.commons.training import split_train_test, encode_labels
 from canapy.utils.tempstorage import close_tempfiles
 from canapy.transforms.commons.annots import sort_annotations, merge_labels, tag_silences, remove_short_labels
 from canapy.transforms.commons.audio import compute_mfcc
+from canapy.segmentation import segmentation_params, to_syllable_level
 from .segments import fetch_misclassified_samples
 from .corpusutils import mark_whole_corpus_as_train, query_split
 from canapy.optimization import optimize_hyperparameters_isolated
@@ -102,6 +104,7 @@ class Controler:
     )
     _classes: Optional[List[str]] = attr.field(alias="_classes", default=None)
     _external_accum: Optional[Dict[str, Corpus]] = attr.field(factory=dict, init=False)
+    _external_vocab: Optional[List[str]] = attr.field(default=None, init=False)
     _repertoire_cache: Dict = attr.field(factory=dict, init=False)
     _settings_return_step: Optional[str] = attr.field(alias="_settings_return_step", default="home")
     fit_done: bool = attr.field(default=False)
@@ -172,6 +175,7 @@ class Controler:
         self._iter = 1
         self._step = "home"
         self._external_accum = {}
+        self._external_vocab = None
         self._settings_return_step = "home"
 
         self.annotators = _sort_annotators(self.annotators)
@@ -468,6 +472,37 @@ class Controler:
             f"\nAnnotation correction:\n{annot_corrections}"
         )
 
+    def segment_syllables(self, group_syllables=None):
+        """Move the session corpus from phrase-level to syllable-level annotation.
+
+        Returns the annotation counts before and after. Raises AlreadySegmented
+        if this has already been done.
+        """
+        section = self.config.data.setdefault("segmentation", {})
+        if group_syllables is not None:
+            section["group_syllables"] = bool(group_syllables)
+
+        before = len(self.corpus.dataset)
+        self.corpus = to_syllable_level(self.corpus)
+
+        # without this the postprocessing would absorb the inter-syllable
+        # silences and glue the syllables back into phrases
+        self.config.data["transforms"]["annots"]["min_label_duration"] = (
+            segmentation_params(self.config)["min_syllable_duration"]
+        )
+        self.corpus.config = self.config
+
+        self._repertoire_cache.clear()
+        self.preprocess_done = False
+        self.fit_done = False
+        self.eval_done = False
+        self.export_done = False
+        self.compute_classes()
+
+        after = len(self.corpus.dataset)
+        logger.info(f"Corpus segmented into syllables: {before} -> {after} annotations.")
+        return before, after
+
     def clean_corpus_pre_training(self):
         df = self.corpus.dataset.copy()
         silence_tag = self.config.transforms.annots.silence_tag
@@ -728,6 +763,7 @@ class Controler:
 
                 cm, report = compute_sklearn_metrics(gold_corpus, pred_corpus, classes=classes)
                 ser = segment_error_rate(gold_corpus, pred_corpus)
+                fer = frame_error_rate(gold_corpus, pred_corpus)
 
                 def float_format(x):
                     return f"{x:.3f}"
@@ -737,13 +773,15 @@ class Controler:
                     f"\n{pd.DataFrame(report).to_string(float_format=float_format)}"
                 )
                 logger.info(
-                    f"Segment error rate: {ser['ser'].mean():.3f} (mean) "
-                    f"± {ser['ser'].std():.3f} (std)"
+                    f"Syllable error rate (SER): {ser['ser'].mean():.3f} (mean) "
+                    f"± {ser['ser'].std():.3f} (std) | "
+                    f"Frame error rate (FER): {fer:.3f}"
                 )
 
                 self._metrics_store[split]["cm"][annot_name] = cm
                 self._metrics_store[split]["report"][annot_name] = report
                 self._metrics_store[split]["ser"][annot_name] = ser
+                self._metrics_store[split]["fer"][annot_name] = fer
 
             sampling_rate = self.config.transforms.audio.sampling_rate
             hop_length = self.config.transforms.audio.hop_length
@@ -836,6 +874,24 @@ class Controler:
             logger.error(f"Failed loading annotator '{name}' from {model_path}: {e}")
             raise
 
+    def _find_model_on_disk(self, name):
+        """Where a saved annotator sits under the model root, if it is there.
+
+        Straight under the root first, then one directory down: an export
+        writes into `exported_models/`, an iteration run into `1/`, `2/`...
+        """
+        model_root = self.model_root or (self.output_directory / "model")
+        direct = model_root / name
+        if direct.exists():
+            return direct
+        if model_root.exists():
+            subdirs = sorted((d for d in model_root.iterdir() if d.is_dir()),
+                             key=lambda p: p.name, reverse=True)
+            for subdir in subdirs:
+                if (subdir / name).exists():
+                    return subdir / name
+        return None
+
     def annotate_external(self, corpus, model_sources=None,
                           use_in_memory=True, return_raw=False):
         model_sources = model_sources or {}
@@ -853,20 +909,8 @@ class Controler:
             if use_in_memory and name in self._annotators:
                 annot = self._annotators[name]
             else:
-                model_root = self.model_root or (self.output_directory / "model")
-                direct_path = model_root / name
-                if not direct_path.exists() and model_root.exists():
-                    iters = sorted(
-                        [d for d in model_root.iterdir() if d.is_dir()],
-                        key=lambda p: p.name,
-                        reverse=True,
-                    )
-                    for itdir in iters:
-                        if (itdir / name).exists():
-                            direct_path = itdir / name
-                            break
-
-                if direct_path.exists():
+                direct_path = self._find_model_on_disk(name)
+                if direct_path is not None:
                     annot = self._load_annotator_from_disk(name, direct_path)
 
             if annot is not None:
@@ -880,42 +924,46 @@ class Controler:
                 results[name] = pred_corpus
                 self._external_accum[name] = pred_corpus
                 logger.info(f"Stored {name} in persistent accumulator.")
-                if _sub_annot_vocab is None and annot.vocab:
-                    _sub_annot_vocab = list(annot.vocab)
+                if annot.vocab:
+                    if _sub_annot_vocab is None:
+                        _sub_annot_vocab = list(annot.vocab)
+                    self._external_vocab = list(annot.vocab)
 
         if any("ensemble" in n.lower() for n in all_names):
             ens_name = [n for n in all_names if "ensemble" in n.lower()][0]
-            ens_annot = None
-
-            model_root = self.model_root or (self.output_directory / "model")
-
-            search_paths = [
-                model_root / ens_name,
-                model_root / "1" / ens_name,
-            ]
-
-            for path in search_paths:
-                if path.exists():
-                    logger.info(f"Ensemble found at: {path}")
-                    ens_annot = self._load_annotator_from_disk(ens_name, path)
-                    break
+            path = self._find_model_on_disk(ens_name)
+            if path is not None:
+                logger.info(f"Ensemble found at: {path}")
+                ens_annot = self._load_annotator_from_disk(ens_name, path)
+            else:
+                logger.info("No ensemble on disk; rebuilding one from the config.")
+                ens_annot = get_annotator(ens_name)(self.config)
 
             if ens_annot:
                 raw_inputs = list(self._external_accum.values())
                 logger.info(f"Ensemble voting with {len(raw_inputs)} accumulated corpora.")
                 if len(raw_inputs) >= 2:
-                    # Sync ensemble vocab with the preprocessed vocab from a sub-annotator
-                    # so hard_vote uses the correct label→index mapping.
-                    if _sub_annot_vocab is not None:
-                        ens_annot._vocab = _sub_annot_vocab
-                        logger.info(f"Ensemble (external) vocab synced: {_sub_annot_vocab}")
-                    results[ens_name] = ens_annot.predict(raw_inputs)
-                    logger.info("Ensemble prediction successful.")
-                    self._external_accum = {}
+                    # hard_vote maps argmax indices through this vocabulary
+                    vocab = _sub_annot_vocab or self._external_vocab
+                    if vocab:
+                        ens_annot._vocab = list(vocab)
+                        logger.info(f"Ensemble (external) vocab synced: {vocab}")
+                    if ens_annot.vocab:
+                        ens_annot._trained = True
+                        results[ens_name] = ens_annot.predict(raw_inputs)
+                        logger.info("Ensemble prediction successful.")
+                        self._external_accum = {}
+                        self._external_vocab = None
+                    else:
+                        logger.error(
+                            "Ensemble has no vocabulary: none of the annotators "
+                            "that produced the accumulated predictions reported "
+                            "one, and no saved ensemble carried it."
+                        )
                 else:
                     logger.error(f"Ensemble needs 2 sub-predictions, has {len(raw_inputs)}.")
             else:
-                logger.error(f"Ensemble model NOT FOUND. Path attempted: {model_root / ens_name}")
+                logger.error(f"Ensemble annotator '{ens_name}' could not be built.")
 
         return results
 

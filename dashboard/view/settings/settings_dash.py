@@ -81,6 +81,41 @@ SETTINGS_CSS = """
 """
 
 PARAM_HELP = {
+    "group_syllables": (
+        "What a syllable is when the phrase annotations are split. An acoustic "
+        "element is every sound set apart by a silence. A repeated unit is one "
+        "full cycle of the repetition, elements included: on a hierarchical "
+        "phrase it finds two to three times fewer syllables."
+    ),
+    "pool_period": (
+        "How the repetition period is estimated, for repeated units only. The "
+        "period is a property of the label rather than of one phrase, so "
+        "pooling takes the median over every phrase carrying that label, which "
+        "resists the octave errors a single phrase can make."
+    ),
+    "seg_band": (
+        "Frequency band the segmentation reads its energy from. Below roughly "
+        "1500 Hz on cage recordings there is only background hum, which raises "
+        "the floor and hides the silences between syllables."
+    ),
+    "min_syllable_duration": (
+        "Shortest sound the segmentation keeps. Anything briefer is discarded "
+        "after neighbouring pieces have been merged."
+    ),
+    "seg_hop": (
+        "Analysis step of the segmentation, which sets how precisely a "
+        "boundary can be placed. Smaller is finer and slower."
+    ),
+    "wiener_max": (
+        "Spectral flatness gate. A tonal sound scores very negative, a noisy "
+        "one close to zero, so a frame is kept only below this value. Set it "
+        "to otsu to read the gate off the flatness contour instead."
+    ),
+    "eta2_min": (
+        "How clearly the energy of a phrase splits into sound and silence, as "
+        "the share of variance the split explains. Below this the phrase is "
+        "refused rather than segmented on a threshold that means nothing."
+    ),
     "fmin": "Minimum frequency (Hz) for MFCC computation. Frequencies below this value are ignored.",
     "fmax": "Maximum frequency (Hz) for MFCC computation. Frequencies above this value are ignored. Capped at sr/2 (Nyquist frequency).",
     "win_length": (
@@ -162,7 +197,9 @@ PARAM_HELP = {
     "min_label_duration": "Annotations shorter than this (seconds) are discarded during preprocessing.",
     "min_silence_gap": "Silence gaps shorter than this (seconds) between two annotations are absorbed by the surrounding labels.",
     "test_ratio": (
-        "Fraction of audio files held out for evaluation. Applied when moving from preprocessing to training. "
+        "Fraction of audio files held out for evaluation, between 0.01 and 0.99. Applied when moving from "
+        "preprocessing to training. It counts <b>files</b>, not duration: with files of uneven length, "
+        "holding out 88% of them does not hold out 88% of the audio. "
         "Changing this invalidates the current train/test split and resets model training."
     ),
     "max_sequences": (
@@ -405,9 +442,9 @@ class SettingsDashboard(SubDash):
 
         # --- Advanced training ---
         _adv_training = cfg.data.get("transforms", {}).get("training", {})
-        self.test_ratio_input = pn.widgets.FloatSlider(
+        self.test_ratio_input = pn.widgets.FloatInput(
             value=float(_adv_training.get("test_ratio", 0.2)),
-            start=0.05, end=0.5, step=0.05, sizing_mode="stretch_width",
+            start=0.01, end=0.99, step=0.001, sizing_mode="stretch_width",
         )
         self.max_sequences_input = pn.widgets.IntInput(
             value=int(_adv_training.get("max_sequences", -1)),
@@ -447,6 +484,42 @@ class SettingsDashboard(SubDash):
         )
         self.min_agreement_input = pn.widgets.FloatSlider(
             value=float(cfg.data.get("correction", {}).get("min_segment_proportion_agreement", 0.66)),
+            start=0.0, end=1.0, step=0.01, sizing_mode="stretch_width",
+        )
+
+        # --- Syllable segmentation ---
+        _seg = cfg.data.get("segmentation", {})
+        self.group_syllables_input = pn.widgets.Select(
+            options={"acoustic element": False, "repeated unit": True},
+            value=bool(_seg.get("group_syllables", False)),
+            sizing_mode="stretch_width",
+        )
+        self.pool_period_input = pn.widgets.Select(
+            options={"per label (recommended)": True, "on each phrase alone": False},
+            value=bool(_seg.get("pool_period", True)),
+            sizing_mode="stretch_width",
+        )
+        _band = _seg.get("band", [1500, 8000])
+        self.seg_band_min_input = pn.widgets.IntInput(
+            value=int(_band[0]), start=0, step=50, sizing_mode="stretch_width",
+        )
+        self.seg_band_max_input = pn.widgets.IntInput(
+            value=int(_band[1]), start=0, step=50, sizing_mode="stretch_width",
+        )
+        self.seg_min_syllable_input = pn.widgets.FloatInput(
+            value=float(_seg.get("min_syllable_duration", 0.004)),
+            start=0.001, end=0.100, step=0.001, sizing_mode="stretch_width",
+        )
+        self.seg_hop_input = pn.widgets.FloatInput(
+            value=float(_seg.get("hop", 0.0005)),
+            start=0.0001, end=0.010, step=0.0001, sizing_mode="stretch_width",
+        )
+        _wiener = _seg.get("wiener_max", -0.2)
+        self.seg_wiener_input = pn.widgets.TextInput(
+            value=str(_wiener), sizing_mode="stretch_width",
+        )
+        self.seg_eta2_input = pn.widgets.FloatSlider(
+            value=float(_seg.get("eta2_min", 0.5)),
             start=0.0, end=1.0, step=0.01, sizing_mode="stretch_width",
         )
 
@@ -558,6 +631,18 @@ class SettingsDashboard(SubDash):
             sizing_mode="stretch_width",
         )
 
+        self.advanced_segmentation_block = pn.Column(
+            _make_param_row("Band min (Hz)", self.seg_band_min_input, "seg_band"),
+            _make_param_row("Band max (Hz)", self.seg_band_max_input, "seg_band"),
+            _make_param_row("Min syllable duration (s)", self.seg_min_syllable_input,
+                            "min_syllable_duration"),
+            _make_param_row("Analysis hop (s)", self.seg_hop_input, "seg_hop"),
+            _make_param_row("Wiener entropy gate", self.seg_wiener_input, "wiener_max"),
+            _make_param_row("Minimum eta squared", self.seg_eta2_input, "eta2_min"),
+            visible=False,
+            sizing_mode="stretch_width",
+        )
+
         self.advanced_training_block = pn.Column(
             pn.pane.HTML("<div class='settings-subsection-header'>Training</div>"),
             pn.pane.HTML(
@@ -598,6 +683,7 @@ class SettingsDashboard(SubDash):
             self.advanced_toggle.button_type = "primary" if event.new else "default"
             self.advanced_audio_block.visible = event.new
             self.advanced_annots_block.visible = event.new
+            self.advanced_segmentation_block.visible = event.new
             self.advanced_training_block.visible = event.new
             self.reservoir_block.visible = event.new
 
@@ -621,6 +707,11 @@ class SettingsDashboard(SubDash):
             pn.pane.HTML("<div class='settings-subsection-header'>Annotations</div>"),
             _make_param_row("Merge consecutive labels", self.merge_labels_input, "merge_consecutive_labels"),
             self.advanced_annots_block,
+
+            pn.pane.HTML("<div class='settings-subsection-header'>Syllable segmentation</div>"),
+            _make_param_row("A syllable is", self.group_syllables_input, "group_syllables"),
+            _make_param_row("Period estimated", self.pool_period_input, "pool_period"),
+            self.advanced_segmentation_block,
 
             self.advanced_training_block,
             self.reservoir_block,
@@ -1034,6 +1125,18 @@ class SettingsDashboard(SubDash):
         annots_data["min_label_duration"] = self.min_label_dur_input.value
         annots_data["min_silence_gap"] = self.min_silence_gap_input.value
 
+        # --- Syllable segmentation ---
+        seg_data = cfg.data.setdefault("segmentation", {})
+        seg_data["group_syllables"] = bool(self.group_syllables_input.value)
+        seg_data["pool_period"] = bool(self.pool_period_input.value)
+        seg_data["band"] = [int(self.seg_band_min_input.value),
+                            int(self.seg_band_max_input.value)]
+        seg_data["min_syllable_duration"] = float(self.seg_min_syllable_input.value)
+        seg_data["hop"] = float(self.seg_hop_input.value)
+        wiener = self.seg_wiener_input.value.strip()
+        seg_data["wiener_max"] = "otsu" if wiener.lower() == "otsu" else float(wiener)
+        seg_data["eta2_min"] = float(self.seg_eta2_input.value)
+
         # --- Training params (with dirty detection) ---
         training_data = cfg.data["transforms"]["training"]
         _old_test_ratio = training_data.get("test_ratio")
@@ -1043,7 +1146,8 @@ class SettingsDashboard(SubDash):
         _old_noise_std = _old_balance.get("data_augmentation", {}).get("noise_std")
 
         training_data["iterative_fit"] = self.fit_mode_input.value
-        training_data["test_ratio"] = self.test_ratio_input.value
+        # split_train_test raises on a ratio outside (0, 1)
+        training_data["test_ratio"] = min(max(float(self.test_ratio_input.value), 0.01), 0.99)
         training_data["max_sequences"] = self.max_sequences_input.value
         training_data.setdefault("balance", {})["min_silence_duration"] = self.min_silence_dur_input.value
         training_data["balance"].setdefault("data_augmentation", {})["noise_std"] = self.noise_std_input.value
