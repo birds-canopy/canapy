@@ -11,3 +11,7 @@ class MissingData(Exception):
 
 class NotTrainedError(Exception):
     pass
+
+
+class AlreadySegmented(Exception):
+    pass

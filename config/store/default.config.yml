@@ -34,6 +34,16 @@ model:
     units: 1000
     workers: -1
 
+segmentation:
+  band:
+  - 1500
+  - 8000
+  eta2_min: 0.5
+  group_syllables: false
+  hop: 0.0005
+  min_syllable_duration: 0.004
+  pool_period: true
+  wiener_max: -0.2
 transforms:
   annots:
     lonely_labels:
@@ -229,6 +239,74 @@ schema:
                 -1 means all available.
               default: -1
               minimum: -1
+
+  segmentation:
+    type: object
+    description: |
+      Acoustic segmentation of phrases into syllables.
+      Nothing here is learned: the energy threshold is
+      read off each phrase by Otsu's method.
+    properties:
+      band:
+        type: array
+        description: |
+          Frequency band the energy is summed over. Deliberately
+          narrower than transforms.audio: below 1500 Hz the cage
+          hum raises the floor and hides inter-syllable silences.
+          [META] units=Hz expert = true
+        items:
+          type: int
+        default: [1500, 8000]
+      eta2_min:
+        type: float
+        description: |
+          Minimum share of variance the Otsu split must explain
+          for it to be trusted. Below it the energy distribution
+          was not bimodal and the phrase is left unsegmented.
+          [META] expert = true
+        default: 0.5
+        minimum: 0.0
+        maximum: 1.0
+      group_syllables:
+        type: bool
+        description: |
+          Group the detected elements into the repeated unit they
+          belong to. A hierarchical phrase repeats a unit made of
+          several notes; without this the segmenter returns the notes.
+          Turn it on only if the syllable you want annotated is the
+          repeated unit.
+        default: false
+      hop:
+        type: float
+        description: |
+          Analysis step, and therefore the resolution of syllable
+          boundaries. Unrelated to transforms.audio.hop_length.
+          [META] units=seconds expert = true
+        default: 0.0005
+        minimum: 0.0
+      min_syllable_duration:
+        type: float
+        description: |
+          Shortest admissible syllable. Anything shorter is
+          discarded. [META] units=seconds
+        default: 0.004
+        minimum: 0.0
+      pool_period:
+        type: bool
+        description: |
+          Estimate the repetition period once per label rather than
+          on each phrase alone. The period is a property of the label,
+          so the median over every phrase carrying it resists the
+          octave errors a single phrase can make. Only read when
+          group_syllables is on.
+        default: true
+      wiener_max:
+        type: float
+        description: |
+          Maximum spectral flatness for a frame to count as song.
+          Set to "otsu" to read the gate off the contour instead.
+          [META] expert = true
+        default: -0.2
 
   transforms:
     type: object

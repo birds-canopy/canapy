@@ -60,3 +60,12 @@ workers=-1
 
 [correction]
 min_segment_proportion_agreement=0.66
+
+[segmentation]
+min_syllable_duration=0.004 # seconds
+wiener_max=-0.2 # max spectral flatness; "otsu" reads it off the contour
+band=[1500, 8000] # Hz
+hop=0.0005 # seconds
+eta2_min=0.5
+group_syllables=false # true : the syllable is the repeated unit, not the acoustic element
+pool_period=true # the repetition period is estimated per label, not per phrase
