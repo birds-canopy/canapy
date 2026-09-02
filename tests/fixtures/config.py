@@ -70,6 +70,13 @@ workers=-1
 
 [correction]
 min_segment_proportion_agreement=0.66
+
+[segmentation]
+min_syllable_duration=0.004 # seconds
+wiener_max=-0.2
+band=[1500, 8000] # Hz
+hop=0.0005 # seconds
+eta2_min=0.5
     """
 
 
