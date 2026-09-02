@@ -153,7 +153,11 @@ def predict_with_esn(annotator, corpus, return_raw=False, redo_transforms=False)
         corpus, purpose="annotation", output_directory=corpus.spec_directory, redo=redo_transforms,
     )
     notated_paths, mfccs = load_mfccs_for_annotation(corpus)
-    raw_preds = annotator.rpy_model.run(mfccs)
+
+    raw_preds = []
+    for sequence in mfccs:
+        annotator.rpy_model.reset()
+        raw_preds.append(annotator.rpy_model.run(sequence))
 
     if isinstance(raw_preds, np.ndarray) and raw_preds.ndim < 3:
         raw_preds = [raw_preds]
