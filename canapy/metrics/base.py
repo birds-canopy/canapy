@@ -11,9 +11,8 @@ from .utils import as_frame_comparison
 
 def _check_corpus_comparison(gold_corpus, corpus):
     gold_notated = set(gold_corpus.dataset["notated_path"].unique())
-    # Use frames_predictions to determine annotated files: files predicted as
-    # entirely silent are absent from corpus.dataset (silence rows are removed
-    # during post-processing) but are still present in frames_predictions.
+    # Files predicted as entirely silent are absent from corpus.dataset but
+    # still present in frames_predictions.
     if "frames_predictions" in corpus.data_resources:
         df_notated = set(
             corpus.data_resources["frames_predictions"]["notated_path"].unique()
@@ -30,11 +29,9 @@ def _check_corpus_comparison(gold_corpus, corpus):
 
 
 def compute_sklearn_metrics(gold_corpus, corpus, classes=None):
-    """Compute confusion matrix and classification report in a single pass.
+    """Confusion matrix and classification report in a single pass.
 
-    Calling sklearn_confusion_matrix and sklearn_classification_report separately
-    triggers two identical as_frame_comparison expansions. This function computes
-    gold_frames once and shares it across both metrics.
+    Shares one ``as_frame_comparison`` expansion between both metrics.
     """
     _check_corpus_comparison(gold_corpus, corpus)
 
@@ -86,30 +83,102 @@ def sklearn_confusion_matrix(gold_corpus, corpus, classes=None):
     )
 
 
+_FRAME_KEYS = ["notated_path", "onset_s"]
+
+
+def _gold_frames(gold_corpus, corpus):
+    """Gold annotations expanded onto the frame grid of ``corpus``.
+
+    Frames rather than ``dataset`` rows: post-processing strips the silence rows
+    of a predicted corpus while the gold corpus keeps them, so the two row
+    sequences are not comparable. On the frame grid every gap carries the
+    silence tag on both sides alike.
+    """
+    return as_frame_comparison(gold_corpus, corpus).sort_values(by=_FRAME_KEYS)
+
+
+def _raw_prediction_frames(corpus):
+    """What the model emitted, frame by frame, before post-processing."""
+    return corpus.data_resources["frames_predictions"].sort_values(by=_FRAME_KEYS)
+
+
+def _annotated_prediction_frames(corpus):
+    """The post-processed annotations of ``corpus``, back on its frame grid.
+
+    Differs from ``_raw_prediction_frames``: post-processing merges runs, drops
+    short labels and removes silence.
+    """
+    return as_frame_comparison(corpus, corpus).sort_values(by=_FRAME_KEYS)
+
+
+def _label_sequence(labels, silence_tag):
+    """One token per continuous run of a label, silence dropped.
+
+    The run is cut *before* the silence is dropped, never after: two segments
+    carrying the same label on either side of a silence are two tokens, and
+    dropping first would merge them and hide a segment from the edit distance.
+    """
+    runs = labels.loc[labels.shift() != labels]
+    return runs[runs != silence_tag].tolist()
+
+
 def segment_error_rate(gold_corpus, corpus):
+    """Syllable error rate: edit distance normalised by the reference length.
+
+    ``levenshtein(predicted, reference) / len(reference)`` over sequences of
+    segment labels. Insertions, deletions and substitutions all count, and the
+    normalisation is by the reference alone, so the rate is asymmetric and may
+    exceed 1.
+
+    The predicted sequence is read off the **post-processed** annotations, the
+    ones canapy publishes; reading it off the raw frames would score a corpus
+    against itself well above 0. ``frame_error_rate`` keeps the raw frames, so
+    the two rates look at different sides of post-processing.
+
+    Returns one row per audio file.
+    """
     _check_corpus_comparison(gold_corpus, corpus)
 
-    gold_df = gold_corpus.dataset
-    pred_df = corpus.dataset
-
-    gold_sequences = gold_df.groupby("notated_path")
-    pred_sequences = pred_df.groupby("notated_path")
+    silence_tag = corpus.config.transforms.annots.silence_tag
+    gold_frames = _gold_frames(gold_corpus, corpus)
+    pred_frames = _annotated_prediction_frames(corpus)
 
     ser = []
-    for seqid, gold_seq in gold_sequences:
-        if seqid in pred_sequences.groups:
-            pred_seq = pred_sequences.get_group(seqid)
+    for notated_path, gold_group in gold_frames.groupby("notated_path"):
+        pred_group = pred_frames[pred_frames["notated_path"] == notated_path]
+
+        reference = _label_sequence(gold_group["label"], silence_tag)
+        predicted = _label_sequence(pred_group["label"], silence_tag)
+
+        if reference:
+            rate = Levenshtein.distance(predicted, reference) / len(reference)
         else:
-            # File was predicted as entirely silent: no annotations in pred corpus.
-            pred_seq = pred_df.iloc[0:0]  # empty df, SER = 1.0
+            # undefined against an empty reference
+            rate = 0.0 if not predicted else float("nan")
 
-        notated_path = gold_seq["notated_path"].unique()[0]
+        ser.append({"notated_path": notated_path, "ser": rate})
 
-        ser.append({
-            "notated_path": notated_path,
-            "ser": 1.0 - Levenshtein.ratio(gold_seq.label.values, pred_seq.label.values)
-            })
+    return pd.DataFrame(ser)
 
-    ser = pd.DataFrame(ser)
 
-    return ser
+def frame_error_rate(gold_corpus, corpus):
+    """Share of frames whose label differs from the reference.
+
+    Silence frames count like any other: the rate runs over every frame of the
+    recording, not only over the annotated ones. Read off the raw frame
+    predictions, so this is the complement of the ``accuracy`` row of
+    ``sklearn_classification_report``.
+    """
+    _check_corpus_comparison(gold_corpus, corpus)
+
+    gold_frames = _gold_frames(gold_corpus, corpus)
+    pred_frames = _raw_prediction_frames(corpus)
+    gold_labels = gold_frames["label"].to_numpy()
+    pred_labels = pred_frames["label"].to_numpy()
+
+    # truncate both to the shorter one rather than failing
+    n_frames = min(len(gold_labels), len(pred_labels))
+    if n_frames == 0:
+        return float("nan")
+
+    return float((gold_labels[:n_frames] != pred_labels[:n_frames]).mean())

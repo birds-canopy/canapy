@@ -151,6 +151,50 @@ _CM_TOOLTIP = (
 
 _SUMMARY_ROWS = {"accuracy", "macro avg", "weighted avg"}
 
+_RATES_TOOLTIP = (
+    "<b>SER</b> — syllable error rate: the "
+    "Levenshtein edit distance between the predicted and the true sequence of "
+    "segment labels, divided by the length of the true sequence. Insertions, "
+    "deletions and substitutions all count. Normalised by the reference alone, "
+    "so it is asymmetric and <b>can exceed 100%</b>.<br>"
+    "Sequences hold one label per continuous run, silence removed — a segment "
+    "split in two by the model costs one insertion.<br><br>"
+    "<b>FER</b> — frame error rate: the share of frames whose label differs "
+    "from the reference, silence frames included. It is the complement of the "
+    "<i>accuracy</i> row of the Summary table.<br><br>"
+    "Lower is better for both. FER weighs every frame equally, so it is "
+    "dominated by long segments; SER weighs every segment equally and ignores "
+    "timing entirely. They fail in different ways — read them together."
+)
+
+
+def _rate_badge(label, value, tooltip_note):
+    display = "—" if value is None or value != value else f"{value:.1%}"
+    return (
+        f"<div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;"
+        f"padding:6px 14px;min-width:96px;'>"
+        f"<div style='font-size:10px;font-weight:700;color:#64748b;"
+        f"text-transform:uppercase;letter-spacing:.5px;'>{label}</div>"
+        f"<div style='font-size:18px;font-weight:700;color:#111827;line-height:1.2;'>"
+        f"{display}</div>"
+        f"<div style='font-size:10px;color:#94a3b8;'>{tooltip_note}</div>"
+        f"</div>"
+    )
+
+
+def _rates_html(ser_df, fer):
+    """SER and FER side by side."""
+    ser_mean = ser_df["ser"].mean() if ser_df is not None and len(ser_df) else None
+    ser_std = ser_df["ser"].std() if ser_df is not None and len(ser_df) else None
+
+    spread = "—" if ser_std is None or ser_std != ser_std else f"± {ser_std:.1%} over files"
+    return (
+        "<div style='display:flex;gap:8px;align-items:stretch;'>"
+        + _rate_badge("SER", ser_mean, spread)
+        + _rate_badge("FER", fer, "all frames")
+        + "</div>"
+    )
+
 _MODEL_COLORS = [
     ("#eff6ff", "#1d4ed8", "#bfdbfe"),   # blue  — model 0
     ("#f5f3ff", "#6d28d9", "#ddd6fe"),   # purple — model 1
@@ -270,6 +314,17 @@ class MetricsView(SubDash):
                 tooltip = custom_tooltip(_REPORT_TOOLTIP, direction="right", margin=(0, 0, 0, 6))
 
                 stats_card = pn.Column(
+                    pn.Row(
+                        pn.pane.HTML(f"<span style='{_header_style}'>Error rates</span>"),
+                        custom_tooltip(_RATES_TOOLTIP, direction="right",
+                                       margin=(0, 0, 0, 6)),
+                        margin=(0, 0, 4, 0),
+                    ),
+                    pn.pane.HTML(
+                        _rates_html(metrics.get("ser", {}).get(name),
+                                    metrics.get("fer", {}).get(name))
+                    ),
+                    pn.Spacer(height=12),
                     pn.Row(
                         pn.pane.HTML(f"<span style='{_header_style}'>Summary</span>"),
                         tooltip,

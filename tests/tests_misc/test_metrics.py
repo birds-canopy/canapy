@@ -22,6 +22,62 @@ def test_segment_error_rate(prediction_corpus):
     assert ser["ser"].sum() == 0.0
 
 
+def _four_segment_corpus(config, labels):
+    """One file, four segments of 100 ms separated by 100 ms of silence.
+
+    Laid out on the 10 ms frame grid of the test config so that the sequence of
+    segments is unambiguous.
+    """
+    onsets = [0.0, 0.2, 0.4, 0.6]
+    df = pd.DataFrame({
+        "label": list(labels),
+        "onset_s": onsets,
+        "offset_s": [o + 0.1 for o in onsets],
+        "notated_path": ["foo.wav"] * 4,
+    })
+    frames = pd.DataFrame({
+        "label": ["SIL"] * 80,
+        "onset_s": [k * 0.01 for k in range(80)],
+        "offset_s": [(k + 1) * 0.01 for k in range(80)],
+        "notated_path": ["foo.wav"] * 80,
+    })
+    corpus = Corpus.from_df(df, config=config)
+    corpus.register_data_resource("frames_predictions", frames)
+    return corpus
+
+
+def test_segment_error_rate_is_edit_distance_over_reference_length(config):
+    # one substitution out of four segments:
+    # Levenshtein(predicted, reference) / len(reference)
+    gold = _four_segment_corpus(config, "abcd")
+    pred = _four_segment_corpus(config, "abxd")
+
+    ser = metrics.segment_error_rate(gold, pred)
+
+    assert ser.set_index("notated_path")["ser"]["foo.wav"] == pytest.approx(1 / 4)
+
+
+def test_segment_error_rate_counts_a_missing_segment_as_one_deletion(config):
+    gold = _four_segment_corpus(config, "abcd")
+    pred = _four_segment_corpus(config, "abcd")
+    pred = Corpus.from_df(pred.dataset.iloc[:3], config=config)
+    pred.register_data_resource(
+        "frames_predictions", gold.data_resources["frames_predictions"]
+    )
+
+    ser = metrics.segment_error_rate(gold, pred)
+
+    assert ser.set_index("notated_path")["ser"]["foo.wav"] == pytest.approx(1 / 4)
+
+
+def test_frame_error_rate_complements_the_report_accuracy(prediction_corpus):
+    fer = metrics.frame_error_rate(prediction_corpus, prediction_corpus)
+    _, report = compute_sklearn_metrics(prediction_corpus, prediction_corpus)
+
+    assert 0.0 <= fer <= 1.0
+    assert fer == pytest.approx(1.0 - report["accuracy"])
+
+
 def test_sklearn_confusion_matrix(prediction_corpus):
     classes = list("abcdefgh")
     cm = metrics.sklearn_confusion_matrix(prediction_corpus, prediction_corpus, classes=classes)
