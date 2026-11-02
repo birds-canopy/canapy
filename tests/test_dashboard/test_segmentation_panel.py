@@ -231,7 +231,7 @@ def test_the_controler_segments_a_session_corpus(predictions, config):
     controler = types.SimpleNamespace(
         config=config, corpus=corpus, _repertoire_cache={},
         preprocess_done=True, fit_done=True, eval_done=True, export_done=True,
-        compute_classes=lambda: None,
+        compute_classes=lambda: None, clear_repertoire_cache=lambda: None,
     )
 
     before, after = Controler.segment_syllables(controler)

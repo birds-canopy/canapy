@@ -5,10 +5,11 @@ import logging
 import shutil
 from pathlib import Path
 from typing import Dict, Optional, List, Mapping
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 import os
 import attr
 import joblib
+import matplotlib.pyplot as plt
 import pandas as pd
 import panel
 
@@ -48,6 +49,10 @@ def _sort_annotators(annotators: List):
 
 
 VALID_STEPS = {"home", "preprocess", "train", "eval", "export", "annotate", "loaddata", "settings"}
+
+# how many repertoire samples stay in memory. Each holds a matplotlib figure
+# and two audio arrays, so this caps what paging through a class retains.
+REPERTOIRE_CACHE_SAMPLES = 120
 
 # rebuilt from the annotations at training time, so a correction invalidates
 # them. `syn_mfcc` is not here: it is per file and does not depend on labels.
@@ -111,7 +116,7 @@ class Controler:
     _classes: Optional[List[str]] = attr.field(alias="_classes", default=None)
     _external_accum: Optional[Dict[str, Corpus]] = attr.field(factory=dict, init=False)
     _external_vocab: Optional[List[str]] = attr.field(default=None, init=False)
-    _repertoire_cache: Dict = attr.field(factory=dict, init=False)
+    _repertoire_cache: Dict = attr.field(factory=OrderedDict, init=False)
     _settings_return_step: Optional[str] = attr.field(alias="_settings_return_step", default="home")
     fit_done: bool = attr.field(default=False)
     eval_done: bool = attr.field(default=False)
@@ -500,7 +505,7 @@ class Controler:
         )
         self.corpus.config = self.config
 
-        self._repertoire_cache.clear()
+        self.clear_repertoire_cache()
         self.preprocess_done = False
         self.fit_done = False
         self.eval_done = False
@@ -555,7 +560,7 @@ class Controler:
         length depends on n_mfcc × len(audio_features) — changing either would cause
         a shape mismatch at fit time if the model is not rebuilt.
         """
-        self._repertoire_cache.clear()
+        self.clear_repertoire_cache()
         self.preprocess_done = False
         self.fit_done = False
         self.eval_done = False
@@ -825,34 +830,18 @@ class Controler:
         )
         if cache_key in self._repertoire_cache:
             logger.info(f"Repertoire cache hit: {cache_key[0]}")
+            self._repertoire_cache.move_to_end(cache_key)
             return self._repertoire_cache[cache_key]
         logger.info(
             f"Loading repertoire samples for label(s): {selected_samples.label.unique()}"
         )
-        audio_conf = self.config.transforms.audio
-        df = self.corpus.dataset
-        silence_tag = self.config.transforms.annots.silence_tag
-        non_sil = df[df["label"] != silence_tag]
-        seg_durs = non_sil["offset_s"] - non_sil["onset_s"]
-        x_tick_ref_s = float(seg_durs[seg_durs > 0].max()) if not seg_durs.empty else 1.0
+        x_tick_ref_s = self._segment_tick_reference()
         specs = [
-            plot_segment_melspectrogram(
-                s.notated_path,
-                s.onset_s,
-                s.offset_s,
-                sampling_rate=audio_conf.sampling_rate,
-                hop_length=audio_conf.hop_length,
-                n_fft=audio_conf.n_fft,
-                win_length=audio_conf.win_length,
-                fmin=audio_conf.fmin,
-                fmax=audio_conf.fmax,
-                return_audio=True,
-                show_ticks=True,
-                x_tick_ref_s=x_tick_ref_s,
-            )
+            self.render_segment(s.notated_path, s.onset_s, s.offset_s, x_tick_ref_s)
             for s in selected_samples.itertuples()
         ]
         self._repertoire_cache[cache_key] = specs
+        self._evict_repertoire_cache()
         return specs
 
     def _drop_stale_training_resources(self):
@@ -875,6 +864,56 @@ class Controler:
             del self.corpus.data_resources[name]
         if stale:
             logger.info(f"Dropped stale training resources: {stale}")
+
+    def _segment_tick_reference(self):
+        """Longest annotated segment, so every thumbnail shares a time scale."""
+        df = self.corpus.dataset
+        silence_tag = self.config.transforms.annots.silence_tag
+        non_sil = df[df["label"] != silence_tag]
+        durations = non_sil["offset_s"] - non_sil["onset_s"]
+        return float(durations[durations > 0].max()) if not durations.empty else 1.0
+
+    def render_segment(self, notated_path, onset_s, offset_s, x_tick_ref_s=None):
+        """One repertoire thumbnail: the figure, the context audio, the segment."""
+        audio_conf = self.config.transforms.audio
+        return plot_segment_melspectrogram(
+            notated_path,
+            onset_s,
+            offset_s,
+            sampling_rate=audio_conf.sampling_rate,
+            hop_length=audio_conf.hop_length,
+            n_fft=audio_conf.n_fft,
+            win_length=audio_conf.win_length,
+            fmin=audio_conf.fmin,
+            fmax=audio_conf.fmax,
+            return_audio=True,
+            show_ticks=True,
+            x_tick_ref_s=(self._segment_tick_reference()
+                          if x_tick_ref_s is None else x_tick_ref_s),
+        )
+
+    def clear_repertoire_cache(self):
+        """Empty the cache and release the figures it holds."""
+        for specs in self._repertoire_cache.values():
+            for spec in specs:
+                plt.close(spec[0])
+        self._repertoire_cache.clear()
+
+    def _evict_repertoire_cache(self):
+        """Drop the least recently used pages.
+
+        Paging through a whole class caches one entry per page, each holding a
+        matplotlib figure and two audio arrays per sample, so without a cap the
+        cache grows with every page visited. Dropping the entry is what frees
+        them: ``plots/base.py`` builds its figures directly rather than through
+        pyplot, so the ``plt.close`` below only matters should that change.
+        """
+        held = sum(len(specs) for specs in self._repertoire_cache.values())
+        while held > REPERTOIRE_CACHE_SAMPLES and len(self._repertoire_cache) > 1:
+            _, specs = self._repertoire_cache.popitem(last=False)
+            for spec in specs:
+                plt.close(spec[0])
+            held -= len(specs)
 
     def load_external_corpus(self, folder: str) -> "Corpus":
         logger.info(f"Loading external corpus from {folder}")

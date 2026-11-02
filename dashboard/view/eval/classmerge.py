@@ -406,7 +406,7 @@ class RepertoireView(SubDash):
     def update_classes(self):
         new_classes = sorted(lbl for lbl in self.controler.corpus.dataset["label"].unique() if lbl != self.controler.config.transforms.annots.silence_tag)
         self.registry.clean()
-        self.controler._repertoire_cache.clear()
+        self.controler.clear_repertoire_cache()
         self.select_left.options = new_classes
         self._left_col[2] = self._placeholder()
         if hasattr(self, 'select_right'):

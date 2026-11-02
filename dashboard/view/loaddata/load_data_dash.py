@@ -572,7 +572,7 @@ class LoadDataDashboard(SubDash):
             self.controler.eval_done = False
             self.controler.export_done = False
             self.controler.preprocess_done = False
-            self.controler._repertoire_cache.clear()
+            self.controler.clear_repertoire_cache()
             self.controler._audio_params_dirty = False
             self.controler._settings_dirty = False
             self.controler._config_display_name = None
