@@ -1301,7 +1301,7 @@ class Controler:
             shutil.rmtree(optim_spec_dir, ignore_errors=True)
 
         if not best_params:
-            logger.warning(
+            logger.error(
                 "Optimization returned no results — subprocess may have crashed or timed out."
             )
             return None

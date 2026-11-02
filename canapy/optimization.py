@@ -389,9 +389,23 @@ def objective(dataset, config, **kwargs):
             fit_esn_seq_by_seq(model, X_fit, Y_fit)
         else:
             model.fit(X_fit, Y_fit)
-        predictions = model.predict(X_val)
 
-        mse = np.mean((predictions - Y_val) ** 2)
+        # Validate sequence by sequence
+        n_val = X_val.shape[0]
+        if val_seq_lengths is not None and sum(val_seq_lengths) == n_val == Y_val.shape[0]:
+            sq_sum, n_terms, pos = 0.0, 0, 0
+            for length in val_seq_lengths:
+                model.reset()
+                pred = np.asarray(model.run(X_val[pos:pos + length]))
+                diff = pred - Y_val[pos:pos + length]
+                sq_sum += float((diff ** 2).sum())
+                n_terms += diff.size
+                pos += length
+            mse = sq_sum / n_terms if n_terms else float("nan")
+        else:
+            model.reset()
+            predictions = model.predict(X_val)
+            mse = np.mean((predictions - Y_val) ** 2)
 
         if np.isnan(mse) or np.isinf(mse):
             return {"loss": 1e5, "status": STATUS_FAIL}
@@ -890,4 +904,7 @@ def optimize_hyperparameters_isolated(
             if len(data) > 1:
                 logger.error(data[1])
             raise RuntimeError(data[0])
+    logger.error(
+        f"Optimization subprocess exited without a result (exitcode={p.exitcode})."
+    )
     return None
