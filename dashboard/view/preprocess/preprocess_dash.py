@@ -449,6 +449,7 @@ class PreprocessDashboard(SubDash):
                 df = self.controler.corpus.dataset
                 classes = sorted(c for c in df["label"].unique() if c != self.controler.config.transforms.annots.silence_tag)
                 total = len(classes)
+                sampling_rate = self.controler.config.transforms.audio.sampling_rate
                 for i, cls in enumerate(classes):
                     self.spec_status.object = f"Class {i + 1}/{total}: {cls}"
                     self.spec_progress.value = int(i / total * 100)
@@ -473,8 +474,16 @@ class PreprocessDashboard(SubDash):
                                     fig,
                                     format="png",
                                     tight=True,
-                                    sizing_mode="stretch_width",
-                                    height=200,
+                                    width=400,
+                                    margin=0,
+                                ),
+                                pn.pane.Audio(
+                                    specs[0][2],
+                                    sample_rate=round(sampling_rate),
+                                    height=30,
+                                    width=300,
+                                    align="center",
+                                    margin=(6, 0, 4, 0),
                                 ),
                                 styles={
                                     "border": "1px solid #e5e7eb",
