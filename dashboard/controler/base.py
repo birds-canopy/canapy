@@ -49,6 +49,12 @@ def _sort_annotators(annotators: List):
 
 VALID_STEPS = {"home", "preprocess", "train", "eval", "export", "annotate", "loaddata", "settings"}
 
+# rebuilt from the annotations at training time, so a correction invalidates
+# them. `syn_mfcc` is not here: it is per file and does not depend on labels.
+TRAINING_DERIVED_RESOURCES = (
+    "dataset", "balanced_dataset", "balanced_dataset-train", "mfcc_dataset",
+)
+
 # Read-only config/ directory shipped inside the package (presets + defaults).
 # Used as a fallback when no working directory has been selected (e.g. headless CLI).
 _PACKAGE_CONFIG_DIR = Path(__file__).resolve().parents[2] / "config"
@@ -454,6 +460,7 @@ class Controler:
                     f"located in the current corpus and were skipped: {unresolved}"
                 )
 
+        self._drop_stale_training_resources()
         self.compute_classes()
         logger.info(f"Applied live corrections ({target}) and updated class registry.")
 
@@ -466,6 +473,7 @@ class Controler:
             annot_corrections=annot_corrections,
             checkpoint=True,
         )
+        self._drop_stale_training_resources()
         logger.info(
             f"Applied corrections on {self.corpus}:"
             f"\nClass merge:\n{class_corrections}"
@@ -846,6 +854,27 @@ class Controler:
         ]
         self._repertoire_cache[cache_key] = specs
         return specs
+
+    def _drop_stale_training_resources(self):
+        """Forget what was derived from the annotations before they changed.
+
+        ``clone_with_df`` carries data resources over, filtering them by file
+        only, and ``prepare_dataset_for_training`` returns the corpus untouched
+        as soon as a ``dataset`` resource is there. A correction would
+        therefore train on the annotations as they were before it: same labels,
+        same bounds, same score to five decimals.
+
+        The raw MFCCs are kept. They are computed per file and know nothing of
+        the annotations, so a correction leaves them valid.
+        """
+        if self.corpus is None:
+            return
+        stale = [name for name in TRAINING_DERIVED_RESOURCES
+                 if name in self.corpus.data_resources]
+        for name in stale:
+            del self.corpus.data_resources[name]
+        if stale:
+            logger.info(f"Dropped stale training resources: {stale}")
 
     def load_external_corpus(self, folder: str) -> "Corpus":
         logger.info(f"Loading external corpus from {folder}")
