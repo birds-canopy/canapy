@@ -10,6 +10,7 @@ from .otsu import otsu, otsu_threshold
 
 logger = logging.getLogger("canapy")
 
+# fallback only: `segmentation_params` reads the band off fmin/fmax
 BAND = (1500.0, 8000.0)
 HOP = 0.0005
 MIN_SYLLABLE_DURATION = 0.004

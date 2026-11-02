@@ -1,3 +1,4 @@
+# Author : Axel Arnaud
 # Licence: BSD-3-Clause
 """Moving a whole corpus from phrase-level to syllable-level annotation."""
 import logging
@@ -23,6 +24,16 @@ SEGMENTED_MARKER = "syllable_segmented"
 SYLLABLE_SCALE = 0.01
 
 
+def default_band(audio):
+    """The band the features already analyse, which is where the song is.
+    """
+    fmin = getattr(audio, "fmin", None)
+    fmax = getattr(audio, "fmax", None)
+    if fmin is None or fmax is None or not 0 <= float(fmin) < float(fmax):
+        return segmenter.BAND
+    return (float(fmin), float(fmax))
+
+
 def segmentation_params(config):
     """Segmentation parameters, falling back to the module defaults.
 
@@ -32,10 +43,11 @@ def segmentation_params(config):
     section = getattr(config, "segmentation", None) or {}
 
     wiener_max = section.get("wiener_max", segmenter.WIENER_MAX)
-    band = section.get("band", segmenter.BAND)
 
-    annots = getattr(config, "transforms", None)
-    annots = getattr(annots, "annots", None) if annots is not None else None
+    transforms = getattr(config, "transforms", None)
+    annots = getattr(transforms, "annots", None) if transforms is not None else None
+    audio = getattr(transforms, "audio", None) if transforms is not None else None
+    band = section.get("band") or default_band(audio)
 
     return dict(
         min_syllable_duration=section.get(

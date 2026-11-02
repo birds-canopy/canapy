@@ -5,6 +5,7 @@ import logging
 import math
 from pathlib import Path
 import panel as pn
+from canapy.segmentation.corpus import default_band
 from ..helpers import SubDash, SideBar, pick_file, custom_tooltip
 
 
@@ -94,9 +95,10 @@ PARAM_HELP = {
         "resists the octave errors a single phrase can make."
     ),
     "seg_band": (
-        "Frequency band the segmentation reads its energy from. Below roughly "
-        "1500 Hz on cage recordings there is only background hum, which raises "
-        "the floor and hides the silences between syllables."
+        "Frequency band the segmentation reads its energy from. It defaults to "
+        "fmin and fmax, the band the features already analyse. Raise the lower "
+        "edge on a noisy recording: background hum raises the floor and hides "
+        "the silences between syllables."
     ),
     "min_syllable_duration": (
         "Shortest sound the segmentation keeps. Anything briefer is discarded "
@@ -499,7 +501,10 @@ class SettingsDashboard(SubDash):
             value=bool(_seg.get("pool_period", True)),
             sizing_mode="stretch_width",
         )
-        _band = _seg.get("band", [1500, 8000])
+        # the same default the segmentation would derive, so that saving the
+        # page does not freeze a band the audio settings would have moved
+        _band = _seg.get("band") or default_band(
+            getattr(getattr(cfg, "transforms", None), "audio", None))
         self.seg_band_min_input = pn.widgets.IntInput(
             value=int(_band[0]), start=0, step=50, sizing_mode="stretch_width",
         )
