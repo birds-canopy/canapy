@@ -25,7 +25,8 @@ import panel as pn
 import soundfile as sf
 from scipy.signal import stft
 
-from canapy.segmentation import segment_signal, segmentation_params, pools_period
+from canapy.segmentation import (otsu, segment_signal, segmentation_params,
+                                 pools_period)
 from canapy.segmentation.corpus import untouched_labels
 from canapy.segmentation.features import contours
 from canapy.segmentation.grouping import estimate, pool_by_label
@@ -36,11 +37,14 @@ PREVIEW_MIN_SYLLABLES = 3
 PHRASES_TRIED = 12
 # how many phrases of a label the preview pools a period over
 POOLED_PREVIEW = 30
-# how many phrases are laid out at once when a whole label is inspected
-OVERVIEW_PHRASES = 24
+# how many samples one page of the whole-label view lays out
+PAGE_SIZE = 25
 OVERVIEW_ROW_IN = 0.85
 PHRASE_COLOUR = "#60a5fa"
 SYLLABLE_COLOUR = "#4ade80"
+ELEMENT_COLOUR = "#9ca3af"
+ENERGY_COLOUR = "#374151"
+THRESHOLD_COLOUR = "#f97316"
 # extremes make poor examples: too short to split, too long to read
 DURATION_QUANTILES = (0.10, 0.90)
 SPECTROGRAM_NPERSEG = 512
@@ -84,22 +88,28 @@ SEGMENTATION_CSS = """
 pn.config.raw_css.append(SEGMENTATION_CSS)
 
 LEAD_TEXT = (
-    "Splits each predicted phrase into the syllables it contains, keeping the "
-    "phrase label on each."
+    "Model predictions are phrases: one annotation covering a whole repeated "
+    "series. This splits each phrase into the sounds inside it, and keeps the "
+    "phrase label on every piece."
 )
 
 DETAILS_TEXT = (
-    "This is built for species whose vocalisations are made of repetitions, "
-    "such as canaries, zebra finches and humpback whales, where a phrase is "
-    "one syllable type repeated, or a motif repeated. A phrase that holds no "
-    "repetition is returned untouched.<br><br>"
-    "An <b>acoustic element</b> is every sound set apart by a silence. "
-    "A <b>repeated unit</b> is one full cycle of the repetition, elements "
-    "included. On a hierarchical phrase the first finds two to three times as "
-    "many syllables as the second.<br><br>"
-    "<b>Export Segmented Annotations</b> then writes both levels: the phrases "
-    "the models predicted, and their segmented version. Re-importing the "
-    "segmented output as a corpus requires lowering "
+    "<b>When it applies.</b> Songs built on repetition, such as canaries, "
+    "zebra finches and humpback whales, where a phrase is one syllable type, "
+    "or one motif, repeated. A phrase that holds no repetition is returned "
+    "untouched.<br><br>"
+    "<b>How it works.</b> An Otsu threshold on the amplitude of each sample "
+    "separates silence from vocalisation, which gives the acoustic elements. "
+    "Grouping by repeated unit adds a step: the duration of one repetition is "
+    "measured by autocorrelation of the sample, and the elements are grouped "
+    "one unit per cycle. On a hierarchical phrase that finds two to three "
+    "times fewer syllables.<br><br>"
+    "<b>Reading the preview.</b> Top, the phrase as predicted; middle, the "
+    "same phrase segmented; bottom, the amplitude with the threshold that "
+    "placed the boundaries.<br><br>"
+    "<b>Export.</b> <b>Export Segmented Annotations</b> writes both levels: "
+    "the phrases the models predicted, and their segmented version. "
+    "Re-importing the segmented output as a corpus requires lowering "
     "<code>min_label_duration</code>, otherwise postprocessing merges the "
     "syllables back into phrases."
 )
@@ -122,8 +132,8 @@ TARGET_HELP = (
 )
 
 POOL_HELP = (
-    "Estimates the period across every phrase carrying the label. Unchecked, "
-    "each phrase is measured on its own."
+    "Measures the repetition period over every sample carrying the label. "
+    "Unchecked, each sample is measured on its own."
 )
 
 DURATION_HELP = "Shorter sounds are discarded as clicks rather than syllables."
@@ -281,20 +291,25 @@ def phrase_for_label(candidates, label, params, pooled):
     return fallback
 
 
-def phrases_of_label(candidates, label, params, pooled, limit=OVERVIEW_PHRASES):
-    """Load and segment up to `limit` phrases of a label, longest first."""
+def phrases_of_label(candidates, label, params, pooled, offset=0, limit=PAGE_SIZE):
+    """One page of a label's samples, longest first, with their segmentation.
+
+    Returns ``(examples, total)``; the total is how many samples the label
+    holds, which is what the pager counts pages against.
+    """
     group = candidates[candidates["label"].astype(str) == str(label)]
-    group = group.sort_values("duration", ascending=False).head(limit)
+    group = group.sort_values("duration", ascending=False)
+    total = len(group)
 
     examples = []
-    for _, row in group.iterrows():
+    for _, row in group.iloc[offset: offset + limit].iterrows():
         example = load_phrase(row)
         if example is None:
             continue
         segments, _ = segment_signal(example["signal"], example["sr"], **params,
                                      period=pooled.get("period"))
         examples.append({**example, "segments": segments})
-    return examples
+    return examples, total
 
 
 def _spectrogram(signal, sr):
@@ -310,16 +325,61 @@ def _spectrogram(signal, sr):
     return freqs[keep], times, db[keep] - db.max()
 
 
-def draw_example(example, note=""):
+def amplitude_trace(example, params):
+    """The contour the segmentation decides on: band energy and its threshold.
+
+    ``elements`` is empty unless the segments are grouped units, in which case
+    it carries the elements underneath them.
+    """
+    times, _, energy_db, _ = contours(example["signal"], example["sr"],
+                                      band=params["band"], hop=params["hop"])
+    threshold, _ = otsu(energy_db)
+
+    elements = []
+    if params.get("group_syllables"):
+        elements, _ = segment_signal(example["signal"], example["sr"],
+                                     **{**params, "group_syllables": False})
+    return dict(times=times[:len(energy_db)], db=energy_db,
+                threshold=threshold, elements=elements)
+
+
+def draw_amplitude(ax, example, trace):
+    """The energy contour, its threshold, and the segments read off them."""
+    ax.plot(trace["times"], trace["db"], color=ENERGY_COLOUR, lw=0.7)
+    ax.axhline(trace["threshold"], color=THRESHOLD_COLOUR, lw=0.9, ls="--")
+    ax.text(0.995, trace["threshold"], "Otsu threshold ",
+            transform=ax.get_yaxis_transform(), ha="right", va="bottom",
+            fontsize=6.5, color=THRESHOLD_COLOUR,
+            bbox=dict(boxstyle="square,pad=0.1", facecolor="white",
+                      edgecolor="none", alpha=0.75))
+
+    for start, end in example["segments"]:
+        ax.axvspan(start, end, color=SYLLABLE_COLOUR, alpha=0.20, lw=0)
+    # the elements the units were built from, when they are not the units
+    for start, end in trace["elements"]:
+        for edge in (start, end):
+            ax.axvline(edge, color=ELEMENT_COLOUR, lw=0.6, ls=":")
+
+    ax.set_xlim(0, example["duration"])
+    ax.set_ylabel("dB", fontsize=8)
+    ax.tick_params(labelsize=7)
+
+
+def draw_example(example, note="", params=None):
     """Before / after strips: one phrase annotation, then its syllables.
 
     ``note`` names the settings that produced the lower strip, so that two
     pictures taken with different ones can be told apart.
     """
-    fig, axes = plt.subplots(2, 1, figsize=(9, 3.8), sharex=True)
+    trace = amplitude_trace(example, params) if params else None
+    rows = 3 if trace else 2
+    fig, axes = plt.subplots(
+        rows, 1, figsize=(9, 3.8 if trace is None else 4.7), sharex=True,
+        gridspec_kw=dict(height_ratios=[1, 1, 0.55][:rows]),
+    )
     freqs, times, db = _spectrogram(example["signal"], example["sr"])
 
-    for ax in axes:
+    for ax in axes[:2]:
         ax.pcolormesh(times, freqs / 1000, db, cmap="magma",
                       vmin=SPECTROGRAM_FLOOR_DB, vmax=0.0, shading="auto",
                       rasterized=True)
@@ -348,14 +408,16 @@ def draw_example(example, note=""):
         f"segmented, {len(example['segments'])} annotations, same label"
         + (f"  ({note})" if note else ""),
         fontsize=9, loc="left", color="#374151")
-    axes[1].set_xlabel("seconds", fontsize=8)
+    if trace:
+        draw_amplitude(axes[2], example, trace)
+    axes[-1].set_xlabel("seconds", fontsize=8)
 
     fig.tight_layout()
     return fig
 
 
-def draw_overview(examples, label, pooled):
-    """Every phrase of a label, stacked, with its segmentation."""
+def draw_overview(examples, label, pooled, first=1, total=None):
+    """One page of a label's samples, stacked, with their segmentation."""
     rows = len(examples)
     fig, axes = plt.subplots(rows, 1, figsize=(9, OVERVIEW_ROW_IN * rows + 0.8),
                              squeeze=False)
@@ -378,12 +440,14 @@ def draw_overview(examples, label, pooled):
         ax.text(1.004, 0.5, f"{len(example['segments'])}", transform=ax.transAxes,
                 va="center", fontsize=7, fontweight="bold", color="#374151")
 
-    title = f"{label}, {rows} phrases. The count on the right is the syllables."
+    last = first + rows - 1
+    span = f"samples {first}\u2013{last}" + (f" of {total}" if total else "")
+    title = f"{label}, {span}. The count on the right is the syllables."
     period = pooled.get("period")
     if period:
         title += f" Pooled period {period * 1000:.0f} ms."
     else:
-        title += " Period measured on each phrase."
+        title += " Period measured on each sample."
     axes[0].set_title(title, fontsize=9, loc="left", color="#374151")
     axes[-1].set_xlabel("seconds", fontsize=8)
     fig.tight_layout()
@@ -406,6 +470,7 @@ class SyllableSegmentationPanel:
         self._example = None
         self._figure = None
         self._drawn = False
+        self._page = 0
         self._loading_options = False
         self._state = "waiting"
 
@@ -442,7 +507,7 @@ class SyllableSegmentationPanel:
         self.model_select.param.watch(self._on_model_change, "value")
 
         self.target_select = pn.widgets.RadioButtonGroup(
-            name="A syllable is", options=["acoustic element", "repeated unit"],
+            name="Grouping by", options=["acoustic element", "repeated unit"],
             button_type="default", button_style="outline", width=300,
         )
         self.target_select.param.watch(self._on_target_change, "value")
@@ -467,9 +532,19 @@ class SyllableSegmentationPanel:
         self.label_select.param.watch(self._on_label_change, "value")
 
         self.overview_toggle = pn.widgets.Checkbox(
-            name="Show every phrase of this label", value=False, width=240,
+            name="Show all samples of this label", value=False, width=240,
         )
         self.overview_toggle.param.watch(self._on_overview_change, "value")
+
+        self.prev_btn = pn.widgets.Button(name="\u2039 Prev", width=80,
+                                          button_type="default")
+        self.prev_btn.on_click(self._on_prev)
+        self.next_btn = pn.widgets.Button(name="Next \u203a", width=80,
+                                          button_type="default")
+        self.next_btn.on_click(self._on_next)
+        self.page_note = pn.pane.HTML("", margin=(6, 0, 0, 6))
+        self.page_row = pn.Row(self.prev_btn, self.next_btn, self.page_note,
+                               visible=False, margin=(2, 0, 6, 0))
 
         # a container rather than a pane: pn.pane.Matplotlib raises when its
         # model is built while it still holds no figure
@@ -482,7 +557,7 @@ class SyllableSegmentationPanel:
 
         self.settings_row = pn.Row(
             self.model_select, pn.Spacer(width=20),
-            _field("A syllable is", self.target_select, TARGET_HELP),
+            _field("Grouping by", self.target_select, TARGET_HELP),
             pn.Spacer(width=20), self.duration_input,
             pn.Spacer(width=20),
             self.pool_row,
@@ -500,6 +575,7 @@ class SyllableSegmentationPanel:
             self.settings_row,
             _section("Preview"),
             self.example_row,
+            self.page_row,
             self.preview,
             self.footnote,
             sizing_mode="stretch_width",
@@ -598,7 +674,7 @@ class SyllableSegmentationPanel:
         if not params.get("group_syllables"):
             return ""
         return ("period per label" if pools_period(self.controler.config)
-                else "period per phrase")
+                else "period per sample")
 
     # -- events -------------------------------------------------------------
     def _on_toggle(self, event):
@@ -618,6 +694,7 @@ class SyllableSegmentationPanel:
     def _on_target_change(self, event):
         if self._loading_options:
             return
+        self._page = 0
         self._write_config()
         self._sync_pool_visibility()
         # the phrase stays put: the point is to see this setting act on it
@@ -627,6 +704,7 @@ class SyllableSegmentationPanel:
     def _on_setting_change(self, event):
         if self._loading_options:
             return
+        self._page = 0
         self._write_config()
         if self.expanded.visible and self._state == "ready":
             self._draw_selected(keep_phrase=True)
@@ -636,26 +714,51 @@ class SyllableSegmentationPanel:
             return
         self._candidates = None
         self._example = None
+        self._page = 0
         self._load_options()
 
     def _on_label_change(self, event):
         if self._loading_options:
             return
+        self._page = 0
         self._draw_selected()
 
     def _on_overview_change(self, event):
+        self._page = 0
         if self.expanded.visible and self._state == "ready":
             self._draw_selected(keep_phrase=True)
+
+    def _on_prev(self, event):
+        if self._page:
+            self._page -= 1
+            self._draw_selected(keep_phrase=True)
+
+    def _on_next(self, event):
+        self._page += 1
+        self._draw_selected(keep_phrase=True)
 
     # -- preview ------------------------------------------------------------
     def _preview_corpus(self):
         return self._predictions.get(self.model_select.value)
+
+    def _show_page(self, shown, total):
+        """The pager, under the whole-label view it belongs to."""
+        first = self._page * PAGE_SIZE + 1
+        pages = max(1, -(-total // PAGE_SIZE))
+        self.prev_btn.disabled = self._page == 0
+        self.next_btn.disabled = self._page >= pages - 1
+        self.page_note.object = _note(
+            f"page {self._page + 1} of {pages} \u2014 samples {first}"
+            f"\u2013{first + shown - 1} of {total}"
+        )
+        self.page_row.visible = True
 
     def _clear_preview(self, message, colour="#6b7280"):
         if self._figure is not None:
             plt.close(self._figure)
             self._figure = None
         self.preview[:] = []
+        self.page_row.visible = False
         self.status.object = _note(message, colour) if message else ""
 
     def _set_options(self, widget, options, value):
@@ -698,6 +801,7 @@ class SyllableSegmentationPanel:
 
         label = self.label_select.value
         params = self._params()
+        self.page_row.visible = bool(self.overview_toggle.value)
         failure = None
         try:
             pooled = (pooled_for_label(self._candidates, label, params)
@@ -725,12 +829,21 @@ class SyllableSegmentationPanel:
         self.status.object = ""
 
     def _overview_figure(self, label, params, pooled):
-        examples = phrases_of_label(self._candidates, label, params, pooled)
+        examples, total = phrases_of_label(self._candidates, label, params,
+                                           pooled, offset=self._page * PAGE_SIZE)
+        # a label with fewer samples than the page we were on
+        if not examples and self._page:
+            self._page = 0
+            examples, total = phrases_of_label(self._candidates, label, params,
+                                               pooled)
         if not examples:
+            self.page_row.visible = False
             self._example = None
             return None
         self._example = examples[0]
-        return draw_overview(examples, label, pooled)
+        self._show_page(len(examples), total)
+        return draw_overview(examples, label, pooled,
+                             first=self._page * PAGE_SIZE + 1, total=total)
 
     def _single_figure(self, label, params, pooled, keep_phrase):
         if keep_phrase and self._example is not None:
@@ -743,4 +856,4 @@ class SyllableSegmentationPanel:
             self._example = phrase_for_label(self._candidates, label, params, pooled)
         if not self._example:
             return None
-        return draw_example(self._example, self._preview_note(params))
+        return draw_example(self._example, self._preview_note(params), params)

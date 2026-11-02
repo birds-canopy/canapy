@@ -1,3 +1,4 @@
+# Author : Axel Arnaud
 # Licence: BSD-3-Clause
 """Turning one phrase of song into its syllables."""
 import logging

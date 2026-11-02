@@ -90,9 +90,9 @@ PARAM_HELP = {
     ),
     "pool_period": (
         "How the repetition period is estimated, for repeated units only. The "
-        "period is a property of the label rather than of one phrase, so "
-        "pooling takes the median over every phrase carrying that label, which "
-        "resists the octave errors a single phrase can make."
+        "period is a property of the label rather than of one sample, so "
+        "pooling takes the median over every sample carrying that label, which "
+        "resists the octave errors a single sample can make."
     ),
     "seg_band": (
         "Frequency band the segmentation reads its energy from. It defaults to "
@@ -714,7 +714,7 @@ class SettingsDashboard(SubDash):
             self.advanced_annots_block,
 
             pn.pane.HTML("<div class='settings-subsection-header'>Syllable segmentation</div>"),
-            _make_param_row("A syllable is", self.group_syllables_input, "group_syllables"),
+            _make_param_row("Grouping by", self.group_syllables_input, "group_syllables"),
             _make_param_row("Period estimated", self.pool_period_input, "pool_period"),
             self.advanced_segmentation_block,
 
