@@ -10,6 +10,7 @@ from canapy.correction import make_annot_key
 
 from .classmerge import RepertoireView
 from ..helpers import SubDash, Registry, SideBar, custom_tooltip
+from ..ordering import anchor_of, anchors_of, restore_page
 
 SAMPLE_CSS = """
 .sample-card {
@@ -50,8 +51,12 @@ class SampleCorrectionDashboard(SubDash):
         self.registry = Registry()
         self.registry["sample"] = dict()
         self.registry["class"] = dict()
-        
+
         self.total_corrected = 0
+        # class being corrected, and where each class was left, so a save does
+        # not send the user back to "select a class above"
+        self._active_label = None
+        self._places = {}
 
         self.class_selectors = pn.FlexBox(justify_content='start', gap=10, align_items='center')
         self.build_class_selectors()
@@ -139,10 +144,12 @@ class SampleCorrectionDashboard(SubDash):
     def get_sample_corrector(self, label):
         if self.registry["sample"].get(label) is not None:
             return self.registry["sample"][label].layout
-        else:
-            sample_corrector = SampleCorrectorView(self, label)
-            self.registry["sample"][label] = sample_corrector
-            return sample_corrector.layout
+        anchor, previous = self._places.pop(label, (None, []))
+        sample_corrector = SampleCorrectorView(
+            self, label, anchor=anchor, previous_anchors=previous
+        )
+        self.registry["sample"][label] = sample_corrector
+        return sample_corrector.layout
 
     def highlight_selection(self, active_label):
         for lbl, view in self.registry["class"].items():
@@ -152,6 +159,7 @@ class SampleCorrectionDashboard(SubDash):
                 view.select_btn.button_type = "default"
 
     def listen_class_selection(self, label):
+        self._active_label = label
         self.highlight_selection(label)
         self.save_msg.visible = False
         sample_corrector_layout = self.get_sample_corrector(label)
@@ -170,6 +178,12 @@ class SampleCorrectionDashboard(SubDash):
             lbl: view.num_corrected
             for lbl, view in self.registry["class"].items()
         }
+        # the corpus changed: remember which sample each class was showing, so
+        # reselecting it reopens there rather than on page 1
+        self._places = {
+            label: (view.current_anchor(), view.anchors())
+            for label, view in self.registry["sample"].items()
+        }
         self.registry["sample"] = {}
         self.build_class_selectors()
         fig, self.counts = plot_bokeh_label_count(self.controler.misclassified_segments)
@@ -181,9 +195,13 @@ class SampleCorrectionDashboard(SubDash):
                 view.num_corrected = count
                 view.count_btn.name = f"{count} / {view.num_error}"
                 view.count_btn.button_type = "success"
-        self.sample_container.objects = [
-            pn.pane.Alert("Select a class above to start correcting.", alert_type="light")
-        ]
+        # reopen the class that was being corrected, on the sample it was on
+        if self._active_label in self.registry["class"]:
+            self.listen_class_selection(self._active_label)
+        else:
+            self.sample_container.objects = [
+                pn.pane.Alert("Select a class above to start correcting.", alert_type="light")
+            ]
         self.repertoire_view.update_classes()
         self.parent.merge_dashboard.corrector.rebuild_grid()
 
@@ -238,7 +256,9 @@ class ClassSelectionView(SubDash):
 
 
 class SampleCorrectorView(SubDash):
-    def __init__(self, parent, label):
+    PAGE_SIZE = 25
+
+    def __init__(self, parent, label, anchor=None, previous_anchors=None):
         super().__init__(parent)
 
         misclass = self.controler.misclassified_segments.query("label==@label")
@@ -248,7 +268,42 @@ class SampleCorrectorView(SubDash):
         )
         self.label = label
         self.registry = Registry()
-        self.layout = self.build_display()
+        self._syncing = False
+
+        n = len(self.misclassified_segments)
+        self._n_pages = max(1, -(-n // self.PAGE_SIZE))
+        self._container = pn.Column(sizing_mode="stretch_width")
+
+        # a correction rebuilt the corpus: reopen on the sample that was on
+        # screen rather than on page 1 (see dashboard/view/ordering.py)
+        self._current_page = 0
+        if anchor is not None:
+            page, _ = restore_page(anchor, previous_anchors or [],
+                                   self.misclassified_segments, self.PAGE_SIZE)
+            self._current_page = min(page, self._n_pages - 1)
+
+        pager_kwargs = dict(
+            options=list(range(1, self._n_pages + 1)),
+            value=self._current_page + 1,
+            button_style="outline",
+            button_type="default",
+            visible=self._n_pages > 1,
+        )
+        self._pager_top = pn.widgets.RadioButtonGroup(**pager_kwargs)
+        self._pager_bot = pn.widgets.RadioButtonGroup(**pager_kwargs)
+        self._pager_top.param.watch(self._on_page_change_top, "value")
+        self._pager_bot.param.watch(self._on_page_change_bot, "value")
+
+        self.layout = pn.Column(
+            pn.Row(pn.Spacer(), self._pager_top, pn.Spacer(), sizing_mode="stretch_width"),
+            self._container,
+            pn.Row(pn.Spacer(), self._pager_bot, pn.Spacer(), sizing_mode="stretch_width"),
+            sizing_mode="stretch_width",
+        )
+        if self.misclassified_segments.empty:
+            self._container.objects = [pn.pane.Markdown("_No samples found._")]
+        else:
+            self._render_page(self._current_page)
 
     @property
     def corrections(self):
@@ -258,24 +313,52 @@ class SampleCorrectorView(SubDash):
             if display.correction != ""
         }
 
-    def build_display(self):
-        segments = self.controler.load_repertoire(self.misclassified_segments)
-        container = pn.Column(sizing_mode="stretch_width")
-        for i, (segment, (idx, annots)) in enumerate(zip(
-            segments, self.misclassified_segments.iterrows()
-        )):
-            display_num = i + 1
+    def current_anchor(self):
+        """The sample opening the current page, to come back to it later."""
+        start = self._current_page * self.PAGE_SIZE
+        if start >= len(self.misclassified_segments):
+            return None
+        return anchor_of(self.misclassified_segments.iloc[start])
+
+    def anchors(self):
+        return anchors_of(self.misclassified_segments)
+
+    def _render_page(self, page_index):
+        self._current_page = page_index
+        start = page_index * self.PAGE_SIZE
+        batch = self.misclassified_segments.iloc[start:start + self.PAGE_SIZE]
+        if batch.empty:
+            return
+        segments = self.controler.load_repertoire(batch)
+        rows = []
+        for i, (segment, (idx, annots)) in enumerate(zip(segments, batch.iterrows())):
+            display_num = start + i + 1
             # Key corrections by a stable identifier (notated_path, onset_s)
             # instead of the volatile dataset index, so they survive the
             # re-indexing caused by class merges / preprocessing.
             key = make_annot_key(annots.notated_path, annots.onset_s)
             if self.registry.get(key) is None:
-                display = SingleSampleCorrectorView(annots, segment, self.parent, display_num)
-                self.registry[key] = display
-            else:
-                display = self.registry[key]
-            container.append(display.layout)
-        return container
+                self.registry[key] = SingleSampleCorrectorView(
+                    annots, segment, self.parent, display_num
+                )
+            rows.append(self.registry[key].layout)
+        self._container.objects = rows
+
+    def _on_page_change_top(self, event):
+        if self._syncing:
+            return
+        self._syncing = True
+        self._pager_bot.value = event.new
+        self._syncing = False
+        self._render_page(event.new - 1)
+
+    def _on_page_change_bot(self, event):
+        if self._syncing:
+            return
+        self._syncing = True
+        self._pager_top.value = event.new
+        self._syncing = False
+        self._render_page(event.new - 1)
 
 
 class SingleSampleCorrectorView(SubDash):

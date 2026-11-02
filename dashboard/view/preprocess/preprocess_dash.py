@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import librosa
 from ..helpers import SubDash, Registry, SideBar, custom_tooltip, pick_directory, dataset_info_badge
+from ..ordering import anchor_of, anchors_of, restore_page
 from canapy.correction import make_annot_key
 
 pn.extension("tabulator")
@@ -708,7 +709,7 @@ class RepertoireView(SubDash):
     def update_classes(self):
         new_classes = sorted(lbl for lbl in self.controler.corpus.dataset["label"].unique() if lbl != self.controler.config.transforms.annots.silence_tag)
         self.registry.clean()
-        self.controler._repertoire_cache.clear()
+        self.controler.clear_repertoire_cache()
         self.select_left.options = new_classes
         self._left_col[2] = self._placeholder()
         if self.num_panel == 2:
@@ -804,6 +805,10 @@ class CorrectionTool(SubDash):
         self.registry["sample"] = {}
         self.registry["class"] = {}
         self.total_corrected = 0
+        # class being corrected, and where each class was left, so a save does
+        # not send the user back to "select a class above"
+        self._active_label = None
+        self._places = {}
         self.selector_area = pn.Column(
             scroll=True,
             styles={
@@ -1278,11 +1283,19 @@ class CorrectionTool(SubDash):
         # Refresh selectors and histogram
         self.all_classes = sorted(c for c in df_corpus["label"].unique() if c != self.controler.config.transforms.annots.silence_tag)
         self.registry["class"] = {}
+        self._places = {
+            label: (view.current_anchor(), view.anchors())
+            for label, view in self.registry["sample"].items()
+        }
         self.registry["sample"] = {}
         self.build_class_selectors()
-        self.sample_container.objects = [
-            pn.pane.Alert("Select a class above to inspect samples.", alert_type="light")
-        ]
+        # reopen the class that was being corrected, on the sample it was on
+        if self._active_label in self.all_classes:
+            self.listen_class_selection(self._active_label)
+        else:
+            self.sample_container.objects = [
+                pn.pane.Alert("Select a class above to inspect samples.", alert_type="light")
+            ]
         self.update_boxplot_view()
 
     def build_class_selectors(self):
@@ -1301,7 +1314,8 @@ class CorrectionTool(SubDash):
     def get_sample_list_view(self, label):
         if self.registry["sample"].get(label) is not None:
             return self.registry["sample"][label].layout
-        view = SampleListView(self, label)
+        anchor, previous = self._places.pop(label, (None, []))
+        view = SampleListView(self, label, anchor=anchor, previous_anchors=previous)
         self.registry["sample"][label] = view
         return view.layout
 
@@ -1312,6 +1326,7 @@ class CorrectionTool(SubDash):
             )
 
     def listen_class_selection(self, label):
+        self._active_label = label
         self.highlight_selection(label)
         self.save_msg.visible = False
         with pn.io.unlocked():
@@ -1360,6 +1375,12 @@ class CorrectionTool(SubDash):
             lbl: view.num_corrected
             for lbl, view in self.registry["class"].items()
         }
+        # the corpus changed: remember which sample each class was showing, so
+        # reselecting it reopens there rather than on page 1
+        self._places = {
+            label: (view.current_anchor(), view.anchors())
+            for label, view in self.registry["sample"].items()
+        }
         self.registry["sample"] = {}
         self.build_class_selectors()
         for lbl, count in saved_counts.items():
@@ -1369,9 +1390,13 @@ class CorrectionTool(SubDash):
                 view.count_btn.name = f"{count} / {view.total_count}"
                 view.count_btn.button_type = "success"
 
-        self.sample_container.objects = [
-            pn.pane.Alert("Select a class above to inspect samples.", alert_type="light")
-        ]
+        # reopen the class that was being corrected, on the sample it was on
+        if self._active_label in self.all_classes:
+            self.listen_class_selection(self._active_label)
+        else:
+            self.sample_container.objects = [
+                pn.pane.Alert("Select a class above to inspect samples.", alert_type="light")
+            ]
         self.update_boxplot_view()
         # Keep class merge grid in sync.
         self.parent.merge_tool.corrector.rebuild_grid()
@@ -1424,20 +1449,27 @@ class ClassSelectionView(SubDash):
 class SampleListView(SubDash):
     PAGE_SIZE = 25
 
-    def __init__(self, parent, label):
+    def __init__(self, parent, label, anchor=None, previous_anchors=None):
         super().__init__(parent)
         self.label = label
         self.sliced_df = self.controler.corpus.dataset.query("label==@label")
         self.registry = Registry()
-        self._current_page = 0
         self._syncing = False
         n = len(self.sliced_df)
         self._n_pages = max(1, -(-n // self.PAGE_SIZE))
         self._container = pn.Column(sizing_mode="stretch_width")
 
+        # a correction rebuilt the corpus: reopen on the sample that was on
+        # screen rather than on page 1 (see dashboard/view/ordering.py)
+        self._current_page = 0
+        if anchor is not None:
+            page, _ = restore_page(anchor, previous_anchors or [],
+                                   self.sliced_df, self.PAGE_SIZE)
+            self._current_page = min(page, self._n_pages - 1)
+
         pager_kwargs = dict(
             options=list(range(1, self._n_pages + 1)),
-            value=1,
+            value=self._current_page + 1,
             button_style="outline",
             button_type="default",
             visible=self._n_pages > 1,
@@ -1458,9 +1490,18 @@ class SampleListView(SubDash):
         if self.sliced_df.empty:
             self._container.objects = [pn.pane.Markdown("_No samples found._")]
         else:
-            self._render_page(0)
+            self._render_page(self._current_page)
+
+    def current_anchor(self):
+        """The sample opening the current page, to come back to it later."""
+        start = self._current_page * self.PAGE_SIZE
+        return anchor_of(self.sliced_df.iloc[start]) if start < len(self.sliced_df) else None
+
+    def anchors(self):
+        return anchors_of(self.sliced_df)
 
     def _render_page(self, page_index):
+        self._current_page = page_index
         start = page_index * self.PAGE_SIZE
         batch = self.sliced_df.iloc[start:start + self.PAGE_SIZE]
         if batch.empty:
