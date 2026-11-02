@@ -239,3 +239,20 @@ def test_the_controler_segments_a_session_corpus(predictions, config):
     assert (before, after) == (len(corpus.dataset), sum(n for _, n in PHRASES))
     assert config.transforms.annots.min_label_duration < 0.02
     assert not controler.fit_done
+
+
+def test_segmenting_lowers_the_silence_threshold_too(predictions, config):
+    """A silence between two syllables must survive the postprocessing."""
+    from canapy.annotator.commons.postprocess import frames_to_annots
+    from dashboard.controler.base import Controler
+
+    config.data["transforms"]["annots"]["min_silence_duration"] = 0.03
+    controler = types.SimpleNamespace(
+        config=config, corpus=predictions["syn"], _repertoire_cache={},
+        compute_classes=lambda: None, clear_repertoire_cache=lambda: None,
+    )
+
+    Controler.segment_syllables(controler)
+
+    two_syllables = ["SIL"] * 20 + ["A"] * 10 + ["SIL"] * 1 + ["A"] * 10 + ["SIL"] * 20
+    assert len(frames_to_annots(two_syllables, "foo.wav", config)) == 2

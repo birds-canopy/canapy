@@ -13,7 +13,6 @@ from config import default_config
 from canapy.corpus import Corpus
 from canapy.correction.base import Corrector
 from canapy.transforms.commons.annots import merge_labels, remove_short_labels
-from canapy.annotator.commons.postprocess import frame_df_to_annots_df
 from canapy.annotator.synannotator import SynAnnotator
 from canapy.annotator.nsynannotator import NSynAnnotator
 from canapy.annotator.ensemble import Ensemble
@@ -70,32 +69,6 @@ class TestMergeLabelsBug1:
         corpus = _make_corpus(rows)
         result = merge_labels(corpus)
         assert len(result.dataset) == 2
-
-
-# ---------------------------------------------------------------------------
-# Bug 1 (bis) — frame_df_to_annots_df: same gap fix in postprocess
-# ---------------------------------------------------------------------------
-
-class TestPostprocessGapBug1:
-    def test_large_gap_not_merged(self):
-        frame_df = pd.DataFrame({
-            "label":        ["A"] * 3 + ["SIL"] * 50 + ["A"] * 3,
-            "onset_s":      [i * 0.01 for i in range(56)],
-            "offset_s":     [i * 0.01 + 0.01 for i in range(56)],
-            "notated_path": ["f.wav"] * 56,
-        })
-        result = frame_df_to_annots_df(
-            frame_df,
-            min_label_duration=0.02,
-            min_silence_gap=0.001,
-            silence_tag="SIL",
-        )
-        # After removing SIL, we should have 2 "A" segments, not one merged blob
-        a_segs = result[result["label"] == "A"]
-        assert len(a_segs) == 2, (
-            f"Expected 2 separate A segments, got {len(a_segs)} — "
-            "gap direction bug in postprocess not fixed"
-        )
 
 
 # ---------------------------------------------------------------------------

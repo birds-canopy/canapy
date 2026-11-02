@@ -8,6 +8,9 @@ lonely_labels=["cri", "TRASH"]
 merge_consecutive_labels=true
 min_silence_gap=0.001 # seconds
 silence_tag="SIL"
+min_silence_duration=0.02 # seconds; silences shorter than this are absorbed by their neighbours
+zone_factor=2.0 # a zone of short runs becomes a segment if one label fills this times min_label_duration
+head_factor=3.0 # a first segment shorter than this times min_label_duration, near the start, is removed (0 disables it)
 
 [transforms.audio]
 audio_features=["mfcc", "delta", "delta2"]

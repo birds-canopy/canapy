@@ -196,7 +196,11 @@ PARAM_HELP = {
     "delta_padding": "Padding mode used to compute 1st-order MFCC derivatives at sequence boundaries.",
     "delta2_padding": "Padding mode used to compute 2nd-order MFCC derivatives at sequence boundaries.",
     "time_precision": "Minimum time resolution (seconds) for annotation onsets/offsets. Values are rounded to this precision.",
-    "min_label_duration": "Annotations shorter than this (seconds) are discarded during preprocessing.",
+    "min_label_duration": "Annotations shorter than this (seconds) are discarded during preprocessing. On predictions, shorter runs are shared out between their neighbours.",
+    "min_short_silence": (
+        "On predictions, silences shorter than this (seconds) are absorbed by their neighbours. "
+        "Two syllables separated by a shorter silence become one."
+    ),
     "min_silence_gap": "Silence gaps shorter than this (seconds) between two annotations are absorbed by the surrounding labels.",
     "test_ratio": (
         "Fraction of audio files held out for evaluation, between 0.01 and 0.99. Applied when moving from "
@@ -437,6 +441,11 @@ class SettingsDashboard(SubDash):
             value=float(_adv_annots.get("min_label_duration", 0.02)),
             start=0.0, step=0.005, sizing_mode="stretch_width",
         )
+        self.min_short_silence_input = pn.widgets.FloatInput(
+            value=float(_adv_annots.get(
+                "min_silence_duration", _adv_annots.get("min_label_duration", 0.02))),
+            start=0.0, step=0.005, sizing_mode="stretch_width",
+        )
         self.min_silence_gap_input = pn.widgets.FloatInput(
             value=float(_adv_annots.get("min_silence_gap", 0.001)),
             start=0.0, step=0.001, sizing_mode="stretch_width",
@@ -629,6 +638,7 @@ class SettingsDashboard(SubDash):
         self.advanced_annots_block = pn.Column(
             _make_param_row("Time precision (s)", self.time_precision_input, "time_precision"),
             _make_param_row("Min label duration (s)", self.min_label_dur_input, "min_label_duration"),
+            _make_param_row("Min silence between labels (s)", self.min_short_silence_input, "min_short_silence"),
             _make_param_row("Min silence gap (s)", self.min_silence_gap_input, "min_silence_gap"),
             _make_param_row("Lonely labels", self.lonely_labels_input, "lonely_labels"),
             _make_param_row("Silence tag", self.silence_tag_input, "silence_tag"),
@@ -1034,6 +1044,8 @@ class SettingsDashboard(SubDash):
         self.silence_tag_input.value = str(annots.get("silence_tag", "SIL"))
         self.time_precision_input.value = float(annots.get("time_precision", 0.001))
         self.min_label_dur_input.value = float(annots.get("min_label_duration", 0.02))
+        self.min_short_silence_input.value = float(
+            annots.get("min_silence_duration", annots.get("min_label_duration", 0.02)))
         self.min_silence_gap_input.value = float(annots.get("min_silence_gap", 0.001))
 
         # Training params
@@ -1128,6 +1140,7 @@ class SettingsDashboard(SubDash):
         annots_data["silence_tag"] = self.silence_tag_input.value.strip() or "SIL"
         annots_data["time_precision"] = self.time_precision_input.value
         annots_data["min_label_duration"] = self.min_label_dur_input.value
+        annots_data["min_silence_duration"] = self.min_short_silence_input.value
         annots_data["min_silence_gap"] = self.min_silence_gap_input.value
 
         # --- Syllable segmentation ---

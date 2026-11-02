@@ -385,24 +385,12 @@ class TestPostprocess:
         vocab = extract_vocab(simple_corpus, silence_tag)
         assert len(vocab) == len(set(vocab))
 
-    def test_frame_df_to_annots_df(self, simple_corpus):
-        from canapy.annotator.commons.postprocess import frame_df_to_annots_df
-        frame_df = pd.DataFrame({
-            "label":        list("aaabbbccc"),
-            "onset_s":      [0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4],
-            "offset_s":     [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45],
-            "notated_path": ["foo.wav"] * 9,
-        })
-        config = simple_corpus.config.transforms.annots
-        annots = frame_df_to_annots_df(
-            frame_df,
-            min_label_duration=config.min_label_duration,
-            min_silence_gap=config.min_silence_gap,
-            silence_tag=config.silence_tag,
-        )
+    def test_frames_to_annots(self, simple_corpus):
+        from canapy.annotator.commons.postprocess import frames_to_annots
+        annots = frames_to_annots(list("aaabbbccc"), "foo.wav", simple_corpus.config)
         assert "label" in annots.columns
         # Continuous same-label frames should be merged to fewer rows
-        assert len(annots) <= len(frame_df)
+        assert len(annots) <= 9
 
 
 # ---------------------------------------------------------------------------

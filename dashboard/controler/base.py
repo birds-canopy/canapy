@@ -500,9 +500,10 @@ class Controler:
 
         # without this the postprocessing would absorb the inter-syllable
         # silences and glue the syllables back into phrases
-        self.config.data["transforms"]["annots"]["min_label_duration"] = (
-            segmentation_params(self.config)["min_syllable_duration"]
-        )
+        min_syllable_duration = segmentation_params(self.config)["min_syllable_duration"]
+        annots = self.config.data["transforms"]["annots"]
+        annots["min_label_duration"] = min_syllable_duration
+        annots["min_silence_duration"] = min_syllable_duration
         self.corpus.config = self.config
 
         self.clear_repertoire_cache()

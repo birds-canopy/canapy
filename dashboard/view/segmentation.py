@@ -110,8 +110,8 @@ DETAILS_TEXT = (
     "<b>Export.</b> <b>Export Segmented Annotations</b> writes both levels: "
     "the phrases the models predicted, and their segmented version. "
     "Re-importing the segmented output as a corpus requires lowering "
-    "<code>min_label_duration</code>, otherwise postprocessing merges the "
-    "syllables back into phrases."
+    "<code>min_label_duration</code> and <code>min_silence_duration</code>, "
+    "otherwise postprocessing merges the syllables back into phrases."
 )
 
 WAITING_TEXT = (
