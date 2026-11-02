@@ -37,7 +37,8 @@ def seconds_to_frames(timings, frame_size, sampling_rate):
 
 
 def audio_to_frames(samples, frame_size):
-    frame_indices = np.ceil((samples + frame_size // 2) / frame_size)
+    # Frame k is labelled if its center k*frame_size falls in [onset, offset)
+    frame_indices = np.ceil(samples / frame_size)
     return frame_indices.astype(int)
 
 
