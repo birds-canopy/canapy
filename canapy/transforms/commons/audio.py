@@ -3,6 +3,7 @@
 # Copyright: Nathan Trouvain
 import logging
 import os
+import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -37,9 +38,16 @@ def ls_spec_dir(spec_directory, spec_ext):
         return pd.DataFrame(columns=["notated_path", "feature_path"])
 
     no_audio_file = []
+    unreadable = []
     spec_registry = []
     for spec_path in spec_paths:
-        spec = np.load(str(spec_path))
+        try:
+            spec = np.load(str(spec_path))
+        except Exception:
+            # a run killed mid-write leaves a truncated archive; recomputing it
+            # is cheap, letting it abort the fit is not
+            unreadable.append(spec_path)
+            continue
 
         if hasattr(spec, "keys") and "notated_path" in spec:
             notated_path = str(spec["notated_path"])
@@ -49,6 +57,13 @@ def ls_spec_dir(spec_directory, spec_ext):
         else:
             no_audio_file.append(spec_path)
             spec_registry.append({"notated_path": np.nan, "feature_path": spec_path})
+
+    if len(unreadable) > 0:
+        logger.warning(
+            f"Ignoring {len(unreadable)} unreadable feature file(s), which will "
+            f"be computed again: {', '.join(p.name for p in unreadable[:5])}"
+            + (" ..." if len(unreadable) > 5 else "")
+        )
 
     if len(no_audio_file) > 0:
         logger.warning(
@@ -212,7 +227,13 @@ def compute_mfcc(corpus, *, output_directory, resource_name, redo=False, **kwarg
         notated_name = Path(audio_path).stem
         mfcc_path = spec_path / (notated_name + corpus.spec_ext)
 
-        np.savez(str(mfcc_path), **data)
+        # written aside then moved into place: an interrupted run must leave
+        # either nothing or a complete archive, never half of one
+        with tempfile.NamedTemporaryFile(dir=spec_path, suffix=".npz",
+                                         delete=False) as tmp:
+            np.savez(tmp, **data)
+            partial = Path(tmp.name)
+        os.replace(partial, mfcc_path)
 
         cepstra_paths.append(
             {"notated_path": str(audio_path), "feature_path": str(mfcc_path)}
