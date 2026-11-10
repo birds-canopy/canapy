@@ -8,11 +8,11 @@ import panel as pn
 import pandas as pd
 import matplotlib
 matplotlib.use("agg")
-import matplotlib.pyplot as plt
 import numpy as np
 import librosa
 from ..helpers import SubDash, Registry, SideBar, custom_tooltip, pick_directory, dataset_info_badge
-from ..ordering import anchor_of, anchors_of, restore_page
+from ..ordering import anchor_of, anchors_of, locate, page_of, restore_page, ANCHOR_EXACT
+from .distribution import count_figure, distribution_figure
 from canapy.correction import make_annot_key
 
 pn.extension("tabulator")
@@ -122,6 +122,27 @@ PREPROCESS_CSS = """
     margin-bottom: 15px;
     box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
+"""
+
+# Rows are drawn after this runs and sit inside nested shadow roots.
+SCROLL_TO_FOCUSED_SAMPLE_JS = """
+function find(root) {
+    const hit = root.querySelector('.sample-focus');
+    if (hit) return hit;
+    for (const el of root.querySelectorAll('*')) {
+        if (el.shadowRoot) {
+            const nested = find(el.shadowRoot);
+            if (nested) return nested;
+        }
+    }
+    return null;
+}
+let tries = 0;
+(function attempt() {
+    const row = find(document);
+    if (row) row.scrollIntoView({behavior: 'smooth', block: 'center'});
+    else if (tries++ < 50) setTimeout(attempt, 100);
+})();
 """
 
 def compute_gated_stats(y, sr, threshold_ratio=0.2):
@@ -818,6 +839,9 @@ class CorrectionTool(SubDash):
         # not send the user back to "select a class above"
         self._active_label = None
         self._places = {}
+        self._focused_row = None
+        self._scroll_request = pn.widgets.IntInput(value=0, visible=False)
+        self._scroll_request.jscallback(value=SCROLL_TO_FOCUSED_SAMPLE_JS)
         self.selector_area = pn.Column(
             scroll=True,
             styles={
@@ -894,6 +918,7 @@ class CorrectionTool(SubDash):
                 margin=(0, 0, 10, 0),
             ),
             self.sample_container,
+            self._scroll_request,
             sizing_mode="stretch_both",
         )
 
@@ -924,9 +949,7 @@ class CorrectionTool(SubDash):
         MAX_PER_PAGE = 40
         n_pages = max(1, -(-len(self.all_classes) // MAX_PER_PAGE))  # ceil div
 
-        self.plot_pane = pn.pane.Matplotlib(
-            tight=True, sizing_mode="stretch_width", min_height=250
-        )
+        self.plot_pane = pn.pane.Bokeh(sizing_mode="stretch_width", height=350)
         self.stat_selector = pn.widgets.RadioButtonGroup(
             name="Metric",
             options=["Count", "Duration", "Centroid", "Slope"],
@@ -1095,61 +1118,32 @@ class CorrectionTool(SubDash):
             df = self.controler.corpus.dataset
 
             title_suffix = f" (page {page_index + 1}/{n_pages})" if n_pages > 1 else ""
-            fig, ax = plt.subplots(figsize=(6, 4))
-
             if metric == "Count":
                 counts = (df[df["label"].isin(current_classes)]
                           .groupby("label").size()
                           .reindex(current_classes, fill_value=0))
-                ax.bar(current_classes, counts.values, color="#3b82f6")
-                MIN_COUNT = self.min_count_input.value
-                ax.axhline(
-                    y=MIN_COUNT, color="red", linestyle="--", linewidth=1.5,
-                    label=f"Minimal fitting threshold ({MIN_COUNT} samples)",
+                fig = count_figure(
+                    current_classes, counts.values, self.min_count_input.value,
+                    f"Count by classes{title_suffix}",
                 )
-                ax.legend(fontsize=8, loc="upper right")
-                ax.set_ylabel("Count", fontsize=9)
-                ax.set_title(f"Count by classes {title_suffix}", fontsize=10)
             else:
-                temp_df = df[df["label"].isin(current_classes)].copy()
+                frame = df[df["label"].isin(current_classes)]
                 if metric == "Duration":
-                    if "duration" not in temp_df.columns:
-                        temp_df["duration"] = temp_df["offset_s"] - temp_df["onset_s"]
-                    data = [temp_df[temp_df["label"] == c]["duration"].values for c in current_classes]
-                    y_label = "Time (s)"
+                    col, y_label = "duration", "Time (s)"
+                    frame = frame.assign(duration=frame["offset_s"] - frame["onset_s"])
                 elif metric == "Centroid":
-                    col = "centroid"
-                    data = [temp_df[temp_df["label"] == c][col].dropna().values
-                            if col in temp_df.columns else []
-                            for c in current_classes]
-                    y_label = "Frequency (Hz)"
-                else:  # Slope
-                    col = "slope"
-                    data = [temp_df[temp_df["label"] == c][col].dropna().values
-                            if col in temp_df.columns else []
-                            for c in current_classes]
-                    y_label = "Mean Slope (Hz/s)"
-
-                has_data = any(len(d) > 0 for d in data)
-                if has_data:
-                    ax.boxplot(
-                        data, labels=current_classes, patch_artist=True,
-                        boxprops=dict(facecolor="#3b82f6", color="#1f2937"),
-                        medianprops=dict(color="white"),
-                    )
+                    col, y_label = "centroid", "Frequency (Hz)"
                 else:
-                    if metric != "Duration":
-                        ax.text(0.5, 0.5, "Click on 'Compute Stats' to display",
-                                ha="center", va="center", transform=ax.transAxes, color="gray")
-                    ax.set_xticks(range(len(current_classes)))
-                    ax.set_xticklabels(current_classes)
-                ax.set_ylabel(y_label, fontsize=9)
-                ax.set_title(f"{metric} Distribution{title_suffix}", fontsize=10)
+                    col, y_label = "slope", "Mean Slope (Hz/s)"
+                if col not in frame.columns:
+                    frame = frame.assign(**{col: np.nan})
+                title = f"{metric} Distribution{title_suffix}"
+                if frame[col].notna().sum() == 0 and metric != "Duration":
+                    title += ": click on 'Compute Stats' to display"
+                fig = distribution_figure(
+                    frame, col, current_classes, y_label, title, self.open_sample,
+                )
 
-            ax.tick_params(axis="x", rotation=90 if len(current_classes) > 10 else 45, labelsize=8)
-            ax.spines["top"].set_visible(False)
-            ax.spines["right"].set_visible(False)
-            plt.tight_layout()
             self.plot_pane.object = fig
         finally:
             self._updating_view = False
@@ -1346,6 +1340,17 @@ class CorrectionTool(SubDash):
         view_layout = self.get_sample_list_view(label)
         self.sample_container.objects = [view_layout]
 
+    def open_sample(self, label, key):
+        """Open the class of a sample on its page, and bring the sample into view."""
+        self.listen_class_selection(label)
+        row = self.registry["sample"][label].show_sample(key)
+        if self._focused_row is not None:
+            self._focused_row.set_focused(False)
+        self._focused_row = row
+        if row is not None:
+            row.set_focused(True)
+            self._scroll_request.value += 1
+
     def listen_correction(self, label, increment):
         self.registry["class"][label].receive_correction(increment)
         self.total_corrected += increment
@@ -1509,6 +1514,14 @@ class SampleListView(SubDash):
     def anchors(self):
         return anchors_of(self.sliced_df)
 
+    def show_sample(self, key):
+        """Turn to the page of a sample; returns its row, None if it is gone."""
+        position, status = locate(key, [], self.sliced_df)
+        if status != ANCHOR_EXACT:
+            return None
+        self._pager_top.value = page_of(position, self.PAGE_SIZE) + 1
+        return self.registry[key]
+
     def _render_page(self, page_index):
         self._current_page = page_index
         start = page_index * self.PAGE_SIZE
@@ -1639,6 +1652,10 @@ class SingleSampleRow(SubDash):
             sizing_mode="stretch_width",
             align="center",
         )
+
+    def set_focused(self, focused):
+        self.layout.css_classes = ["sample-card", "sample-focus"] if focused else ["sample-card"]
+        self.layout.styles = {"outline": "3px solid #f59e0b"} if focused else {}
 
     @property
     def correction(self):
