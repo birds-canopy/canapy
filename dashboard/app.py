@@ -76,6 +76,7 @@ class CanapyDashboard(pn.viewable.Viewer):
         }
 
         self.subdash = None
+        self._kept_views = {}
         self.current_view = pn.Row(
             pn.Spacer(sizing_mode="stretch_both"), sizing_mode="stretch_both"
         )
@@ -86,11 +87,28 @@ class CanapyDashboard(pn.viewable.Viewer):
 
     def switch_panel(self):
         Registry.clean_all()
-        self.subdash = self.views[self.controler.step](self)
+        self.subdash = self._view_for(self.controler.step)
         self.current_view[0] = self.subdash.layout
 
         if self.controler.step == "export" and not self.controler.export_done:
             self.subdash.begin()
+
+    def _view_for(self, step):
+        """Build the page, or reuse it when nothing it was built from changed.
+
+        Only views defining ``dependencies(controler)`` are kept.
+        """
+        view_cls = self.views[step]
+        if not hasattr(view_cls, "dependencies"):
+            return view_cls(self)
+        deps = view_cls.dependencies(self.controler)
+        cached = self._kept_views.get(step)
+        if cached is not None and cached[0] == deps:
+            cached[1].refresh()
+            return cached[1]
+        view = view_cls(self)
+        self._kept_views[step] = (deps, view)
+        return view
 
     def switch_to_load_data(self):
         self.controler._step = "loaddata"

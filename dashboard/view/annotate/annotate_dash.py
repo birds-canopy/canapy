@@ -1,6 +1,7 @@
 # Author: Axel Arnaud
 # Licence: BSD-3-Clause
 # Copyright: Axel Arnaud
+import json
 import logging
 import threading
 import time
@@ -72,6 +73,35 @@ def _set_status(obj, status, duration=0.0):
 
 
 class AnnotateDashboard(SubDash):
+    @staticmethod
+    def dependencies(controler):
+        """What the page is built from; the app keeps the page while this holds.
+
+        The segmentation section is left out: the page writes it itself.
+        """
+        config = getattr(controler, "config", None)
+        config_data = {} if config is None else {
+            k: v for k, v in config.data.items() if k != "segmentation"
+        }
+        model_root = getattr(controler, "model_root", None)
+        models = ()
+        if model_root is not None:
+            export_dir = Path(model_root) / "exported_models"
+            if export_dir.exists():
+                models = tuple(sorted(
+                    (str(p), p.stat().st_mtime_ns) for p in export_dir.rglob("*")
+                ))
+        return (
+            json.dumps(config_data, sort_keys=True, default=str),
+            str(model_root), models,
+            str(controler.audio_directory), str(controler.output_directory),
+        )
+
+    def refresh(self):
+        """Rebuild what reflects the rest of the app when the page is shown again."""
+        self.sidebar = SideBar(self, "Annotation")
+        self.layout[0] = self.sidebar
+
     def __init__(self, parent):
         super().__init__(parent)
         pn.config.raw_css.append(ANNOTATE_CSS)
