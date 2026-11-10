@@ -1,6 +1,7 @@
 # Author: Nathan Trouvain at 18/07/2023 <nathan.trouvain<at>inria.fr>
 # Licence: BSD-3-Clause
 # Copyright: Nathan Trouvain
+import logging
 import pathlib
 
 import panel as pn
@@ -11,6 +12,9 @@ from canapy.correction import make_annot_key
 from .classmerge import RepertoireView
 from ..helpers import SubDash, Registry, SideBar, custom_tooltip
 from ..ordering import anchor_of, anchors_of, restore_page
+from ..bounds_editor import MARGIN_MAX_S, MODAL_CSS, BoundsEditor
+
+logger = logging.getLogger("canapy-dashboard")
 
 SAMPLE_CSS = """
 .sample-card {
@@ -47,6 +51,11 @@ class SampleCorrectionDashboard(SubDash):
         super().__init__(parent)
 
         pn.config.raw_css.append(SAMPLE_CSS)
+        pn.config.raw_css.append(MODAL_CSS)
+
+        # mounted at the root rather than inside a card: a fixed-position
+        # overlay must not sit under an ancestor that could clip it
+        self.modal_area = pn.Column(visible=False, height=0, width=0, margin=0)
 
         self.registry = Registry()
         self.registry["sample"] = dict()
@@ -86,6 +95,7 @@ class SampleCorrectionDashboard(SubDash):
         )
 
         self.layout = pn.Column(
+            self.modal_area,
             self.bokeh_pane,
             pn.Spacer(height=20),
             pn.Column(
@@ -130,6 +140,18 @@ class SampleCorrectionDashboard(SubDash):
             ),
             sizing_mode="stretch_width",
         )
+
+    def open_modal(self, content):
+        """Show ``content`` over the page, behind a backdrop that blocks clicks."""
+        backdrop = pn.pane.HTML(
+            "<div class='bounds-backdrop'></div>", width=0, height=0, margin=0
+        )
+        self.modal_area.objects = [backdrop, content]
+        self.modal_area.visible = True
+
+    def close_modal(self):
+        self.modal_area.visible = False
+        self.modal_area.objects = []
 
     def build_class_selectors(self):
         self.class_selectors.objects = []
@@ -206,10 +228,18 @@ class SampleCorrectionDashboard(SubDash):
         self.parent.merge_dashboard.corrector.rebuild_grid()
 
     def on_click_save(self, events):
-        new_corrections = {}
+        new_corrections, new_bounds = {}, {}
         for sample_corrector in self.registry["sample"].values():
             new_corrections.update(sample_corrector.corrections)
-        self.controler.apply_live_corrections(new_corrections, "annot")
+            new_bounds.update(sample_corrector.bounds_corrections)
+        if not new_corrections and not new_bounds:
+            return
+        if new_corrections:
+            self.controler.apply_live_corrections(new_corrections, "annot")
+        # after the labels: moving an onset changes the key a label correction
+        # on the same annotation was captured under
+        if new_bounds:
+            self.controler.apply_live_corrections(new_bounds, "bounds")
         self._refresh_after_annot_save()
         self.save_msg.object = "Saved!"
         self.save_msg.visible = True
@@ -313,6 +343,14 @@ class SampleCorrectorView(SubDash):
             if display.correction != ""
         }
 
+    @property
+    def bounds_corrections(self):
+        return {
+            i: display.bounds_correction
+            for i, display in self.registry.items()
+            if display.bounds_correction is not None
+        }
+
     def current_anchor(self):
         """The sample opening the current page, to come back to it later."""
         start = self._current_page * self.PAGE_SIZE
@@ -367,11 +405,15 @@ class SingleSampleCorrectorView(SubDash):
 
         self.label = repertoire_entry.label
         self.repertoire_entry = repertoire_entry
+        # the same key the registry and the correction store use
+        self.idx = make_annot_key(repertoire_entry.notated_path, repertoire_entry.onset_s)
+        self.bounds_corrected = False
+        self.bounds_correction = None
 
         self.predictions = self.repertoire_entry.filter(regex="pred_.*")
         self.predictions.index = [p.split("_")[1] for p in self.predictions.index]
 
-        self.text_input = pn.widgets.TextInput(placeholder="Correction", width=130)
+        self.text_input = pn.widgets.TextInput(placeholder="Correction", width=130, margin=(5, 0))
         self.corrected = False
         self.text_input.param.watch(self.on_correction_notify, "value")
 
@@ -417,12 +459,32 @@ class SingleSampleCorrectorView(SubDash):
 
         self.label_status = pn.pane.Markdown("", styles={"font-size": "10px", "color": "orange"})
 
+        self.edit_btn = pn.widgets.Button(
+            name="Edit boundaries", button_type="primary",
+            width=140, height=30, margin=(4, 0, 0, 0),
+            stylesheets=["""
+                button.bk-btn {
+                    background-color: #2563eb !important;
+                    border-color: #2563eb !important;
+                    color: #ffffff !important;
+                    font-weight: 600 !important;
+                    font-size: 12px !important;
+                    border-radius: 6px !important;
+                }
+                button.bk-btn:hover { background-color: #1d4ed8 !important; }
+            """],
+        )
+        self.edit_btn.on_click(self._open_bounds_editor)
+        self.bounds_status = pn.pane.HTML("", styles={"font-size": "11px"})
+
         input_section = pn.Column(
             pn.Row(
                 pn.pane.Markdown(f"**{self.label}**", styles={'font-size': '13px', 'font-weight': '600'}, margin=(0, 5, 0, 0)),
                 self.label_status
             ),
             self.text_input,
+            self.edit_btn,
+            self.bounds_status,
             width=140,
         )
 
@@ -445,6 +507,79 @@ class SingleSampleCorrectorView(SubDash):
             flex_wrap="wrap",
             gap=10,
         )
+
+    def _open_bounds_editor(self, event):
+        """Swap the page for the editor; Validate and Cancel bring it back."""
+        try:
+            editor = BoundsEditor(
+                self.repertoire_entry, self.idx,
+                on_validate=self._commit_bounds,
+                on_cancel=self.parent.close_modal,
+                config=self.controler.config,
+                neighbours=self._neighbours(),
+            )
+        except Exception as error:
+            logger.exception("Could not open the bounds editor")
+            self.bounds_status.object = (
+                f"<span style='color:#dc2626;'>Editor error: {error}</span>"
+            )
+            return
+        self.parent.open_modal(editor.layout)
+
+    def _neighbours(self):
+        """The other annotations of the same file, read off the corpus.
+
+        The corpus rather than the misclassified segments: those hold only the
+        problematic ones, so a boundary would be placed against an incomplete
+        picture. Silence is left out, since growing a phrase into it is the
+        correction this editor exists for.
+        """
+        df = self.controler.corpus.dataset
+        entry = self.repertoire_entry
+        silence_tag = self.controler.config.transforms.annots.silence_tag
+        same_file = df[(df["notated_path"] == entry.notated_path)
+                       & (df["label"] != silence_tag)]
+        others = same_file[
+            (same_file["onset_s"] != entry.onset_s)
+            | (same_file["offset_s"] != entry.offset_s)
+        ]
+        # as far as the editor can widen its view, so a neighbour appears
+        # as soon as it comes into sight
+        near = others[(others["offset_s"] > entry.onset_s - MARGIN_MAX_S)
+                      & (others["onset_s"] < entry.offset_s + MARGIN_MAX_S)]
+        return list(near.itertuples())
+
+
+    def _refresh_thumbnail(self, onset, offset):
+        """Redraw the card with the bounds just validated.
+
+        The correction is only pending — the corpus changes on Save — so the
+        card is redrawn from the new bounds directly, rather than waiting for a
+        rebuild that would come several edits later.
+        """
+        try:
+            spec = self.controler.render_segment(
+                self.repertoire_entry.notated_path, onset, offset
+            )
+        except Exception:
+            logger.exception("Could not redraw the corrected segment")
+            return
+        self.img.object = spec[0]
+        players = [p for p in self.audio_col if isinstance(p, pn.pane.Audio)]
+        for player, audio in zip(players, (spec[1], spec[2])):
+            player.object = audio
+
+    def _commit_bounds(self, key, bounds):
+        self.bounds_correction = (float(bounds[0]), float(bounds[1]))
+        self._refresh_thumbnail(*self.bounds_correction)
+        self.bounds_status.object = (
+            f"<span style='color:#16a34a;'>bounds "
+            f"{bounds[0]:.3f}–{bounds[1]:.3f} s pending</span>"
+        )
+        if not self.bounds_corrected:
+            self.bounds_corrected = True
+            self.parent.listen_correction(self.label, increment=1)
+        self.parent.close_modal()
 
     @property
     def correction(self):

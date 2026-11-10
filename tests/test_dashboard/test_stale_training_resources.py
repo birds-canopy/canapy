@@ -33,7 +33,7 @@ def controler(config):
 
     ctl = types.SimpleNamespace(
         config=config, corpus=corpus, compute_classes=lambda: None,
-        _correction_store={"class": {}, "annot": {}},
+        _correction_store={"class": {}, "annot": {}, "bounds": {}},
         _metrics_store={"misclass": None},
     )
     for name in ("apply_live_corrections", "upload_corrections",
@@ -47,6 +47,7 @@ def _key(onset):
 
 
 @pytest.mark.parametrize("target, corrections", [
+    ("bounds", {"__key__": (0.9, 1.7)}),
     ("annot", {"__key__": "z"}),
     ("class", {"b": "a"}),
 ])
@@ -62,7 +63,7 @@ def test_every_channel_forgets_the_stale_training_data(controler, target, correc
 
 def test_the_raw_mfccs_are_kept(controler):
     # per file, and blind to the annotations: a correction leaves them valid
-    controler.apply_live_corrections({_key(1.0): "z"}, "annot")
+    controler.apply_live_corrections({_key(1.0): (0.9, 1.7)}, "bounds")
     assert "syn_mfcc" in controler.corpus.data_resources
 
 
@@ -70,21 +71,22 @@ def test_training_sees_the_correction_instead_of_the_stale_copy(controler):
     from canapy.transforms.commons.training import prepare_dataset_for_training
 
     stale = controler.corpus.data_resources["dataset"]
-    controler.apply_live_corrections({_key(1.0): "z"}, "annot")
+    controler.apply_live_corrections({_key(1.0): (0.9, 1.7)}, "bounds")
     prepared = prepare_dataset_for_training(controler.corpus)
 
     # without the invalidation this returns the corpus untouched, still
-    # carrying the label the annotation had before the correction
+    # carrying the bounds the annotation had before the correction
     assert prepared is not controler.corpus
-    assert "z" in set(prepared.dataset.label)
-    assert "b" in set(stale.label)
+    moved = prepared.dataset[prepared.dataset.label == "b"].iloc[0]
+    assert (moved.onset_s, moved.offset_s) == pytest.approx((0.9, 1.7))
+    assert stale[stale.label == "b"].iloc[0].onset_s == pytest.approx(1.0)
 
 
-def test_without_the_invalidation_training_would_see_the_old_labels(controler):
+def test_without_the_invalidation_training_would_see_the_old_bounds(controler):
     from canapy.transforms.commons.training import prepare_dataset_for_training
 
     controler._drop_stale_training_resources = lambda: None
-    controler.apply_live_corrections({_key(1.0): "z"}, "annot")
+    controler.apply_live_corrections({_key(1.0): (0.9, 1.7)}, "bounds")
 
     assert prepare_dataset_for_training(controler.corpus) is controler.corpus
 
@@ -92,5 +94,5 @@ def test_without_the_invalidation_training_would_see_the_old_labels(controler):
 def test_a_corpus_without_those_resources_is_left_alone(controler):
     for name in TRAINING_DERIVED_RESOURCES:
         del controler.corpus.data_resources[name]
-    controler.apply_live_corrections({_key(1.0): "z"}, "annot")
+    controler.apply_live_corrections({_key(1.0): (0.9, 1.7)}, "bounds")
     assert "syn_mfcc" in controler.corpus.data_resources

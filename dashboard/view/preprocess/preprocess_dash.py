@@ -13,6 +13,7 @@ import librosa
 from ..helpers import SubDash, Registry, SideBar, custom_tooltip, pick_directory, dataset_info_badge
 from ..ordering import anchor_of, anchors_of, locate, page_of, restore_page, ANCHOR_EXACT
 from .distribution import count_figure, distribution_figure
+from ..bounds_editor import MARGIN_MAX_S, MODAL_CSS, BoundsEditor
 from canapy.correction import make_annot_key
 
 pn.extension("tabulator")
@@ -189,6 +190,7 @@ class PreprocessDashboard(SubDash):
     def __init__(self, parent):
         super().__init__(parent)
         pn.config.raw_css.append(PREPROCESS_CSS)
+        pn.config.raw_css.append(MODAL_CSS)
         self.sidebar = SideBar(self, "Preprocessing", disabled=False)
         default_export_dir = str(self.controler.output_directory / "corrected_annotations")
         self.export_dir_input = pn.widgets.TextInput(
@@ -901,7 +903,11 @@ class CorrectionTool(SubDash):
             scroll=True,
             sizing_mode="stretch_both",
         )
+        # mounted at the root rather than inside the card: a fixed-position
+        # overlay must not sit under an ancestor that could clip it
+        self.modal_area = pn.Column(visible=False, height=0, width=0, margin=0)
         self.layout = pn.Column(
+            self.modal_area,
             pn.Column(
                 pn.pane.Markdown("### 1. Global Analysis & Selection", margin=(0, 0, 10, 0)),
                 self.stats_dashboard,
@@ -921,6 +927,18 @@ class CorrectionTool(SubDash):
             self._scroll_request,
             sizing_mode="stretch_both",
         )
+
+    def open_modal(self, content):
+        """Show ``content`` over the page, behind a backdrop that blocks clicks."""
+        backdrop = pn.pane.HTML(
+            "<div class='bounds-backdrop'></div>", width=0, height=0, margin=0
+        )
+        self.modal_area.objects = [backdrop, content]
+        self.modal_area.visible = True
+
+    def close_modal(self):
+        self.modal_area.visible = False
+        self.modal_area.objects = []
 
     def refresh_selectors(self):
         self.registry["class"] = {}
@@ -1416,14 +1434,21 @@ class CorrectionTool(SubDash):
         self.parent.merge_tool.corrector.rebuild_grid()
 
     def on_click_save(self, events):
-        new_corrections = {}
+        new_corrections, new_bounds = {}, {}
         for sample_view in self.registry["sample"].values():
             new_corrections.update(sample_view.corrections)
+            new_bounds.update(sample_view.bounds_corrections)
+        if not new_corrections and not new_bounds:
+            return
         if new_corrections:
             self.controler.apply_live_corrections(new_corrections, "annot")
-            self._refresh_after_annot_save()
-            self.save_msg.object = "Saved successfully!"
-            self.save_msg.visible = True
+        # after the labels: moving an onset changes the key a label correction
+        # on the same annotation was captured under
+        if new_bounds:
+            self.controler.apply_live_corrections(new_bounds, "bounds")
+        self._refresh_after_annot_save()
+        self.save_msg.object = "Saved successfully!"
+        self.save_msg.visible = True
 
 class ClassSelectionView(SubDash):
     def __init__(self, label, total_count, parent):
@@ -1563,12 +1588,23 @@ class SampleListView(SubDash):
             if display.correction != ""
         }
 
+    @property
+    def bounds_corrections(self):
+        return {
+            i: display.bounds_correction
+            for i, display in self.registry.items()
+            if display.bounds_correction is not None
+        }
+
 class SingleSampleRow(SubDash):
     def __init__(self, row_data, spec, parent, idx, display_num):
         super().__init__(parent)
         self.label = row_data.label
         self.idx = idx
+        self.row_data = row_data
         self.corrected = False
+        self.bounds_corrected = False
+        self.bounds_correction = None
         sampling_rate = round(self.controler.config.transforms.audio.sampling_rate)
 
         self.number_pane = pn.pane.Markdown(
@@ -1618,8 +1654,9 @@ class SingleSampleRow(SubDash):
                 cent_str = "Err"; slope_str = "Err"
                 logger.error(f"Error computing sample stats: {e}")
 
+        self.duration_pane = pn.pane.Markdown(f"**Duration:** {duration:.2f}s", margin=(2,0))
         self.stats_col = pn.Column(
-            pn.pane.Markdown(f"**Duration:** {duration:.2f}s", margin=(2,0)),
+            self.duration_pane,
             pn.pane.Markdown(f"**Centroid:** {cent_str}", margin=(2,0)),
             pn.pane.Markdown(f"**Slope:** {slope_str}", margin=(2,0)),
             width=120, align='center', margin=(10, 10), css_classes=['stat-box']
@@ -1632,9 +1669,27 @@ class SingleSampleRow(SubDash):
             margin=(10, 15),
         )
 
-        self.text_input = pn.widgets.TextInput(placeholder="Correction", width=140)
+        self.text_input = pn.widgets.TextInput(placeholder="Correction", width=140, margin=(5, 0))
         self.text_input.param.watch(self.on_correction_notify, "value")
         self.label_status = pn.pane.Markdown("", styles={"font-size": "11px", "color": "orange"})
+
+        self.edit_btn = pn.widgets.Button(
+            name="Edit boundaries", button_type="primary",
+            width=140, height=30, margin=(4, 0, 0, 0),
+            stylesheets=["""
+                button.bk-btn {
+                    background-color: #2563eb !important;
+                    border-color: #2563eb !important;
+                    color: #ffffff !important;
+                    font-weight: 600 !important;
+                    font-size: 12px !important;
+                    border-radius: 6px !important;
+                }
+                button.bk-btn:hover { background-color: #1d4ed8 !important; }
+            """],
+        )
+        self.edit_btn.on_click(self._open_bounds_editor)
+        self.bounds_status = pn.pane.HTML("", styles={"font-size": "11px"})
 
         input_section = pn.Column(
             pn.Row(
@@ -1642,16 +1697,98 @@ class SingleSampleRow(SubDash):
                 self.label_status
             ),
             self.text_input,
+            self.edit_btn,
+            self.bounds_status,
             width=150, align='center'
         )
 
-        self.layout = pn.Row(
+        self._card = pn.Row(
             self.number_pane, file_tooltip, self.img, self.audio_col,
             pn.Spacer(width=20), self.stats_col, pn.Spacer(width=10), input_section,
-            css_classes=['sample-card'],
             sizing_mode="stretch_width",
             align="center",
         )
+        self.layout = pn.Column(
+            self._card,
+            css_classes=['sample-card'],
+            sizing_mode="stretch_width",
+        )
+
+    def _open_bounds_editor(self, event):
+        """Swap the card for the editor; Validate and Cancel swap it back."""
+        try:
+            editor = BoundsEditor(
+                self.row_data, self.idx,
+                on_validate=self._commit_bounds,
+                on_cancel=self._close_bounds_editor,
+                config=self.controler.config,
+                neighbours=self._neighbours(),
+            )
+        except Exception as error:
+            logger.exception("Could not open the bounds editor")
+            self.bounds_status.object = (
+                f"<span style='color:#dc2626;'>Editor error: {error}</span>"
+            )
+            return
+        self.parent.open_modal(editor.layout)
+
+    def _close_bounds_editor(self):
+        self.parent.close_modal()
+
+    def _neighbours(self):
+        """The other annotations of the same file, to show and to warn about.
+
+        Silence is left out: growing a phrase into the silence beside it is the
+        correction this editor exists for, so warning about it would fire on
+        almost every move.
+        """
+        df = self.controler.corpus.dataset
+        silence_tag = self.controler.config.transforms.annots.silence_tag
+        same_file = df[(df["notated_path"] == self.row_data.notated_path)
+                       & (df["label"] != silence_tag)]
+        others = same_file[
+            (same_file["onset_s"] != self.row_data.onset_s)
+            | (same_file["offset_s"] != self.row_data.offset_s)
+        ]
+        # as far as the editor can widen its view, so a neighbour appears
+        # as soon as it comes into sight
+        window = (self.row_data.onset_s - MARGIN_MAX_S,
+                  self.row_data.offset_s + MARGIN_MAX_S)
+        near = others[(others["offset_s"] > window[0]) & (others["onset_s"] < window[1])]
+        return list(near.itertuples())
+
+
+    def _refresh_thumbnail(self, onset, offset):
+        """Redraw the card with the bounds just validated.
+
+        The correction is only pending — the corpus changes on Save — so the
+        card is redrawn from the new bounds directly, rather than waiting for a
+        rebuild that would come several edits later.
+        """
+        try:
+            spec = self.controler.render_segment(
+                self.row_data.notated_path, onset, offset
+            )
+        except Exception:
+            logger.exception("Could not redraw the corrected segment")
+            return
+        self.img.object = spec[0]
+        players = [p for p in self.audio_col if isinstance(p, pn.pane.Audio)]
+        for player, audio in zip(players, (spec[1], spec[2])):
+            player.object = audio
+
+    def _commit_bounds(self, key, bounds):
+        self.bounds_correction = (float(bounds[0]), float(bounds[1]))
+        self._refresh_thumbnail(*self.bounds_correction)
+        self.duration_pane.object = f"**Duration:** {bounds[1] - bounds[0]:.2f}s"
+        self.bounds_status.object = (
+            f"<span style='color:#16a34a;'>bounds "
+            f"{bounds[0]:.3f}–{bounds[1]:.3f} s pending</span>"
+        )
+        if not self.bounds_corrected:
+            self.bounds_corrected = True
+            self.parent.listen_correction(self.label, increment=1)
+        self._close_bounds_editor()
 
     def set_focused(self, focused):
         self.layout.css_classes = ["sample-card", "sample-focus"] if focused else ["sample-card"]

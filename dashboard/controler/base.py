@@ -15,7 +15,9 @@ import panel
 
 from canapy.corpus import Corpus
 from canapy.annotator import get_annotator, get_annotator_names, Annotator
-from canapy.correction import Corrector, match_annotation
+from canapy.correction import (
+    Corrector, apply_bounds_plan, match_annotation, plan_bounds,
+)
 from canapy.metrics import (
     sklearn_confusion_matrix,
     sklearn_classification_report,
@@ -356,7 +358,7 @@ class Controler:
             all=defaultdict(dict), train=defaultdict(dict), test=defaultdict(dict)
         )
         logger.info("Metrics and scores (re)initialized.")
-        self._correction_store = dict({"class": dict(), "annot": dict()})
+        self._correction_store = dict({"class": dict(), "annot": dict(), "bounds": dict()})
         logger.info("Current corrections (re)initialized.")
 
     def next_iter(self):
@@ -465,6 +467,22 @@ class Controler:
                     f"located in the current corpus and were skipped: {unresolved}"
                 )
 
+        elif target == "bounds":
+            time_precision = self.config.transforms.annots.time_precision
+            moves, dropped = plan_bounds(
+                self.corpus.dataset, corrections, time_precision
+            )
+            self.corpus = self.corpus.clone_with_df(
+                apply_bounds_plan(self.corpus.dataset, moves, dropped, time_precision)
+            )
+            # the eval page reads a copy of the gold rows, not a view of the
+            # corpus, so it has to be told about the same move
+            misclass = self._metrics_store.get("misclass")
+            if misclass is not None and not misclass.empty:
+                self._metrics_store["misclass"] = apply_bounds_plan(
+                    misclass, moves, dropped, time_precision
+                )
+
         self._drop_stale_training_resources()
         self.compute_classes()
         logger.info(f"Applied live corrections ({target}) and updated class registry.")
@@ -472,10 +490,12 @@ class Controler:
     def apply_corrections(self):
         class_corrections = self._correction_store["class"]
         annot_corrections = self._correction_store["annot"]
+        bounds_corrections = self._correction_store.get("bounds", {})
         self.corpus = self.corrector.correct(
             self.corpus,
             class_corrections=class_corrections,
             annot_corrections=annot_corrections,
+            bounds_corrections=bounds_corrections,
             checkpoint=True,
         )
         self._drop_stale_training_resources()
@@ -483,6 +503,7 @@ class Controler:
             f"Applied corrections on {self.corpus}:"
             f"\nClass merge:\n{class_corrections}"
             f"\nAnnotation correction:\n{annot_corrections}"
+            f"\nBounds correction:\n{bounds_corrections}"
         )
 
     def segment_syllables(self, group_syllables=None):
@@ -875,7 +896,11 @@ class Controler:
         return float(durations[durations > 0].max()) if not durations.empty else 1.0
 
     def render_segment(self, notated_path, onset_s, offset_s, x_tick_ref_s=None):
-        """One repertoire thumbnail: the figure, the context audio, the segment."""
+        """One repertoire thumbnail: the figure, the context audio, the segment.
+
+        Also called on its own when an editor moves a segment's bounds, to
+        redraw that card without waiting for the correction to be saved.
+        """
         audio_conf = self.config.transforms.audio
         return plot_segment_melspectrogram(
             notated_path,

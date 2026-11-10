@@ -282,3 +282,62 @@ def plot_segment_melspectrogram(
         )
     else:
         return fig
+
+def segment_melspectrogram_data(
+    notated_path,
+    onset_s,
+    offset_s,
+    sampling_rate=16000,
+    hop_length=0.01,
+    n_fft=2048,
+    win_length=0.02,
+    fmin=500,
+    fmax=8000,
+    margin_s=0.5,
+):
+    """Mel spectrogram around a segment, on the time axis of the file.
+
+    The sibling of ``plot_segment_melspectrogram`` for an interactive plot: it
+    returns the array rather than a figure, and its time axis is in seconds of
+    the recording, so a boundary read off the picture is already an ``onset_s``.
+
+    ``margin_s`` is the room left on each side of the segment, so a boundary
+    can be dragged outside it however long the segment is. The thumbnail
+    instead fits a fixed window, which leaves no margin at all on a segment
+    longer than that window. Clamped to the file.
+
+    Returns ``(spec, window, audio)``: the dB mel spectrogram, the window's
+    ``(start_s, end_s)``, and the audio it was computed from.
+    """
+    audio_file = pathlib.Path(notated_path)
+    if audio_file.suffix == ".npy":
+        y = np.load(str(audio_file))
+    else:
+        y, sampling_rate = lbr.load(audio_file, sr=sampling_rate)
+
+    duration_s = len(y) / sampling_rate
+    start_s = max(0.0, onset_s - float(margin_s))
+    end_s = min(duration_s, offset_s + float(margin_s))
+
+    start_audio = seconds_to_audio(start_s, sampling_rate)
+    end_audio = seconds_to_audio(end_s, sampling_rate)
+    excerpt = y[start_audio:end_audio]
+
+    hop_length_samples = seconds_to_audio(hop_length, sampling_rate)
+    win_length_samples = min(seconds_to_audio(win_length, sampling_rate), n_fft)
+
+    spec = lbr.feature.melspectrogram(
+        y=excerpt,
+        sr=sampling_rate,
+        n_fft=n_fft,
+        win_length=win_length_samples,
+        hop_length=hop_length_samples,
+        fmin=fmin,
+        fmax=fmax,
+    )
+
+    return (
+        lbr.power_to_db(spec),
+        (start_audio / sampling_rate, end_audio / sampling_rate),
+        excerpt,
+    )
