@@ -85,6 +85,18 @@ def test_silence_rows_pass_through_untouched(phrase_corpus, config):
     assert silences.iloc[0].offset_s == pytest.approx(SILENCE_S)
 
 
+def test_a_label_left_whole_is_copied_over(phrase_corpus):
+    phrase_corpus.config.data.setdefault("segmentation", {})["unsegmented_labels"] = ["B"]
+    phrases = phrase_corpus.dataset
+    result = to_syllable_level(phrase_corpus).dataset
+
+    whole = result[result.label == "B"]
+    assert len(whole) == 1
+    assert whole.iloc[0].onset_s == phrases[phrases.label == "B"].iloc[0].onset_s
+    assert whole.iloc[0].offset_s == phrases[phrases.label == "B"].iloc[0].offset_s
+    assert (result.label == "A").sum() == dict(PHRASES)["A"]
+
+
 def test_audio_resources_survive(phrase_corpus):
     phrase_corpus.register_data_resource("marker", pd.DataFrame(
         {"notated_path": phrase_corpus.dataset.notated_path.unique()}

@@ -144,6 +144,39 @@ def test_settings_reach_the_config(owner, predictions):
     assert not panel.pool_toggle.visible
 
 
+def test_a_label_can_be_left_whole(owner, predictions):
+    panel = _ready(owner, predictions)
+    label = panel.label_select.value
+    assert panel.segment_toggle.value is True
+
+    panel.segment_toggle.value = False
+    section = owner.controler.config.data["segmentation"]
+    assert section["unsegmented_labels"] == [label]
+    assert panel._example["segments"] == [(0.0, panel._example["duration"])]
+
+    other = next(l for l in panel.label_select.options if l != label)
+    panel.label_select.value = other
+    assert panel.segment_toggle.value is True
+    assert len(panel._example["segments"]) == dict(PHRASES)[other]
+
+    panel.label_select.value = label
+    assert panel.segment_toggle.value is False
+    panel.segment_toggle.value = True
+    assert section["unsegmented_labels"] == []
+    assert len(panel._example["segments"]) == dict(PHRASES)[label]
+
+
+def test_the_whole_label_view_respects_the_choice(owner, predictions):
+    owner.controler.config.data["segmentation"] = {"unsegmented_labels": ["A"]}
+    panel = _ready(owner, predictions)
+    panel.label_select.value = "A"
+    assert panel.segment_toggle.value is False
+
+    panel.overview_toggle.value = True
+    assert panel._example["segments"] == [(0.0, panel._example["duration"])]
+    assert panel._figure is not None
+
+
 def test_opening_the_panel_leaves_the_config_alone(owner):
     owner.controler.config.data["segmentation"] = {
         "group_syllables": True, "pool_period": True,

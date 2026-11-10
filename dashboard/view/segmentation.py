@@ -27,7 +27,7 @@ from scipy.signal import stft
 
 from canapy.segmentation import (otsu, segment_signal, segmentation_params,
                                  pools_period)
-from canapy.segmentation.corpus import untouched_labels
+from canapy.segmentation.corpus import unsegmented_labels, untouched_labels
 from canapy.segmentation.features import contours
 from canapy.segmentation.grouping import estimate, pool_by_label
 
@@ -135,6 +135,11 @@ POOL_HELP = (
 DURATION_HELP = "Shorter sounds are discarded as clicks rather than syllables."
 
 MODEL_HELP = "The model whose predictions are segmented, here and at export."
+
+WHOLE_HELP = (
+    "Unchecked, every phrase of this label is exported as predicted, in one "
+    "piece. For a label whose phrases are a single syllable."
+)
 
 def _toggle_btn_css(opened=False):
     angle = "90deg" if opened else "0deg"
@@ -247,13 +252,17 @@ def pooled_for_label(candidates, label, params, limit=POOLED_PREVIEW):
     return pool_by_label({str(label): estimates}).get(str(label), {})
 
 
-def phrase_for_label(candidates, label, params, pooled):
+def _whole(example):
+    return {**example, "segments": [(0.0, example["duration"])]}
+
+
+def phrase_for_label(candidates, label, params, pooled, whole=False):
     """One phrase standing for a label: median duration, and it splits.
 
     Deterministic, so the same label always opens on the same picture.
 
     The phrases nearest the median are tried first, then the rest of the label
-    in order of duration.
+    in order of duration. With ``whole``, the first readable one is kept as is.
     """
     group = candidates[candidates["label"].astype(str) == str(label)]
     if not len(group):
@@ -273,6 +282,8 @@ def phrase_for_label(candidates, label, params, pooled):
         example = load_phrase(row)
         if example is None or not len(example["signal"]):
             continue
+        if whole:
+            return _whole(example)
         segments, _ = segment_signal(example["signal"], example["sr"], **params,
                                      period=pooled.get("period"))
         example = {**example, "segments": segments}
@@ -282,7 +293,8 @@ def phrase_for_label(candidates, label, params, pooled):
     return fallback
 
 
-def phrases_of_label(candidates, label, params, pooled, offset=0, limit=PAGE_SIZE):
+def phrases_of_label(candidates, label, params, pooled, offset=0, limit=PAGE_SIZE,
+                     whole=False):
     """One page of a label's samples, longest first, with their segmentation.
 
     Returns ``(examples, total)``; the total is how many samples the label
@@ -296,6 +308,9 @@ def phrases_of_label(candidates, label, params, pooled, offset=0, limit=PAGE_SIZ
     for _, row in group.iloc[offset: offset + limit].iterrows():
         example = load_phrase(row)
         if example is None:
+            continue
+        if whole:
+            examples.append(_whole(example))
             continue
         segments, _ = segment_signal(example["signal"], example["sr"], **params,
                                      period=pooled.get("period"))
@@ -356,18 +371,21 @@ def draw_amplitude(ax, example, trace):
     ax.tick_params(labelsize=7)
 
 
-def draw_example(example, note="", params=None):
+def draw_example(example, note="", params=None, whole=False):
     """Before / after strips: one phrase annotation, then its syllables.
 
     ``note`` names the settings that produced the lower strip, so that two
-    pictures taken with different ones can be told apart.
+    pictures taken with different ones can be told apart. With ``whole``, only
+    the phrase is drawn, since that is what the export keeps.
     """
-    trace = amplitude_trace(example, params) if params else None
-    rows = 3 if trace else 2
+    trace = amplitude_trace(example, params) if params and not whole else None
+    rows = 1 if whole else 3 if trace else 2
     fig, axes = plt.subplots(
-        rows, 1, figsize=(9, 3.8 if trace is None else 4.7), sharex=True,
+        rows, 1, figsize=(9, 2.2 if whole else 3.8 if trace is None else 4.7),
+        sharex=True, squeeze=False,
         gridspec_kw=dict(height_ratios=[1, 1, 0.55][:rows]),
     )
+    axes = axes[:, 0]
     freqs, times, db = _spectrogram(example["signal"], example["sr"])
 
     for ax in axes[:2]:
@@ -391,8 +409,13 @@ def draw_example(example, note="", params=None):
                               edgecolor="none", alpha=0.85))
 
     annotate(axes[0], [(0.0, example["duration"])], PHRASE_COLOUR, 9)
-    axes[0].set_title(f"predicted, 1 annotation of {example['duration'] * 1000:.0f} ms",
+    axes[0].set_title(f"predicted, 1 annotation of {example['duration'] * 1000:.0f} ms"
+                      + (", not segmented" if whole else ""),
                       fontsize=9, loc="left", color="#374151")
+    if whole:
+        axes[-1].set_xlabel("seconds", fontsize=8)
+        fig.tight_layout()
+        return fig
 
     annotate(axes[1], example["segments"], SYLLABLE_COLOUR, 7)
     axes[1].set_title(
@@ -407,7 +430,7 @@ def draw_example(example, note="", params=None):
     return fig
 
 
-def draw_overview(examples, label, pooled, first=1, total=None):
+def draw_overview(examples, label, pooled, first=1, total=None, whole=False):
     """One page of a label's samples, stacked, with their segmentation."""
     rows = len(examples)
     fig, axes = plt.subplots(rows, 1, figsize=(9, OVERVIEW_ROW_IN * rows + 0.8),
@@ -435,7 +458,9 @@ def draw_overview(examples, label, pooled, first=1, total=None):
     span = f"samples {first}\u2013{last}" + (f" of {total}" if total else "")
     title = f"{label}, {span}. The count on the right is the syllables."
     period = pooled.get("period")
-    if period:
+    if whole:
+        title = f"{label}, {span}. Not segmented."
+    elif period:
         title += f" Pooled period {period * 1000:.0f} ms."
     else:
         title += " Period measured on each sample."
@@ -522,6 +547,12 @@ class SyllableSegmentationPanel:
                                               width=170)
         self.label_select.param.watch(self._on_label_change, "value")
 
+        self.segment_toggle = pn.widgets.Checkbox(
+            name="Segment this label", value=True, width=160,
+        )
+        self.segment_toggle.param.watch(self._on_segment_label_change, "value")
+        self.whole_note = pn.pane.HTML("", margin=(0, 0, 6, 0))
+
         self.overview_toggle = pn.widgets.Checkbox(
             name="Show all samples of this label", value=False, width=240,
         )
@@ -552,6 +583,9 @@ class SyllableSegmentationPanel:
         )
         self.example_row = pn.Row(
             self.label_select, pn.Spacer(width=20),
+            pn.Column(_with_hint(self.segment_toggle, WHOLE_HELP),
+                      align="end", margin=(20, 0, 0, 0)),
+            pn.Spacer(width=20),
             pn.Column(self.overview_toggle, align="end", margin=(20, 0, 0, 0)),
             sizing_mode="stretch_width",
         )
@@ -562,6 +596,7 @@ class SyllableSegmentationPanel:
             self.settings_row,
             _section("Preview"),
             self.example_row,
+            self.whole_note,
             self.page_row,
             self.preview,
             sizing_mode="stretch_width",
@@ -640,12 +675,29 @@ class SyllableSegmentationPanel:
         self.duration_input.value = float(params["min_syllable_duration"])
         self.pool_toggle.value = pools_period(self.controler.config)
         self._sync_pool_visibility()
+        self._sync_segment_toggle()
 
     def _write_config(self):
         section = self.controler.config.data.setdefault("segmentation", {})
         section["group_syllables"] = self.target_select.value == "repeated unit"
         section["min_syllable_duration"] = float(self.duration_input.value)
         section["pool_period"] = bool(self.pool_toggle.value)
+
+    def _whole_labels(self):
+        return unsegmented_labels(self.controler.config)
+
+    def _sync_segment_toggle(self):
+        whole = self._whole_labels()
+        self.segment_toggle.value = str(self.label_select.value) not in whole
+        self.segment_toggle.disabled = self.label_select.value is None
+        self.whole_note.object = _note(
+            "Not segmented: " + ", ".join(sorted(whole))) if whole else ""
+
+    def _set_whole(self, label, whole):
+        section = self.controler.config.data.setdefault("segmentation", {})
+        labels = set(map(str, section.get("unsegmented_labels", []) or []))
+        labels = labels | {str(label)} if whole else labels - {str(label)}
+        section["unsegmented_labels"] = sorted(labels)
 
     def _sync_pool_visibility(self):
         grouped = self.target_select.value == "repeated unit"
@@ -707,7 +759,23 @@ class SyllableSegmentationPanel:
         if self._loading_options:
             return
         self._page = 0
+        self._sync_label_toggle()
         self._draw_selected()
+
+    def _sync_label_toggle(self):
+        self._loading_options = True
+        try:
+            self._sync_segment_toggle()
+        finally:
+            self._loading_options = False
+
+    def _on_segment_label_change(self, event):
+        if self._loading_options or self.label_select.value is None:
+            return
+        self._set_whole(self.label_select.value, not event.new)
+        self._sync_label_toggle()
+        if self.expanded.visible and self._state == "ready":
+            self._draw_selected(keep_phrase=True)
 
     def _on_overview_change(self, event):
         self._page = 0
@@ -771,6 +839,7 @@ class SyllableSegmentationPanel:
         if candidates is None or not len(candidates):
             self._candidates = None
             self._set_options(self.label_select, [], None)
+            self._sync_label_toggle()
             self._example = None
             self._clear_preview("No labelled phrase to show for this model.",
                                 "#d97706")
@@ -779,6 +848,7 @@ class SyllableSegmentationPanel:
         self._candidates = candidates
         self._set_options(self.label_select, label_options(candidates),
                           opening_label(candidates))
+        self._sync_label_toggle()
         self._draw_selected()
 
     def _draw_selected(self, keep_phrase=False):
@@ -787,15 +857,17 @@ class SyllableSegmentationPanel:
 
         label = self.label_select.value
         params = self._params()
+        whole = str(label) in self._whole_labels()
         self.page_row.visible = bool(self.overview_toggle.value)
         failure = None
         try:
             pooled = (pooled_for_label(self._candidates, label, params)
-                      if pools_period(self.controler.config) else {})
+                      if pools_period(self.controler.config) and not whole else {})
             if self.overview_toggle.value:
-                figure = self._overview_figure(label, params, pooled)
+                figure = self._overview_figure(label, params, pooled, whole)
             else:
-                figure = self._single_figure(label, params, pooled, keep_phrase)
+                figure = self._single_figure(label, params, pooled, keep_phrase,
+                                             whole)
         except Exception as error:
             logger.exception("Segmentation preview failed")
             failure = f"Preview failed: {error}"
@@ -814,14 +886,15 @@ class SyllableSegmentationPanel:
         ]
         self.status.object = ""
 
-    def _overview_figure(self, label, params, pooled):
+    def _overview_figure(self, label, params, pooled, whole=False):
         examples, total = phrases_of_label(self._candidates, label, params,
-                                           pooled, offset=self._page * PAGE_SIZE)
+                                           pooled, offset=self._page * PAGE_SIZE,
+                                           whole=whole)
         # a label with fewer samples than the page we were on
         if not examples and self._page:
             self._page = 0
             examples, total = phrases_of_label(self._candidates, label, params,
-                                               pooled)
+                                               pooled, whole=whole)
         if not examples:
             self.page_row.visible = False
             self._example = None
@@ -829,17 +902,22 @@ class SyllableSegmentationPanel:
         self._example = examples[0]
         self._show_page(len(examples), total)
         return draw_overview(examples, label, pooled,
-                             first=self._page * PAGE_SIZE + 1, total=total)
+                             first=self._page * PAGE_SIZE + 1, total=total,
+                             whole=whole)
 
-    def _single_figure(self, label, params, pooled, keep_phrase):
-        if keep_phrase and self._example is not None:
+    def _single_figure(self, label, params, pooled, keep_phrase, whole=False):
+        if keep_phrase and self._example is not None and whole:
+            self._example = _whole(self._example)
+        elif keep_phrase and self._example is not None:
             segments, _ = segment_signal(
                 self._example["signal"], self._example["sr"], **params,
                 period=pooled.get("period"),
             )
             self._example = {**self._example, "segments": segments}
         else:
-            self._example = phrase_for_label(self._candidates, label, params, pooled)
+            self._example = phrase_for_label(self._candidates, label, params, pooled,
+                                             whole=whole)
         if not self._example:
             return None
-        return draw_example(self._example, self._preview_note(params), params)
+        return draw_example(self._example, self._preview_note(params), params,
+                            whole=whole)

@@ -89,6 +89,12 @@ def untouched_labels(config):
     return labels
 
 
+def unsegmented_labels(config):
+    """Labels the user chose to keep whole, such as a phrase made of one syllable."""
+    section = getattr(config, "segmentation", None) or {}
+    return {str(label) for label in section.get("unsegmented_labels", []) or []}
+
+
 def _pool_periods(corpus, params, untouched):
     """First pass: what each phrase says about its label, pooled per label.
 
@@ -169,7 +175,7 @@ def to_syllable_level(corpus):
     the phrase bounds, so merging the syllables back does not restore them.
 
     Labels listed by ``untouched_labels`` — the silence tag, TRASH, calls —
-    are copied over untouched.
+    and by ``unsegmented_labels`` are copied over untouched.
 
     Raises AlreadySegmented if the corpus has already been through it: Otsu
     assumes an alternation of song and silence, which an isolated syllable does
@@ -179,7 +185,7 @@ def to_syllable_level(corpus):
     pool_period = pools_period(corpus.config)
     annots = getattr(corpus.config, "transforms", None)
     annots = getattr(annots, "annots", None) if annots is not None else None
-    untouched = untouched_labels(corpus.config)
+    untouched = untouched_labels(corpus.config) | unsegmented_labels(corpus.config)
 
     _check_not_segmented(corpus, annots)
 
