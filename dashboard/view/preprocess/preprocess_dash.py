@@ -22,6 +22,16 @@ logger = logging.getLogger("canapy")
 
 MAX_SAMPLE_DISPLAY = 10
 
+# a card needs ~760px; at least half the width each caps the grid at two columns
+SAMPLE_GRID_CSS = """
+:host {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, max(760px, calc(50% - 8px))), 1fr));
+    column-gap: 16px;
+    align-items: start;
+}
+"""
+
 PREPROCESS_CSS = """
 :host {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -1496,7 +1506,7 @@ class SampleListView(SubDash):
         self._syncing = False
         n = len(self.sliced_df)
         self._n_pages = max(1, -(-n // self.PAGE_SIZE))
-        self._container = pn.Column(sizing_mode="stretch_width")
+        self._container = pn.Column(sizing_mode="stretch_width", stylesheets=[SAMPLE_GRID_CSS])
 
         # a correction rebuilt the corpus: reopen on the sample that was on
         # screen rather than on page 1 (see dashboard/view/ordering.py)
