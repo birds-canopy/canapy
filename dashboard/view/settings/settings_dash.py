@@ -79,6 +79,11 @@ SETTINGS_CSS = """
     margin-top: 18px;
     margin-bottom: 10px;
 }
+.settings-column-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: #1e293b;
+}
 """
 
 PARAM_HELP = {
@@ -802,7 +807,19 @@ class SettingsDashboard(SubDash):
             min_width=260,
         )
 
+        def _column_title(title):
+            return pn.pane.HTML(f"<div class='settings-column-title'>{title}</div>",
+                                sizing_mode="stretch_width", margin=(0, 0, 12, 0))
+
+        files_column = pn.Column(
+            _column_title("Manage config file"),
+            species_card,
+            sizing_mode="stretch_width",
+            min_width=260,
+        )
+
         params_column = pn.Column(
+            _column_title("Config settings"),
             species_params_card,
             hp_card,
             self.btn_apply,
@@ -843,7 +860,7 @@ class SettingsDashboard(SubDash):
             intro_banner,
             pn.Spacer(height=16),
             pn.Row(
-                species_card,
+                files_column,
                 pn.Spacer(width=24),
                 params_column,
                 sizing_mode="stretch_width",
@@ -851,6 +868,7 @@ class SettingsDashboard(SubDash):
             pn.Spacer(height=40),
             sizing_mode="stretch_width",
             max_width=1400,
+            stylesheets=[":host { margin-left: auto !important; margin-right: auto !important; }"],
         )
 
         self.layout = pn.Row(

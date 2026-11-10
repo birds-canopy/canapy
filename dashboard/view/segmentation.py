@@ -76,10 +76,6 @@ SEGMENTATION_CSS = """
     color: #374151;
     line-height: 1.5;
 }
-.seg-hint {
-    font-size: 12px;
-    color: #9ca3af;
-}
 .seg-details .bk-panel-models-layout-Card {
     border: none;
 }
@@ -139,11 +135,6 @@ POOL_HELP = (
 DURATION_HELP = "Shorter sounds are discarded as clicks rather than syllables."
 
 MODEL_HELP = "The model whose predictions are segmented, here and at export."
-
-EXPORT_HINT = (
-    "Export Segmented Annotations writes both levels. See What this does."
-)
-
 
 def _toggle_btn_css(opened=False):
     angle = "90deg" if opened else "0deg"
@@ -550,10 +541,6 @@ class SyllableSegmentationPanel:
         # model is built while it still holds no figure
         self.preview = pn.Column(sizing_mode="stretch_width")
         self.status = pn.pane.HTML("", margin=(4, 0, 0, 0))
-        self.footnote = pn.pane.HTML(
-            f"<div class='seg-hint'>{EXPORT_HINT}</div>",
-            margin=(10, 0, 0, 2), sizing_mode="stretch_width",
-        )
 
         self.settings_row = pn.Row(
             self.model_select, pn.Spacer(width=20),
@@ -577,7 +564,6 @@ class SyllableSegmentationPanel:
             self.example_row,
             self.page_row,
             self.preview,
-            self.footnote,
             sizing_mode="stretch_width",
         )
 
