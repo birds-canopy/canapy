@@ -40,6 +40,7 @@ class EvalDashboard(SubDash):
         self.sidebar = SideBar(self, "eval")
         self.merge_dashboard = ClassMergeDashboard(self)
         self.sample_dashboard = SampleCorrectionDashboard(self)
+        self.outlier_tool = None  # (built when its tab is first shown)
 
         self.header = pn.Row(
             pn.Column(
@@ -60,7 +61,7 @@ class EvalDashboard(SubDash):
 
         self.pane_selection = pn.widgets.RadioButtonGroup(
             name="Pane Selection", 
-            options=["Class merge", "Sample correction"],
+            options=["Class merge", "Sample correction", "Outliers"],
             button_type="default",
             button_style="outline",
             align="center"
@@ -233,8 +234,19 @@ class EvalDashboard(SubDash):
 
         threading.Thread(target=run, daemon=True).start()
 
+    def refresh_after_outlier_save(self):
+        """After a save in the Outliers tab: the other tools show the corrected labels."""
+        self.sample_dashboard._refresh_after_annot_save()
+        self.merge_dashboard.corrector.rebuild_grid()
+
     def on_switch_panel(self, events):
         if self.pane_selection.value == "Class merge":
             self.layout[1][3] = self.merge_dashboard.layout
+        elif self.pane_selection.value == "Outliers":
+            if self.outlier_tool is None:
+                from ..preprocess.outliers import OutlierTool
+
+                self.outlier_tool = OutlierTool(self)
+            self.layout[1][3] = self.outlier_tool.layout
         else:
             self.layout[1][3] = self.sample_dashboard.layout
