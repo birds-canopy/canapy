@@ -1,9 +1,13 @@
 # Licence: BSD-3-Clause
 """Annotated segments whose label does not match their neighbourhood.
 
-Each segment (silences excepted) is described by its mean MFCC over its frames
-(the static coefficients, standardized), and this description is embedded in a
-low dimensional space by UMAP. A segment is an outlier when
+Each segment (silences excepted) is described by the mean and the standard
+deviation over its frames of its MFCC and their deltas (the features of the
+annotators), and by its log duration, standardized; this description is
+embedded in a low dimensional space by UMAP. (On marron1, against the
+corrections of its Zenodo annotations, it finds more of the relabeled segments
+than the mean of the static MFCC alone, with fewer segments flagged, and
+estimates the shift of the shifted files more closely.) A segment is an outlier when
 
 - none of its ``neighbors`` nearest segments has its label,
 - the nearest segment of its label is further than for ``percentile`` % of the
@@ -41,6 +45,8 @@ SHIFT_STEP = 0.05
 
 # resource of the corpus holding the MFCC of each file (see compute_mfcc)
 MFCC_RESOURCE = "syn_mfcc"
+# s, floor of the durations of the segments (log duration of the empty ones)
+MIN_DURATION = 0.005
 
 
 def outliers_params(config):
@@ -67,7 +73,7 @@ def _segments(corpus):
 
 
 def _file_features(corpus):
-    """{notated_path: static MFCC (n_mfcc, n_frames)} of the files of the corpus.
+    """{notated_path: features (n_features, n_frames)} of the files of the corpus.
 
     The MFCC are those used to train the annotators (``syn_mfcc`` resource),
     computed and stored in the spectrogram directory of the corpus if missing.
@@ -80,10 +86,6 @@ def _file_features(corpus):
     feature_paths = dict(zip(registry["notated_path"].astype(str),
                              registry["feature_path"]))
 
-    audio_config = corpus.config.transforms.audio
-    # static coefficients only: the deltas, stacked after them, average to ~0
-    n_static = audio_config.n_mfcc if "mfcc" in audio_config.audio_features else None
-
     features = {}
     for notated_path in _segments(corpus)["notated_path"].unique():
         feature_path = Path(feature_paths[str(notated_path)])
@@ -91,12 +93,13 @@ def _file_features(corpus):
             feature_path = feature_path.with_name(feature_path.name + ".npz")
         archive = np.load(str(feature_path))
         feature = archive["feature"].squeeze()
-        features[notated_path] = feature[:n_static] if n_static else feature
+        features[notated_path] = feature
     return features
 
 
-def _mean_features(segments, features, config, shift=0.0):
-    """Mean of the features over the frames of each segment (n_segments, n_features).
+def _segment_features(segments, features, config, shift=0.0):
+    """Mean and standard deviation of the features over the frames of each segment,
+    and its log duration (n_segments, 2 n_features + 1).
 
     The annotation times are shifted by ``shift`` seconds (kept in the file).
     """
@@ -105,14 +108,18 @@ def _mean_features(segments, features, config, shift=0.0):
     onsets = seconds_to_frames(segments["onset_s"].to_numpy() + shift, hop, sampling_rate)
     offsets = seconds_to_frames(segments["offset_s"].to_numpy() + shift, hop, sampling_rate)
 
-    means = []
-    for path, onset, offset in zip(segments["notated_path"], onsets, offsets):
+    durations = np.maximum(
+        segments["offset_s"].to_numpy() - segments["onset_s"].to_numpy(), MIN_DURATION
+    )
+    rows = []
+    for path, onset, offset, duration in zip(segments["notated_path"], onsets, offsets, durations):
         feature = features[path]
         n_frames = feature.shape[1]
         start = int(np.clip(onset, 0, n_frames - 1))
         end = int(np.clip(offset, start + 1, n_frames))
-        means.append(feature[:, start:end].mean(axis=1))
-    return np.array(means)
+        frames = feature[:, start:end]
+        rows.append(np.concatenate([frames.mean(axis=1), frames.std(axis=1), [np.log(duration)]]))
+    return np.array(rows)
 
 
 def _embed(X, n_components, seed):
@@ -189,7 +196,7 @@ def find_outliers(corpus, params=None, seed=None):
         raise ValueError("At least two annotated segments are needed.")
 
     X = StandardScaler().fit_transform(
-        _mean_features(segments, _file_features(corpus), corpus.config)
+        _segment_features(segments, _file_features(corpus), corpus.config)
     )
     labels = segments["label"].to_numpy().astype(str)
 
@@ -249,10 +256,10 @@ def find_shifted_files(corpus, outliers, params=None):
 
     segments = _segments(corpus)
     features = _file_features(corpus)
-    scaler = StandardScaler().fit(_mean_features(segments, features, corpus.config))
+    scaler = StandardScaler().fit(_segment_features(segments, features, corpus.config))
     others = segments[~segments["notated_path"].isin(suspicious)]
     knn = KNeighborsClassifier(n_neighbors=min(params["neighbors"], len(others))).fit(
-        scaler.transform(_mean_features(others, features, corpus.config)),
+        scaler.transform(_segment_features(others, features, corpus.config)),
         others["label"].astype(str),
     )
 
@@ -265,7 +272,7 @@ def find_shifted_files(corpus, outliers, params=None):
         labels = file_segments["label"].astype(str).to_numpy()
         accuracy = np.array([
             np.mean(knn.predict(scaler.transform(
-                _mean_features(file_segments, features, corpus.config, shift))) == labels)
+                _segment_features(file_segments, features, corpus.config, shift))) == labels)
             for shift in shifts
         ])
         best = int(np.argmax(accuracy))

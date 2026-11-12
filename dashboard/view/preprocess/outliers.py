@@ -131,8 +131,15 @@ class OutlierTool(SubDash):
         self.percentile_input = pn.widgets.FloatInput(
             name="Percentile", value=params["percentile"], start=50.0, end=100.0, step=0.5, width=110
         )
+        self.dimension_input = pn.widgets.RadioButtonGroup(
+            name="UMAP", options={"2D": 2, "3D": 3},
+            value=3 if params["n_components"] >= 3 else 2, button_type="default",
+            button_style="outline", width=110, align="end",
+        )
         params_tooltip = custom_tooltip(
-            "Each segment is described by its mean MFCC, embedded in 3D by UMAP.\n"
+            "Each segment is described by the mean and deviation of its MFCC and their\n"
+            "deltas, and its duration, embedded in 2D or 3D by UMAP\n"
+            "(the two give different outliers: a 2D UMAP is not a projection of the 3D one).\n"
             "A segment is an outlier when:\n"
             "- none of its 'Neighbors' nearest segments has its label,\n"
             "- the nearest segment of its label is further than for 'Percentile' %\n"
@@ -180,6 +187,9 @@ class OutlierTool(SubDash):
                 self.neighbors_input,
                 self.min_other_input,
                 self.percentile_input,
+                pn.Column(pn.pane.Markdown("UMAP", margin=(0, 5, 2, 5),
+                                           styles={"font-size": "13px"}),
+                          self.dimension_input),
                 params_tooltip,
                 pn.Spacer(width=10),
                 self.detect_btn,
@@ -204,7 +214,8 @@ class OutlierTool(SubDash):
         n_segments = int((self.controler.corpus.dataset["label"]
                           != self.controler.config.transforms.annots.silence_tag).sum())
         self.status.object = (
-            f"Embedding the mean MFCC of {n_segments} segments (UMAP), "
+            f"Embedding the MFCC of {n_segments} segments "
+            f"(UMAP in {self.dimension_input.value}D), "
             "this can take a few minutes..."
         )
         params = {
@@ -212,6 +223,7 @@ class OutlierTool(SubDash):
             "neighbors": self.neighbors_input.value,
             "min_other": self.min_other_input.value,
             "percentile": self.percentile_input.value,
+            "n_components": self.dimension_input.value,
         }
 
         def run():
@@ -286,7 +298,8 @@ class OutlierTool(SubDash):
         return styles
 
     def _update_plot(self):
-        """The 3D UMAP of the segments, the outliers as diamonds (a click shows them)."""
+        """The UMAP of the segments (2D or 3D, that of the detection), the outliers as
+        diamonds (a click shows them)."""
         result = self.result
         labels = sorted(result["label"].unique())
         self.colors = dict(zip(labels, _palette(len(labels))))
@@ -296,30 +309,44 @@ class OutlierTool(SubDash):
                                                     result["onset_s"])]
         result = result.assign(text=text)
 
+        three_d = "umap_2" in result
+        trace = go.Scatter3d if three_d else go.Scattergl
+        size, outlier_size = (2, 5) if three_d else (4, 10)
+
+        def coordinates(points):
+            xyz = dict(x=points["umap_0"], y=points["umap_1"])
+            return {**xyz, "z": points["umap_2"]} if three_d else xyz
+
         fig = go.Figure()
         for label in labels:
             points = result[(result["label"] == label) & ~result["outlier"]]
-            fig.add_trace(go.Scatter3d(
-                x=points["umap_0"], y=points["umap_1"], z=points["umap_2"], mode="markers",
+            fig.add_trace(trace(
+                **coordinates(points), mode="markers",
                 name=label, legendgroup=label, text=points["text"], hoverinfo="text",
-                marker=dict(size=2, color=self.colors[label], opacity=0.4),
+                marker=dict(size=size, color=self.colors[label], opacity=0.4),
             ))
         outliers = result[result["outlier"]]
-        fig.add_trace(go.Scatter3d(
-            x=outliers["umap_0"], y=outliers["umap_1"], z=outliers["umap_2"], mode="markers",
+        fig.add_trace(trace(
+            **coordinates(outliers), mode="markers",
             name="outliers", text=outliers["text"], hoverinfo="text",
             customdata=outliers["key"],
-            marker=dict(size=5, symbol="diamond", color=outliers["label"].map(self.colors),
+            marker=dict(size=outlier_size, symbol="diamond",
+                        color=outliers["label"].map(self.colors),
                         line=dict(color="black", width=2), opacity=1.0),
         ))
+        hidden = dict(visible=False)
         fig.update_layout(
             height=520, margin=dict(l=0, r=0, t=30, b=0),
-            title=dict(text="UMAP of the segments (diamonds: outliers, click one to see it)",
+            title=dict(text=f"UMAP of the segments in {'3D' if three_d else '2D'} "
+                            "(diamonds: outliers, click one to see it)",
                        font=dict(size=13)),
-            scene=dict(xaxis=dict(visible=False), yaxis=dict(visible=False),
-                       zaxis=dict(visible=False)),
             legend=dict(itemsizing="constant"),
+            plot_bgcolor="white",
         )
+        if three_d:
+            fig.update_layout(scene=dict(xaxis=hidden, yaxis=hidden, zaxis=hidden))
+        else:
+            fig.update_layout(xaxis=hidden, yaxis=hidden)
         plot = pn.pane.Plotly(fig, height=520, sizing_mode="stretch_width")
         plot.param.watch(self._on_plot_click, "click_data")
         self.plot_area.objects = [plot]
