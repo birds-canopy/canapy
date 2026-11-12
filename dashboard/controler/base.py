@@ -426,6 +426,46 @@ class Controler:
             logger.warning(f"High silence ratio: {pct_str}")
         return ratio
 
+    def shift_file_annotations(self, notated_path, shift):
+        """Shift in time all the annotations of a file by ``shift`` seconds (annotations
+        translated in time), kept within the audio: the annotations moved out of it are
+        removed. The label corrections not saved yet of this file follow their segment.
+
+        Returns the number of annotations of the file after the shift.
+        """
+        import soundfile as sf
+        from canapy.correction import make_annot_key, match_annotation
+
+        notated_path = str(notated_path)
+        df = self.corpus.dataset.copy()
+        rows = df["notated_path"].astype(str) == notated_path
+        duration = sf.info(notated_path).duration
+        df.loc[rows, "onset_s"] = (df.loc[rows, "onset_s"] + shift).clip(0.0, duration)
+        df.loc[rows, "offset_s"] = (df.loc[rows, "offset_s"] + shift).clip(0.0, duration)
+        time_precision = self.config.transforms.annots.time_precision
+        removed = rows & ((df["offset_s"] - df["onset_s"]) < time_precision)
+        df = df[~removed]
+
+        # the label corrections of the file follow their segment (keyed by its onset)
+        before = self.corpus.dataset
+        annots = self._correction_store.get("annot", {})
+        for key in list(annots):
+            match = match_annotation(before, key, time_precision)
+            if len(match) and str(before.loc[match[0], "notated_path"]) == notated_path:
+                onset = float(before.loc[match[0], "onset_s"])
+                new_key = make_annot_key(notated_path, min(max(onset + shift, 0.0), duration))
+                annots[new_key] = annots.pop(key)
+
+        self.corpus = self.corpus.clone_with_df(df.reset_index(drop=True))
+        self._repertoire_cache.clear()
+        self.compute_classes()
+        n_left = int((df["notated_path"].astype(str) == notated_path).sum())
+        logger.info(
+            f"Annotations of {Path(notated_path).name} shifted by {shift:+.3f} s "
+            f"({int(removed.sum())} moved out of the audio and removed, {n_left} left)."
+        )
+        return n_left
+
     def apply_live_corrections(self, corrections, target):
         self.upload_corrections(corrections, target)
 

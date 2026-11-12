@@ -174,7 +174,8 @@ def display_dashboard(
         if has_output and (cwd / "config").is_dir():
             working_directory = cwd
 
-    pn.extension(notifications=True)
+    # (plotly: the 3D map of the outliers, created after the page is loaded)
+    pn.extension("plotly", "tabulator", notifications=True)
 
     dashboard = CanapyDashboard(
         annots_directory=annots_directory,

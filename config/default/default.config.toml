@@ -69,3 +69,12 @@ hop=0.0005 # seconds
 eta2_min=0.5
 group_syllables=false # true : the syllable is the repeated unit, not the acoustic element
 pool_period=true # the repetition period is estimated per label, not per phrase
+
+[outliers]
+neighbors=10 # nearest segments of each segment in the embeddings
+min_other=8 # neighbors sharing a single other label, at least
+percentile=99 # nearest segment of the same label further than for this % of the segments
+n_components=3 # of the UMAP embedding
+min_file_agreement=0.5 # files whose segments sound like their label less often: shifted?
+max_shift=2.0 # seconds, shifts of the annotations tried for these files
+shift_step=0.05 # seconds

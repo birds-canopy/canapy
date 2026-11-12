@@ -239,7 +239,7 @@ class PreprocessDashboard(SubDash):
         )
         self.pane_selection = pn.widgets.RadioButtonGroup(
             name="Pane Selection",
-            options=["Class Merge", "Sample Correction"],
+            options=["Class Merge", "Sample Correction", "Outliers"],
             button_type="default",
             button_style="outline",
             align="center",
@@ -248,6 +248,7 @@ class PreprocessDashboard(SubDash):
         self.pane_selection.param.watch(self.on_switch_panel, "value")
         self.merge_tool = MergeTool(self)
         self.correction_tool = CorrectionTool(self)
+        self.outlier_tool = None  # (built when its tab is first shown)
         self.content_area = pn.Column(self.merge_tool.layout, sizing_mode="stretch_both")
         trim_section = self._build_trim_section()
         spec_section = self._build_class_spectrogram_section()
@@ -565,9 +566,20 @@ class PreprocessDashboard(SubDash):
 
         threading.Thread(target=run, daemon=True).start()
 
+    def refresh_after_outlier_save(self):
+        """After a save in the Outliers tab: the other tools show the corrected labels."""
+        self.correction_tool._refresh_after_annot_save()
+        self.merge_tool.corrector.rebuild_grid()
+
     def on_switch_panel(self, event):
         if event.new == "Class Merge":
             self.content_area[:] = [self.merge_tool.layout]
+        elif event.new == "Outliers":
+            if self.outlier_tool is None:
+                from .outliers import OutlierTool
+
+                self.outlier_tool = OutlierTool(self)
+            self.content_area[:] = [self.outlier_tool.layout]
         else:
             self.correction_tool.refresh_selectors()
             self.content_area[:] = [self.correction_tool.layout]
